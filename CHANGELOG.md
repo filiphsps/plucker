@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/filiphsps/plucker/compare/plucker-v0.6.0...plucker-v0.7.0) (2026-06-01)
+
+
+### Features
+
+* **log:** structured, variadic developer-console logging ([f530288](https://github.com/filiphsps/plucker/commit/f530288d3beed8ac6fcfc81aca730790a8cf338d))
+
 ## [0.6.0](https://github.com/filiphsps/plucker/compare/plucker-v0.5.0...plucker-v0.6.0) (2026-06-01)
 
 ### Features
