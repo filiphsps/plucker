@@ -19,6 +19,8 @@ export interface TrackRowData {
   /** Mono duration string for the history variant, e.g. "3:32". */
   duration?: string
   reason?: string
+  /** Machine error code for a failure (e.g. yt-dlp exit code), preferred over `reason` in tooltips. */
+  errorCode?: string
   videoId?: string
   /** Audio-content hash; cache key for the expanded metadata panel. */
   hash?: string
@@ -31,6 +33,9 @@ export interface TrackRowData {
 }
 
 const METER_CELLS = 14
+
+const ERR_LABEL =
+  'self-center font-mono text-[9px] uppercase leading-3 tracking-[1px] text-ink-faint select-none'
 
 function Meter({ value, done }: { value: number; done?: boolean }): React.JSX.Element {
   const filled = Math.round((value / 100) * METER_CELLS)
@@ -124,6 +129,8 @@ export function TrackRow({
   const failed = track.status === 'failed'
   const unsuccessful =
     track.status === 'failed' || track.status === 'cancelled' || track.status === 'skipped'
+  // Error code or message, in that order — shown on the failed cover and in the expanded panel.
+  const errorText = track.errorCode ?? track.reason
   const subtitle = missing
     ? t('history.missing')
     : unsuccessful
@@ -186,6 +193,25 @@ export function TrackRow({
     </span>
   )
 
+  const coverBox = (
+    <div
+      className={
+        'flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-[5px] border bg-[#23272e] ' +
+        (failed || missing ? 'border-warn/30' : 'border-line')
+      }
+    >
+      {coverUrl ? (
+        <img src={coverUrl} alt={t('track.coverAlt')} className="h-full w-full object-cover" />
+      ) : missing ? (
+        <AlertTriangle size={15} className="text-warn" />
+      ) : failed ? (
+        <X size={15} className="text-bad" />
+      ) : (
+        <Music size={15} className="text-ink-faint" />
+      )}
+    </div>
+  )
+
   const highlight = (variant === 'download' && active) || (variant === 'cache' && editing)
   const qualityText = resolvedMeta?.audio.bitrateKbps
     ? `${resolvedMeta.audio.bitrateKbps} · ${(resolvedMeta.audio.codec ?? 'mp3').toUpperCase()}`
@@ -220,22 +246,8 @@ export function TrackRow({
         <span className="w-[22px] text-center font-mono text-[11px] text-ink-faint">
           {String(index).padStart(2, '0')}
         </span>
-        <div
-          className={
-            'flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-[5px] border bg-[#23272e] ' +
-            (failed || missing ? 'border-warn/30' : 'border-line')
-          }
-        >
-          {coverUrl ? (
-            <img src={coverUrl} alt={t('track.coverAlt')} className="h-full w-full object-cover" />
-          ) : missing ? (
-            <AlertTriangle size={15} className="text-warn" />
-          ) : failed ? (
-            <X size={15} className="text-bad" />
-          ) : (
-            <Music size={15} className="text-ink-faint" />
-          )}
-        </div>
+        {/* On a failed track the red X carries the error code (or message) as a tooltip. */}
+        {failed && errorText ? <Tooltip label={errorText}>{coverBox}</Tooltip> : coverBox}
         <button
           type="button"
           disabled={!track.file || missing}
@@ -299,18 +311,37 @@ export function TrackRow({
         )}
       </div>
 
-      {isOpen && (
-        <TrackDetail
-          key={editing ? 'edit' : 'view'}
-          meta={resolvedMeta}
-          source={source}
-          file={track.file}
-          state={detailState}
-          editing={editing}
-          onSave={onSaveTags}
-          onCancel={onCancelEdit}
-        />
-      )}
+      {isOpen &&
+        (failed ? (
+          <div className="flex flex-col gap-2 bg-gradient-to-b from-bad/[0.07] to-transparent px-4 pb-4 pt-3.5">
+            <div className="font-mono text-[9px] uppercase leading-3 tracking-[1px] text-bad select-none">
+              {t('error.heading')}
+            </div>
+            <div className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5">
+              {track.errorCode && (
+                <>
+                  <span className={ERR_LABEL}>{t('error.code')}</span>
+                  <span className="font-mono text-[12px] text-ink">{track.errorCode}</span>
+                </>
+              )}
+              <span className={ERR_LABEL}>{t('error.message')}</span>
+              <span className="font-mono text-[12px] break-words text-ink-dim">
+                {track.reason ?? t('error.none')}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <TrackDetail
+            key={editing ? 'edit' : 'view'}
+            meta={resolvedMeta}
+            source={source}
+            file={track.file}
+            state={detailState}
+            editing={editing}
+            onSave={onSaveTags}
+            onCancel={onCancelEdit}
+          />
+        ))}
     </div>
   )
 }

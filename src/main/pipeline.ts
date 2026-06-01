@@ -235,6 +235,7 @@ export function toHistoryTracks(
         ? t.status
         : 'failed') as HistoryTrack['status'],
       reason: t.reason,
+      errorCode: t.errorCode,
       videoId: t.videoId
     }
   })
@@ -475,6 +476,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     if (!downloaded) {
       t.status = 'failed'
       t.reason = dl.errors[dl.errors.length - 1]?.message ?? 'Download failed'
+      if (dl.code) t.errorCode = `yt-dlp ${dl.code}`
       log.warn('pipeline', `download failed for "${t.title}": ${t.reason}`)
       t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
       emit()

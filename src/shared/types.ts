@@ -67,6 +67,8 @@ export interface TrackProgress {
   /** Total processing time in ms, set once the track reaches a terminal state. */
   elapsedMs?: number
   reason?: string
+  /** Machine error code for a failure (e.g. yt-dlp exit code), preferred over `reason` in tooltips. */
+  errorCode?: string
   /** Absolute path to the final mp3 once downloaded/tagged (enables reveal-in-folder). */
   file?: string
   videoId?: string
@@ -117,6 +119,8 @@ export interface HistoryTrack {
   file?: string
   /** Failure/skip detail (e.g. yt-dlp error tail, "below minimum quality"). */
   reason?: string
+  /** Machine error code for a failure (e.g. yt-dlp exit code), preferred over `reason` in tooltips. */
+  errorCode?: string
   artist?: string
   album?: string
   year?: string

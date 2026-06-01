@@ -19,6 +19,12 @@ export default {
   track: {
     coverAlt: 'Album cover'
   },
+  error: {
+    heading: 'Error details',
+    code: 'Error code',
+    message: 'Message',
+    none: 'No additional detail provided.'
+  },
   deck: {
     nowPlucking: 'NOW PLUCKING',
     jobProgress: 'JOB PROGRESS',

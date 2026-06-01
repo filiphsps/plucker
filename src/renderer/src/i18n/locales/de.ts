@@ -20,6 +20,12 @@ const de: typeof en = {
   track: {
     coverAlt: 'Albumcover'
   },
+  error: {
+    heading: 'Fehlerdetails',
+    code: 'Fehlercode',
+    message: 'Meldung',
+    none: 'Keine weiteren Angaben verfügbar.'
+  },
   deck: {
     nowPlucking: 'WIRD GELADEN',
     jobProgress: 'FORTSCHRITT',
