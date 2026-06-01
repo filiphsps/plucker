@@ -1,0 +1,51 @@
+import { describe, it, expect } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import '../../i18n'
+import { TrackDetail } from './track-detail'
+import type { TrackMetadata } from '../../../../shared/types'
+
+const META: TrackMetadata = {
+  tags: { artist: 'M83', album: 'Hurry Up', year: '2011' },
+  audio: {
+    codec: 'mp3',
+    bitrateKbps: 320,
+    sampleRateHz: 44100,
+    channels: 2,
+    durationSec: 243,
+    sizeBytes: 10171187
+  }
+}
+
+describe('TrackDetail', () => {
+  it('renders formatted audio specs', () => {
+    const html = renderToStaticMarkup(<TrackDetail meta={META} />)
+    expect(html).toContain('320 kbps')
+    expect(html).toContain('4:03')
+    expect(html).toContain('44.1 kHz')
+    expect(html).toContain('Stereo')
+    expect(html).toContain('9.7 MB')
+  })
+
+  it('omits tag fields that have no value', () => {
+    const html = renderToStaticMarkup(<TrackDetail meta={META} />)
+    expect(html).toContain('M83')
+    // genre + track # absent from META → their labels should not render
+    expect(html).not.toContain('Genre')
+    expect(html).not.toContain('Track #')
+  })
+
+  it('renders the source URL as a link with the protocol stripped', () => {
+    const html = renderToStaticMarkup(
+      <TrackDetail meta={META} source={{ videoId: 'dX3k_QDnzHE' }} />
+    )
+    expect(html).toContain('href="https://www.youtube.com/watch?v=dX3k_QDnzHE"')
+    expect(html).toContain('youtube.com/watch?v=dX3k_QDnzHE')
+    expect(html).toContain('dX3k_QDnzHE') // video id field
+  })
+
+  it('shows a loading state without specs', () => {
+    const html = renderToStaticMarkup(<TrackDetail meta={null} state="loading" />)
+    expect(html).toContain('Reading metadata')
+    expect(html).not.toContain('kbps')
+  })
+})
