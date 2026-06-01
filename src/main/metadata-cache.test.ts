@@ -53,4 +53,49 @@ describe('metadata cache', () => {
     createMetadataCache(nested).writeAudio(HASH, { codec: 'mp3' })
     expect(existsSync(nested)).toBe(true)
   })
+
+  it('stores a track identity block and stamps updatedAt', () => {
+    const c = createMetadataCache(dir)
+    c.writeTrack(HASH, { title: 'Avril 14th', file: '/m/a.mp3', videoId: 'v1' })
+    const entry = c.read(HASH)
+    expect(entry?.track).toEqual({ title: 'Avril 14th', file: '/m/a.mp3', videoId: 'v1' })
+    expect(typeof entry?.updatedAt).toBe('string')
+  })
+
+  it('update merges new tags into mb', () => {
+    const c = createMetadataCache(dir)
+    c.writeAutoTag(HASH, { artist: 'Old', album: 'A' })
+    c.update(HASH, { artist: 'New', genre: 'IDM' })
+    expect(c.read(HASH)?.mb).toEqual({ artist: 'New', album: 'A', genre: 'IDM' })
+  })
+
+  it('list returns one record per entry with hash and hasCover', () => {
+    const c = createMetadataCache(dir)
+    c.writeTrack('h1', { title: 'One' })
+    c.writeAutoTag('h2', { artist: 'Two' }, Buffer.from([1, 2]))
+    const list = c.list()
+    expect(list.map((r) => r.hash).sort()).toEqual(['h1', 'h2'])
+    expect(list.find((r) => r.hash === 'h1')?.hasCover).toBe(false)
+    expect(list.find((r) => r.hash === 'h2')?.hasCover).toBe(true)
+  })
+
+  it('list is empty when the cache directory does not exist', () => {
+    expect(createMetadataCache(join(dir, 'missing')).list()).toEqual([])
+  })
+
+  it('remove deletes the entry and its cover', () => {
+    const c = createMetadataCache(dir)
+    c.writeAutoTag(HASH, { artist: 'X' }, Buffer.from([9]))
+    c.remove(HASH)
+    expect(c.read(HASH)).toBeNull()
+    expect(c.readCover(HASH)).toBeNull()
+  })
+
+  it('clear removes every entry', () => {
+    const c = createMetadataCache(dir)
+    c.writeTrack('h1', { title: 'One' })
+    c.writeTrack('h2', { title: 'Two' })
+    c.clear()
+    expect(c.list()).toEqual([])
+  })
 })

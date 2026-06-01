@@ -108,3 +108,23 @@ export interface TrackMetadata {
   tags: TrackTags
   audio: AudioMeta
 }
+
+/** Last-known display identity of the track that produced a cache entry. */
+export interface CacheTrackIdentity {
+  title?: string
+  file?: string
+  videoId?: string
+}
+
+/** A cached track as surfaced to the cache-manager UI. */
+export interface CachedTrack {
+  hash: string
+  audio?: AudioMeta
+  /** Cached MusicBrainz tags (the editable block). */
+  mb?: TrackTags
+  track?: CacheTrackIdentity
+  updatedAt?: string
+  hasCover: boolean
+  /** Whether the underlying library file still exists on disk. */
+  fileExists: boolean
+}
