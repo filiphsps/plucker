@@ -78,6 +78,29 @@ export async function enrich(
   return { tags, cover }
 }
 
+/**
+ * Cache-first wrapper around {@link enrich}: on a content-hash hit, reuse the
+ * stored MusicBrainz tags + cover and skip the network entirely; on a miss, run
+ * enrich and persist the result for next time.
+ */
+export async function resolveAutoTag(
+  ytNorm: TrackTags,
+  config: AutoTagConfig,
+  services: Pick<TransformServices, 'fetch' | 'log' | 'reportProgress' | 'cache'>,
+  hash: string | undefined
+): Promise<{ tags: TrackTags; cover?: Buffer }> {
+  if (hash && services.cache) {
+    const cached = services.cache.read(hash)
+    if (cached?.mb) {
+      services.reportProgress(0.9)
+      return { tags: cached.mb, cover: services.cache.readCover(hash) ?? undefined }
+    }
+  }
+  const result = await enrich(ytNorm, config, services)
+  if (hash && services.cache) services.cache.writeAutoTag(hash, result.tags, result.cover)
+  return result
+}
+
 const CONFIG_SCHEMA: ConfigField[] = [
   {
     key: 'primarySource',
@@ -149,7 +172,12 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
     }
     // Set a safe baseline first so a skip-on-failure still yields YouTube tags.
     ctx.tags = ytNorm
-    const { tags: mbTags, cover } = await enrich(ytNorm, config, services)
+    const { tags: mbTags, cover } = await resolveAutoTag(
+      ytNorm,
+      config,
+      services,
+      ctx.info.contentHash
+    )
     if (cover) embedCover(ctx.workingFile, cover, 'image/jpeg')
     ctx.tags = mergeTags(ytNorm, mbTags, config.primarySource)
   }

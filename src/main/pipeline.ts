@@ -6,6 +6,9 @@ import { buildDownloadArgs, runYtDlp } from './ytdlp'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
 import { createPool } from './pool'
+import { audioContentHash } from './audio-hash'
+import { probeAudio } from './audio-meta'
+import type { MetadataCache } from './metadata-cache'
 import type { BinaryPaths } from './binaries'
 
 export function destFolderFor(
@@ -90,6 +93,8 @@ export interface RunJobDeps {
   signal?: AbortSignal
   /** When set, download into this exact folder instead of deriving from base/title. */
   folderOverride?: string
+  /** Content-addressed metadata cache; enables reuse of audio probes + auto-tag. */
+  cache?: MetadataCache
 }
 
 export interface JobResult {
@@ -144,7 +149,8 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     bin,
     fetch: deps.mbFetch ?? fetch,
     signal,
-    log: (m: string) => console.warn(m)
+    log: (m: string) => console.warn(m),
+    cache: deps.cache
   }
   const pool = createPool(Math.max(1, settings.performance.parallel))
   const history: HistoryTrack[] = []
@@ -173,6 +179,15 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     const sidecar = readSidecar(sidecarPath)
     const t = findByVideo(sidecar.id) ?? tracks.find((x) => x.status === 'downloading')
     if (!t) return
+    // Hash the audio frames once (tag-independent), so auto-tag + probe can reuse
+    // cached results and history can point straight at the cache entry.
+    let hash: string | undefined
+    try {
+      hash = audioContentHash(readFileSync(filePath))
+      t.hash = hash
+    } catch {
+      /* unreadable download — proceed without a cache key */
+    }
     t.status = 'transforming'
     t.percent = 100
     t.transformPercent = 0
@@ -185,7 +200,8 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
           videoId: sidecar.id,
           rawTitle: sidecar.title ?? t.title,
           sourceFile: filePath,
-          index: t.index
+          index: t.index,
+          contentHash: hash
         },
         enabled,
         registry,
@@ -201,6 +217,11 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
         t.reason = res.reason
       } else {
         if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
+        // Probe technical audio properties once and cache them by content hash;
+        // a cache hit (re-download of identical audio) skips the ffmpeg probe.
+        if (hash && deps.cache && !deps.cache.read(hash)?.audio) {
+          deps.cache.writeAudio(hash, probeAudio(bin.ffmpeg, res.outputFile))
+        }
         t.status = 'done'
         t.file = res.outputFile
         t.artist = res.tags.artist
@@ -214,7 +235,8 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
           artist: res.tags.artist,
           album: res.tags.album,
           year: res.tags.year,
-          videoId: sidecar.id
+          videoId: sidecar.id,
+          hash
         })
       }
       emit()

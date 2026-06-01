@@ -2,6 +2,7 @@
 import type { TrackTags } from '../../shared/types'
 import type { ConfigField } from '../../shared/transforms'
 import type { BinaryPaths } from '../binaries'
+import type { MetadataCache } from '../metadata-cache'
 
 /** Mutable state threaded through a transform chain for one track. */
 export interface TrackContext {
@@ -9,7 +10,14 @@ export interface TrackContext {
   workingFile: string
   /** In-memory tags, last-wins; flushed to the file at commit. */
   tags: TrackTags
-  info: { videoId?: string; rawTitle: string; sourceFile: string; index: number }
+  info: {
+    videoId?: string
+    rawTitle: string
+    sourceFile: string
+    index: number
+    /** Tag-independent audio-content hash; cache key for skipping re-work. */
+    contentHash?: string
+  }
   /** Desired final basename (no extension); set by rename, used at commit. */
   outputName?: string
 }
@@ -22,6 +30,8 @@ export interface TransformServices {
   log: (msg: string) => void
   /** Report 0..1 progress within this transform's step (optional to call). */
   reportProgress: (fraction: number) => void
+  /** Content-addressed metadata cache, used to reuse prior auto-tag results. */
+  cache?: MetadataCache
 }
 
 export interface TransformDefinition<C = Record<string, unknown>> {
