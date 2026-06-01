@@ -54,15 +54,15 @@ jobs:
       # to master so the README images track every release.
       - run: pnpm build:screenshots
 
-      # Upload the DMGs plus the electron-updater metadata (zip + latest-mac.yml) and
-      # the rendered screenshots. nullglob keeps this resilient: if the update metadata
-      # isn't present, only the available assets upload rather than failing the release.
+      # Upload the DMGs plus the electron-updater metadata (zip + latest-mac.yml).
+      # nullglob keeps this resilient: if the update metadata isn't present, only
+      # the available assets upload rather than failing the release.
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
-          assets=(dist/*.dmg dist/*.zip dist/latest-mac.yml .github/img/*.png)
+          assets=(dist/*.dmg dist/*.zip dist/latest-mac.yml)
           gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
 
       # Commit the refreshed screenshots back to master. The release commit (= this tag)
