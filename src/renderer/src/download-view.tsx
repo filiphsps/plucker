@@ -36,7 +36,7 @@ export function DownloadView({
   return (
     <div className="flex h-full flex-col">
       {/* command bar */}
-      <div className="flex gap-2.5 border-b border-line bg-panel2 px-4 py-3">
+      <div className="flex gap-2.5 border-b border-line px-4 py-3">
         <div className="flex flex-1 items-center gap-2.5 rounded-[7px] border border-line bg-[#0a0b0e] px-3">
           <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-accent" />
           <input
@@ -60,7 +60,7 @@ export function DownloadView({
       {progress && (
         <>
           {/* column header */}
-          <div className="flex items-center gap-3 border-b border-line bg-panel2 py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
+          <div className="flex items-center gap-3 border-b border-line py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
             <span className="w-[22px]">#</span>
             <span className="flex-1">{t('download.colTrack')}</span>
             <span className="w-[188px]">{t('download.colProgress')}</span>

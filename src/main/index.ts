@@ -114,7 +114,7 @@ function createWindow(): void {
     // Custom frame: hide the OS title bar but keep the real macOS traffic lights,
     // positioned to sit centered in our 48px toolbar. Our toolbar is the drag region.
     ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 19, y: 18 } }
+      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 19, y: 15 } }
       : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
