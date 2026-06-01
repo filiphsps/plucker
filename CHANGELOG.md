@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.4.0](https://github.com/filiphsps/plucker/compare/plucker-v0.3.0...plucker-v0.4.0) (2026-06-01)
+
+
+### Features
+
+* **audio:** configurable libmp3lame encoding effort (default 7) ([5640e24](https://github.com/filiphsps/plucker/commit/5640e240c9bb7ed96c854aaaf99625e98f567b47))
+* **download:** count failed tracks in the progress counter ([48ddd44](https://github.com/filiphsps/plucker/commit/48ddd44959aa532623e0e9eb38549e87043d6139))
+* **download:** stream per-track stage, speed and elapsed time ([a5a3db9](https://github.com/filiphsps/plucker/commit/a5a3db909673cced4dd2c0169c19af0f4c096095))
+* **download:** surface why a track failed to download ([d5484a1](https://github.com/filiphsps/plucker/commit/d5484a1d5a9ca605c7c7a7f1449367c004e29f67))
+* **metadata:** cache manager IPC ([359cba2](https://github.com/filiphsps/plucker/commit/359cba28c5e39dce4bb00993f8b29663b543b57d))
+* **metadata:** content-addressed audio metadata extraction and cache ([d1dc02f](https://github.com/filiphsps/plucker/commit/d1dc02f963de54c3b86822c95a02a1399e27d40b))
+* **metadata:** expose track metadata, openExternal and filesExist over IPC ([d41f05d](https://github.com/filiphsps/plucker/commit/d41f05d65d1b2d74ae39d37f405d1c249ce5970c))
+* **metadata:** reuse cache to skip redundant work on redownload ([6ba598a](https://github.com/filiphsps/plucker/commit/6ba598a72a12d1bf3d244b9e758d4b383f4864a3))
+* **metadata:** self-describing cache entries with list/update/remove/clear ([c845420](https://github.com/filiphsps/plucker/commit/c8454208e442bc757be3c1bfff253be659690441))
+* **pipeline:** benchmark and log the download pipeline ([63fd839](https://github.com/filiphsps/plucker/commit/63fd8392f975aacea205da69657ab9c8410976dd))
+* **ui:** cache manager page linked from Settings ([55e9630](https://github.com/filiphsps/plucker/commit/55e96304664018f1ade0d9ef513ebf0b639766f4))
+* **ui:** reusable Tooltip, download speed, live stage and done timing ([30ac510](https://github.com/filiphsps/plucker/commit/30ac510de566a4678619fa465c779eb43c051986))
+* **ui:** reusable track-metadata visualizer components ([b5a1f19](https://github.com/filiphsps/plucker/commit/b5a1f1954f7f551649bbf04d26467278b20b3ab3))
+* **ui:** show metadata on track expand and flag missing files ([47c7aef](https://github.com/filiphsps/plucker/commit/47c7aef2d72fefd29316d5330c5484f354fabb4b))
+* **ui:** TrackRow cache variant and tag edit mode ([2180166](https://github.com/filiphsps/plucker/commit/2180166da8cae6745b308aed15bdf2d4b1e80cc3))
+
+
+### Bug Fixes
+
+* **download:** run yt-dlp and ffmpeg off the main-process event loop ([be8352b](https://github.com/filiphsps/plucker/commit/be8352bd032ce4c85880935b9435dc8d6269cf67))
+* **pipeline:** download and transform tracks concurrently ([e865223](https://github.com/filiphsps/plucker/commit/e865223086274b09f2f17bbf3426a67a4fe010d6))
+* **ui:** align audio metadata strip to the standard panel margins ([4cacb9f](https://github.com/filiphsps/plucker/commit/4cacb9f3bb5c565a0defce48e3dd269ef21294cf))
+* **ui:** keep the transport deck visible for History re-downloads ([64bbe1d](https://github.com/filiphsps/plucker/commit/64bbe1d03fbaea9f9cb10d1f9eb54593eb3fd1e6))
+* **ui:** prevent track metadata panel from overflowing horizontally ([3c1d96a](https://github.com/filiphsps/plucker/commit/3c1d96a1a8e50d8aae614e061f3c6437dae0d816))
+
+
+### Performance Improvements
+
+* **metadata:** read MP3 audio specs in-process instead of spawning ffmpeg ([7e62efb](https://github.com/filiphsps/plucker/commit/7e62efb308f56f7370d1754856c7979bfa680952))
+
 ## [0.3.0](https://github.com/filiphsps/plucker/compare/plucker-v0.2.0...plucker-v0.3.0) (2026-06-01)
 
 
