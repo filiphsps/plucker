@@ -27,6 +27,12 @@ export function DownloadView({
     }
   }
 
+  // The single "now plucking" row to highlight — same selection the transport deck uses.
+  const activeIndex = (
+    progress?.tracks.find((x) => x.status === 'downloading' || x.status === 'transforming') ??
+    progress?.tracks.find((x) => x.status === 'queued')
+  )?.index
+
   return (
     <div className="flex h-full flex-col">
       {/* command bar */}
@@ -68,6 +74,7 @@ export function DownloadView({
                 variant="download"
                 index={tr.index}
                 track={tr}
+                active={tr.index === activeIndex}
                 detail={{
                   [t('download.colSource')]: tr.videoId ? `youtube.com/watch?v=${tr.videoId}` : '—',
                   [t('download.colDest')]: tr.file ?? '—'

@@ -111,9 +111,11 @@ function createWindow(): void {
     height: 670,
     show: false,
     autoHideMenuBar: true,
-    // Custom frame: hide the OS title bar but keep the real macOS traffic lights
-    // inset top-left. Our toolbar fills the title area and is the drag region.
-    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
+    // Custom frame: hide the OS title bar but keep the real macOS traffic lights,
+    // positioned to sit centered in our 48px toolbar. Our toolbar is the drag region.
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 19, y: 18 } }
+      : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

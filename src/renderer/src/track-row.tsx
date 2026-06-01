@@ -42,7 +42,8 @@ export function TrackRow({
   index,
   track,
   detail,
-  actions
+  actions,
+  active = false
 }: {
   variant: 'download' | 'history'
   index: number
@@ -51,6 +52,8 @@ export function TrackRow({
   detail?: Record<string, string>
   /** Trailing hover actions (history variant). */
   actions?: React.ReactNode
+  /** Highlight this as the single active ("now plucking") row (download variant). */
+  active?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -99,8 +102,7 @@ export function TrackRow({
     )
   }
 
-  const activeRow =
-    variant === 'download' && (track.status === 'downloading' || track.status === 'transforming')
+  const activeRow = variant === 'download' && active
 
   return (
     <div
