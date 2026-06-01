@@ -45,7 +45,7 @@ export function Logo({
 				...style,
 			}}
 		>
-			P<span style={{ color: accent }}>LU</span>CKER
+			P<span style={{ color: accent }}>L</span>UCKER
 		</span>
 	);
 }
