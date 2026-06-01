@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.1](https://github.com/filiphsps/plucker/compare/plucker-v0.7.0...plucker-v0.7.1) (2026-06-01)
+
+
+### Bug Fixes
+
+* **fetch-binaries:** update yt-dlp source and versioning for arm64 and x64 architectures ([a59d323](https://github.com/filiphsps/plucker/commit/a59d323eae1cb4932a102a1bb7b407cebfff7d18))
+* **pipeline:** stop mislabeling extraction failures as "below minimum quality" ([6ccddaf](https://github.com/filiphsps/plucker/commit/6ccddaf3d7e50f15e3353a4ff99d76c8e89e1a26))
+* **updater:** download macOS updates directly from GitHub, bypassing Squirrel ([6fdd1d9](https://github.com/filiphsps/plucker/commit/6fdd1d9bbd73f8dd0922f369ad197c129b139622))
+
 ## [0.7.0](https://github.com/filiphsps/plucker/compare/plucker-v0.6.0...plucker-v0.7.0) (2026-06-01)
 
 
