@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 
 /**
  * Strip ID3 metadata from an MP3 buffer, returning only the audio frames.
@@ -25,4 +26,15 @@ export function stripId3(buf: Buffer): Buffer {
 /** sha256 (hex) of an MP3's audio frames, ignoring ID3 tags. */
 export function audioContentHash(buf: Buffer): string {
   return createHash('sha256').update(stripId3(buf)).digest('hex')
+}
+
+/**
+ * Read a file off the event loop and content-hash its audio frames.
+ *
+ * Uses async `readFile` (never `readFileSync`) so hashing a freshly-downloaded
+ * track doesn't block the Electron main process — a synchronous read of a large
+ * MP3 freezes the UI on slow machines.
+ */
+export async function hashAudioFile(file: string): Promise<string> {
+  return audioContentHash(await readFile(file))
 }

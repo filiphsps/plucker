@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Settings, JobProgress, TrackProgress, HistoryTrack } from '../shared/types'
 import { sanitizeFileName } from './rename'
@@ -6,7 +6,7 @@ import { buildDownloadArgs, runYtDlp } from './ytdlp'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
 import { createPool } from './pool'
-import { audioContentHash } from './audio-hash'
+import { hashAudioFile } from './audio-hash'
 import { probeAudio } from './audio-meta'
 import type { MetadataCache } from './metadata-cache'
 import type { BinaryPaths } from './binaries'
@@ -56,18 +56,38 @@ export function parseEntries(json: {
   }
 }
 
-/** Resolve playlist/video metadata via yt-dlp --dump-single-json. */
+/**
+ * Resolve playlist/video metadata via yt-dlp --dump-single-json.
+ *
+ * Uses async `spawn` (never `spawnSync`) so the Electron main process keeps
+ * pumping its event loop — IPC, progress events and window controls — while
+ * yt-dlp resolves. A synchronous spawn here is what froze the whole UI at the
+ * start of every job on slow machines.
+ */
 export async function resolvePlaylist(ytdlpPath: string, url: string): Promise<ResolvedJob> {
-  const { spawnSync } = await import('node:child_process')
-  const out = spawnSync(ytdlpPath, ['--flat-playlist', '--dump-single-json', url], {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024
+  const { spawn } = await import('node:child_process')
+  const { stdout, stderr, code, error } = await new Promise<{
+    stdout: string
+    stderr: string
+    code: number
+    error?: Error
+  }>((resolve) => {
+    const child = spawn(ytdlpPath, ['--flat-playlist', '--dump-single-json', url])
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d: Buffer) => {
+      stdout += d.toString()
+    })
+    child.stderr.on('data', (d: Buffer) => {
+      stderr += d.toString()
+    })
+    child.on('error', (error) => resolve({ stdout, stderr, code: -1, error }))
+    child.on('close', (c) => resolve({ stdout, stderr, code: c ?? -1 }))
   })
-  if (out.error) throw new Error(`yt-dlp failed to start: ${out.error.message}`)
-  if (out.status !== 0)
-    throw new Error((out.stderr || '').slice(-2000) || `yt-dlp exited ${out.status}`)
-  if (!out.stdout?.trim()) throw new Error('yt-dlp returned no metadata')
-  return parseEntries(JSON.parse(out.stdout))
+  if (error) throw new Error(`yt-dlp failed to start: ${error.message}`)
+  if (code !== 0) throw new Error(stderr.slice(-2000) || `yt-dlp exited ${code}`)
+  if (!stdout.trim()) throw new Error('yt-dlp returned no metadata')
+  return parseEntries(JSON.parse(stdout))
 }
 
 /** Read a yt-dlp `.info.json` sidecar for the canonical video id + title. */
@@ -174,7 +194,14 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     emit()
   }
 
+  // In-flight completion handlers (async because they hash + probe off the event
+  // loop). We await these before draining so a late completion can't be missed.
+  const completions: Promise<void>[] = []
   const onComplete = (filePath: string): void => {
+    completions.push(handleComplete(filePath))
+  }
+
+  const handleComplete = async (filePath: string): Promise<void> => {
     const sidecarPath = filePath.replace(/\.mp3$/i, '.info.json')
     const sidecar = readSidecar(sidecarPath)
     const t = findByVideo(sidecar.id) ?? tracks.find((x) => x.status === 'downloading')
@@ -183,7 +210,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     // cached results and history can point straight at the cache entry.
     let hash: string | undefined
     try {
-      hash = audioContentHash(readFileSync(filePath))
+      hash = await hashAudioFile(filePath)
       t.hash = hash
     } catch {
       /* unreadable download — proceed without a cache key */
@@ -219,8 +246,25 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
         if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
         // Probe technical audio properties once and cache them by content hash;
         // a cache hit (re-download of identical audio) skips the ffmpeg probe.
-        if (hash && deps.cache && !deps.cache.read(hash)?.audio) {
-          deps.cache.writeAudio(hash, probeAudio(bin.ffmpeg, res.outputFile))
+        // Also record the track's display identity so the cache manager can list it.
+        if (hash && deps.cache) {
+          if (!deps.cache.read(hash)?.audio) {
+            let sizeBytes: number | undefined
+            try {
+              sizeBytes = statSync(res.outputFile).size
+            } catch {
+              /* stat failed — leave size undefined */
+            }
+            deps.cache.writeAudio(hash, {
+              ...(await probeAudio(bin.ffmpeg, res.outputFile)),
+              sizeBytes
+            })
+          }
+          deps.cache.writeTrack(hash, {
+            title: res.tags.title ?? t.title,
+            file: res.outputFile,
+            videoId: sidecar.id
+          })
         }
         t.status = 'done'
         t.file = res.outputFile
@@ -245,6 +289,10 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
 
   const args = buildDownloadArgs({ url, destFolder: dest, settings, ffmpegPath: bin.ffmpeg })
   const dl = await runYtDlp(bin.ytdlp, args, onDownloadProgress, onComplete, signal)
+
+  // Await any completion handlers still hashing/probing so none is dropped before
+  // we drain the transform pool below.
+  await Promise.allSettled(completions)
 
   // Mark below-floor skips reported by yt-dlp.
   for (const s of dl.skipped) {

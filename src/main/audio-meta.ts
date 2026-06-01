@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 
 /** Technical audio properties probed from a media file (all best-effort). */
 export interface AudioInfo {
@@ -59,13 +59,24 @@ export function parseFfmpegInfo(stderr: string): AudioInfo {
   return info
 }
 
-/** Probe a media file by running the bundled ffmpeg and parsing its stderr banner. */
-export function probeAudio(ffmpegPath: string, file: string): AudioInfo {
+/**
+ * Probe a media file by running the bundled ffmpeg and parsing its stderr banner.
+ *
+ * Uses async `spawn` (never `spawnSync`) so the caller's event loop — the Electron
+ * main process — stays responsive while ffmpeg runs; a synchronous spawn here would
+ * freeze the UI on slow machines.
+ */
+export function probeAudio(ffmpegPath: string, file: string): Promise<AudioInfo> {
   // `ffmpeg -i <file>` with no output exits non-zero but prints the stream banner
   // to stderr — exactly what we parse. We ignore the exit status by design.
-  const res = spawnSync(ffmpegPath, ['-hide_banner', '-i', file], {
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024
+  return new Promise((resolve) => {
+    const child = spawn(ffmpegPath, ['-hide_banner', '-i', file])
+    let stderr = ''
+    child.stderr.on('data', (d: Buffer) => {
+      stderr += d.toString()
+    })
+    // If ffmpeg can't be spawned at all, fall back to whatever we parsed (likely {}).
+    child.on('error', () => resolve(parseFfmpegInfo(stderr)))
+    child.on('close', () => resolve(parseFfmpegInfo(stderr)))
   })
-  return parseFfmpegInfo(`${res.stderr ?? ''}`)
 }
