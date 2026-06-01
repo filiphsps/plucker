@@ -25,6 +25,15 @@ const PROGRESS_TEMPLATE =
 
 export function buildDownloadArgs(input: DownloadArgsInput): string[] {
   const { url, destFolder, settings, ffmpegPath, singleVideo } = input
+  // libmp3lame algorithm effort: higher = faster encode (big help on slow CPUs),
+  // inaudible at our bitrates. Use -compression_level (not -q:a, which would
+  // switch the CBR encode to VBR and change the target bitrate). When a sample
+  // rate is configured, append -ar to resample; otherwise the source rate is
+  // kept (YouTube Opus is 48 kHz).
+  let extractArgs = `-compression_level ${settings.performance.compressionLevel}`
+  if (settings.audio.sampleRate != null) {
+    extractArgs += ` -ar ${settings.audio.sampleRate}`
+  }
   const args = [
     '--ignore-errors',
     '--extract-audio',
@@ -32,11 +41,8 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
     'mp3',
     '--audio-quality',
     `${settings.audio.preferredBitrate}K`,
-    // libmp3lame algorithm effort: higher = faster encode (big help on slow CPUs),
-    // inaudible at our bitrates. Use -compression_level (not -q:a, which would
-    // switch the CBR encode to VBR and change the target bitrate).
     '--postprocessor-args',
-    `ExtractAudio:-compression_level ${settings.performance.compressionLevel}`,
+    `ExtractAudio:${extractArgs}`,
     '--embed-thumbnail',
     '--embed-metadata',
     '--ffmpeg-location',

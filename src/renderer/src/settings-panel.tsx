@@ -15,6 +15,7 @@ import type {
   Settings,
   Bitrate,
   MinBitrate,
+  SampleRate,
   CompressionLevel,
   CookieSource,
   Language
@@ -29,6 +30,7 @@ import { applyLanguage } from './i18n'
 
 const BITRATES: Bitrate[] = [320, 256, 192, 128]
 const MIN_BITRATES: MinBitrate[] = [64, 96, 128, 160]
+const SAMPLE_RATES: SampleRate[] = [48000, 44100, 32000]
 const SOURCES: CookieSource[] = ['auto', 'none', 'chrome', 'edge', 'safari', 'firefox', 'brave']
 const LANGUAGES: Language[] = ['system', 'en', 'de']
 
@@ -148,6 +150,27 @@ export function SettingsPanel({
               {MIN_BITRATES.map((b) => (
                 <option key={b} value={b}>
                   {b}K
+                </option>
+              ))}
+            </select>
+          </PanelRow>
+          <PanelRow name={t('settings.audio.sampleRate')} desc={t('settings.audio.sampleRateDesc')}>
+            <select
+              className={sel}
+              value={s.audio.sampleRate ?? ''}
+              onChange={(e) =>
+                set({
+                  audio: {
+                    ...s.audio,
+                    sampleRate: e.target.value ? (Number(e.target.value) as SampleRate) : null
+                  }
+                })
+              }
+            >
+              <option value="">{t('settings.audio.sampleRateSource')}</option>
+              {SAMPLE_RATES.map((hz) => (
+                <option key={hz} value={hz}>
+                  {hz / 1000} kHz
                 </option>
               ))}
             </select>

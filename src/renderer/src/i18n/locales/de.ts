@@ -117,7 +117,10 @@ const de: typeof en = {
       preferredDesc: 'Ziel-MP3-Qualität, wenn verfügbar',
       minQuality: 'Mindestqualität',
       minDesc: 'Quellen unter dieser Bitrate überspringen',
-      off: 'Aus'
+      off: 'Aus',
+      sampleRate: 'Abtastrate',
+      sampleRateDesc: 'Ausgabe-Abtastrate; Quelle behält die Originalrate',
+      sampleRateSource: 'Quelle'
     },
     cookies: {
       label: 'Cookie-Quelle',

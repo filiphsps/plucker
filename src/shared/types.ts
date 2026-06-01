@@ -4,6 +4,8 @@ export type CookieSource = 'auto' | 'none' | 'chrome' | 'edge' | 'safari' | 'fir
 
 export type Bitrate = 320 | 256 | 192 | 128 // MP3 re-encode target
 export type MinBitrate = 64 | 96 | 128 | 160 // source-audio floor
+/** Output sample rate (Hz). The valid MPEG-1 Layer III MP3 rates; `null` keeps the source rate. */
+export type SampleRate = 44100 | 48000 | 32000
 /**
  * libmp3lame algorithm-quality / effort (ffmpeg `-compression_level`): 0 = best
  * but slowest, 9 = fastest but lowest. Higher values cut encode time on slow
@@ -22,7 +24,13 @@ export interface Settings {
   language: Language
   history: HistoryEntry[]
   downloads: { baseFolder: string; perPlaylistSubfolder: boolean }
-  audio: { format: 'mp3'; preferredBitrate: Bitrate; minBitrate: MinBitrate | null }
+  audio: {
+    format: 'mp3'
+    preferredBitrate: Bitrate
+    minBitrate: MinBitrate | null
+    /** Output sample rate; `null` keeps the source rate. */
+    sampleRate: SampleRate | null
+  }
   cookies: { source: CookieSource }
   transforms: TransformInstance[]
   performance: { parallel: number; compressionLevel: CompressionLevel }

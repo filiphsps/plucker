@@ -61,6 +61,27 @@ describe('buildDownloadArgs', () => {
     expect(args[i + 1]).toBe('ExtractAudio:-compression_level 7')
   })
 
+  it('omits -ar (keeps the source sample rate) when sampleRate is null', () => {
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/o',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/f'
+    })
+    const i = args.indexOf('--postprocessor-args')
+    expect(args[i + 1]).not.toContain('-ar')
+  })
+
+  it('appends -ar to the audio extractor args when a sample rate is set', () => {
+    const s = {
+      ...DEFAULT_SETTINGS,
+      audio: { ...DEFAULT_SETTINGS.audio, sampleRate: 44100 as const }
+    }
+    const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })
+    const i = args.indexOf('--postprocessor-args')
+    expect(args[i + 1]).toBe('ExtractAudio:-compression_level 7 -ar 44100')
+  })
+
   it('downloads the whole playlist by default', () => {
     const args = buildDownloadArgs({
       url: 'u',

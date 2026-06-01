@@ -116,7 +116,10 @@ export default {
       preferredDesc: 'Target MP3 quality when available',
       minQuality: 'Minimum quality',
       minDesc: 'Skip sources below this bitrate',
-      off: 'Off'
+      off: 'Off',
+      sampleRate: 'Sample rate',
+      sampleRateDesc: 'Output sample rate; Source keeps the original',
+      sampleRateSource: 'Source'
     },
     cookies: {
       label: 'Cookie source',
