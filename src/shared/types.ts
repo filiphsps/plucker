@@ -39,6 +39,8 @@ export interface TrackProgress {
   artist?: string
   album?: string
   year?: string
+  /** Tag-independent audio-content hash; cache key for extracted metadata. */
+  hash?: string
 }
 
 export interface JobProgress {
@@ -61,6 +63,8 @@ export interface HistoryTrack {
   album?: string
   year?: string
   videoId?: string
+  /** Tag-independent audio-content hash; cache key for extracted metadata. */
+  hash?: string
 }
 
 /** A completed download recorded in the persistent history. */
@@ -87,4 +91,20 @@ export interface TrackTags {
   year?: string
   trackNumber?: string
   genre?: string
+}
+
+/** Technical audio properties extracted from a media file. */
+export interface AudioMeta {
+  codec?: string
+  bitrateKbps?: number
+  sampleRateHz?: number
+  channels?: number
+  durationSec?: number
+  sizeBytes?: number
+}
+
+/** File-derived metadata for the expanded track detail panel. */
+export interface TrackMetadata {
+  tags: TrackTags
+  audio: AudioMeta
 }
