@@ -22,7 +22,12 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  build-macos:
+  # Update metadata first, in one job: build both arch zips together so the single
+  # latest-mac.yml electron-updater reads lists both slices with matching hashes.
+  # latest-mac.yml references the *zips* (the macOS update artifacts) — never the
+  # DMGs — so the heavy DMG compression can run independently in the matrix below.
+  # Screenshots are rendered + committed here too, since this job already builds the app.
+  build-update-metadata:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: macos-latest
@@ -40,30 +45,34 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The app icon is generated (not committed) during the build via Playwright.
-      # macOS needs only the browser binary (no extra system libraries).
+      # The app icon is generated (not committed) during the build via Playwright,
+      # and the screenshot pass drives the same Chromium binary.
       - run: pnpm exec playwright install chromium
 
-      # Fetches yt-dlp + both ffmpeg arches and packages the unsigned arm64 + x64 DMGs
-      # (plus zip + latest-mac.yml for electron-updater). --publish never: the release
-      # already exists (release-please made it); we upload the assets ourselves below.
-      - run: pnpm build:mac
+      # Both arches' yt-dlp + ffmpeg, needed to package the universal zips.
+      - run: node scripts/fetch-binaries.mjs --all
 
-      # Render UI screenshots from the freshly built app (out/ exists after build:mac)
-      # into .github/img/. These are both attached to the release and committed back
-      # to master so the README images track every release.
-      - run: pnpm build:screenshots
+      - run: pnpm run build
 
-      # Upload the DMGs plus the electron-updater metadata (zip + latest-mac.yml).
-      # nullglob keeps this resilient: if the update metadata isn't present, only
-      # the available assets upload rather than failing the release.
-      - name: Upload release assets
+      # zip-only target → produces both arch zips + the combined latest-mac.yml.
+      # --publish never: the release already exists (release-please made it); we
+      # upload the assets ourselves below.
+      - run: pnpm exec electron-builder --mac zip --arm64 --x64 --config electron-builder.yml --publish never
+
+      # Upload the electron-updater metadata (latest-mac.yml) plus the zips it
+      # references. nullglob keeps this resilient if a glob matches nothing.
+      - name: Upload update metadata
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
-          assets=(dist/*.dmg dist/*.zip dist/latest-mac.yml)
+          assets=(dist/*.zip dist/latest-mac.yml)
           gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
+
+      # Render UI screenshots from the freshly built app (out/ exists after build)
+      # into .github/img/. These are committed back to master so the README images
+      # track every release.
+      - run: pnpm build:screenshots
 
       # Commit the refreshed screenshots back to master. The release commit (= this tag)
       # is master's tip at release time, so the screenshot commit fast-forwards onto it.
@@ -81,3 +90,47 @@ jobs:
           git add .github/img/*.png
           git commit -m "chore(screenshots): refresh for ${{ needs.release-please.outputs.tag_name }} [skip ci]"
           git push origin HEAD:master
+
+  # One job per arch so the slow DMG compression runs in parallel. Depends on
+  # build-update-metadata so the update metadata is in place first. DMGs are
+  # standalone install artifacts (not part of latest-mac.yml), so they upload
+  # without touching the metadata published above.
+  build-macos:
+    needs: [release-please, build-update-metadata]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # build:icon (part of `pnpm run build`) renders the icon via Playwright Chromium.
+      - run: pnpm exec playwright install chromium
+
+      - run: node scripts/fetch-binaries.mjs --all
+
+      - run: pnpm run build
+
+      # DMG-only build for this arch — the expensive UDZO compression, parallelized.
+      - run: pnpm exec electron-builder --mac dmg --${{ matrix.arch }} --config electron-builder.yml --publish never
+
+      - name: Upload DMG
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          assets=(dist/*.dmg)
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
