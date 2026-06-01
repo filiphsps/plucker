@@ -7,7 +7,9 @@ import {
   Cookie,
   Blocks,
   Gauge,
-  RefreshCw
+  RefreshCw,
+  Database,
+  ChevronRight
 } from 'lucide-react'
 import type { Settings, Bitrate, MinBitrate, CookieSource, Language } from '../../shared/types'
 import type { TransformManifest } from '../../shared/transforms'
@@ -23,7 +25,13 @@ const MIN_BITRATES: MinBitrate[] = [64, 96, 128, 160]
 const SOURCES: CookieSource[] = ['auto', 'none', 'chrome', 'edge', 'safari', 'firefox', 'brave']
 const LANGUAGES: Language[] = ['system', 'en', 'de']
 
-export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
+export function SettingsPanel({
+  onClose,
+  onOpenCache
+}: {
+  onClose: () => void
+  onOpenCache: () => void
+}): React.JSX.Element {
   const { t } = useTranslation()
   const [s, setS] = useState<Settings | null>(null)
   const [catalog, setCatalog] = useState<TransformManifest[]>([])
@@ -181,6 +189,18 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
               checked={s.updates.checkOnLaunch}
               onChange={(v) => set({ updates: { ...s.updates, checkOnLaunch: v } })}
             />
+          </PanelRow>
+        </Panel>
+
+        <Panel icon={Database} title={t('settings.sections.cache')}>
+          <PanelRow name={t('settings.cache.manage')} desc={t('settings.cache.manageDesc')}>
+            <button
+              onClick={onOpenCache}
+              className="flex h-8 items-center gap-1 rounded-md border border-line bg-raise pl-[13px] pr-2 text-[12px] text-ink-dim hover:text-ink"
+            >
+              {t('settings.cache.open')}
+              <ChevronRight size={15} />
+            </button>
           </PanelRow>
         </Panel>
       </div>

@@ -72,7 +72,13 @@ const de: typeof en = {
       cookies: 'Netzwerk & Cookies',
       transforms: 'Transformationskette',
       performance: 'Leistung',
-      updates: 'Aktualisierungen'
+      updates: 'Aktualisierungen',
+      cache: 'Cache'
+    },
+    cache: {
+      manage: 'Metadaten-Cache',
+      manageDesc: 'Zwischengespeicherte Titel-Metadaten ansehen, bearbeiten und löschen',
+      open: 'Cache öffnen'
     },
     language: {
       label: 'Sprache',
@@ -111,6 +117,23 @@ const de: typeof en = {
       checkOnLaunch: 'Beim Start nach Updates suchen',
       desc: 'Benachrichtigen, wenn eine neue Version verfügbar ist'
     }
+  },
+  cache: {
+    title: 'Cache',
+    back: 'Einstellungen',
+    search: 'Cache durchsuchen …',
+    empty: 'Noch nichts im Cache',
+    untitled: 'Ohne Titel',
+    colQuality: 'Qualität',
+    colTime: 'Zeit',
+    clear: 'Cache leeren',
+    clearConfirm: 'Den gesamten Metadaten-Cache leeren? Dies kann nicht rückgängig gemacht werden.',
+    deleteConfirm: 'Diesen Eintrag aus dem Cache entfernen?',
+    entries_one: '{{count}} Eintrag · {{size}}',
+    entries_other: '{{count}} Einträge · {{size}}',
+    editingTags: 'Tags bearbeiten',
+    audioReadonly: 'Audio schreibgeschützt',
+    save: 'Speichern'
   },
   meta: {
     loading: 'Metadaten werden gelesen…',

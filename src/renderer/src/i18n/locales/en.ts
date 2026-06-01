@@ -71,7 +71,13 @@ export default {
       cookies: 'Network & Cookies',
       transforms: 'Transform Chain',
       performance: 'Performance',
-      updates: 'Updates'
+      updates: 'Updates',
+      cache: 'Cache'
+    },
+    cache: {
+      manage: 'Metadata cache',
+      manageDesc: 'Browse, edit and delete cached track metadata',
+      open: 'Open cache'
     },
     language: {
       label: 'Language',
@@ -110,6 +116,23 @@ export default {
       checkOnLaunch: 'Check for updates on launch',
       desc: 'Notify me when a new version is available'
     }
+  },
+  cache: {
+    title: 'Cache',
+    back: 'Settings',
+    search: 'Search cache…',
+    empty: 'Nothing cached yet',
+    untitled: 'Untitled',
+    colQuality: 'Quality',
+    colTime: 'Time',
+    clear: 'Clear cache',
+    clearConfirm: 'Clear the entire metadata cache? This cannot be undone.',
+    deleteConfirm: 'Remove this entry from the cache?',
+    entries_one: '{{count}} entry · {{size}}',
+    entries_other: '{{count}} entries · {{size}}',
+    editingTags: 'Editing tags',
+    audioReadonly: 'Audio read-only',
+    save: 'Save'
   },
   meta: {
     loading: 'Reading metadata…',
