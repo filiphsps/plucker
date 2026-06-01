@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { parseMp3Info } from './mp3-info'
 
 /** Technical audio properties probed from a media file (all best-effort). */
 export interface AudioInfo {
@@ -60,13 +62,31 @@ export function parseFfmpegInfo(stderr: string): AudioInfo {
 }
 
 /**
- * Probe a media file by running the bundled ffmpeg and parsing its stderr banner.
+ * Probe a media file's technical audio properties.
+ *
+ * Fast path: we always output MP3, so the header is parsed in-process — no
+ * subprocess. This is the big win on older Intel hardware, where an ffmpeg
+ * cold-start per track dominates the probe cost. ffmpeg is used only as a
+ * fallback when the file isn't a parseable MP3.
+ */
+export async function probeAudio(ffmpegPath: string, file: string): Promise<AudioInfo> {
+  try {
+    const info = parseMp3Info(await readFile(file))
+    if (info) return info
+  } catch {
+    /* unreadable or not an MP3 — fall through to ffmpeg */
+  }
+  return probeViaFfmpeg(ffmpegPath, file)
+}
+
+/**
+ * Fallback probe: run the bundled ffmpeg and parse its stderr banner.
  *
  * Uses async `spawn` (never `spawnSync`) so the caller's event loop — the Electron
  * main process — stays responsive while ffmpeg runs; a synchronous spawn here would
  * freeze the UI on slow machines.
  */
-export function probeAudio(ffmpegPath: string, file: string): Promise<AudioInfo> {
+function probeViaFfmpeg(ffmpegPath: string, file: string): Promise<AudioInfo> {
   // `ffmpeg -i <file>` with no output exits non-zero but prints the stream banner
   // to stderr — exactly what we parse. We ignore the exit status by design.
   return new Promise((resolve) => {
