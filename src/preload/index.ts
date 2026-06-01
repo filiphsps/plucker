@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Settings, JobProgress, HistoryEntry, MenuNavTarget } from '../shared/types'
+import type {
+  Settings,
+  JobProgress,
+  HistoryEntry,
+  MenuNavTarget,
+  TrackMetadata
+} from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
 
 // Custom APIs for renderer
@@ -27,7 +33,11 @@ const api = {
   // Filesystem navigation + cover art
   openFolder: (path: string): Promise<string> => ipcRenderer.invoke('shell:openFolder', path),
   revealFile: (path: string): Promise<void> => ipcRenderer.invoke('shell:revealFile', path),
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
   getCover: (file: string): Promise<string | null> => ipcRenderer.invoke('cover:get', file),
+  getTrackMetadata: (file: string, hash?: string): Promise<TrackMetadata> =>
+    ipcRenderer.invoke('metadata:get', file, hash),
+  filesExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('files:exist', paths),
   // History
   getHistory: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:get'),
   removeHistoryEntry: (id: string, deleteFiles: boolean): Promise<HistoryEntry[]> =>

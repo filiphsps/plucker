@@ -1,20 +1,22 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences } from 'electron'
 import { join } from 'path'
 import { arch } from 'node:os'
-import { rmSync } from 'node:fs'
+import { rmSync, existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { version as appVersion } from '../../package.json'
 import icon from '../../resources/icon.png?asset'
 import { loadSettings, saveSettings, settingsPath, expandHome } from './settings'
-import { binaryPaths } from './binaries'
+import { binaryPaths, type BinaryPaths } from './binaries'
 import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl } from './tagger'
+import { getTrackMetadata, forBinaries } from './metadata'
 import { addEntry, removeEntry, removeTrack } from './history'
 import { checkForUpdates } from './updater'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
+import { createMetadataCache, type MetadataCache } from './metadata-cache'
 import type { Settings, HistoryEntry } from '../shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel
@@ -23,6 +25,23 @@ app.setName('Plucker')
 
 let mainWindow: BrowserWindow | null = null
 let abort: AbortController | null = null
+let metaCache: MetadataCache | null = null
+
+/** Resolve the bundled binary paths for the current runtime. */
+function currentBin(): BinaryPaths {
+  return binaryPaths({
+    packaged: app.isPackaged,
+    arch: arch() === 'arm64' ? 'arm64' : 'x64',
+    resourcesPath: process.resourcesPath,
+    projectRoot: app.getAppPath()
+  })
+}
+
+/** Lazily-created global metadata cache under the app's userData dir. */
+function getMetaCache(): MetadataCache {
+  if (!metaCache) metaCache = createMetadataCache(join(app.getPath('userData'), 'metadata-cache'))
+  return metaCache
+}
 
 function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('app:locale', () => app.getLocale())
@@ -38,7 +57,14 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   // Filesystem navigation + cover art.
   ipcMain.handle('shell:openFolder', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('shell:revealFile', (_e, path: string) => shell.showItemInFolder(path))
+  ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
   ipcMain.handle('cover:get', (_e, file: string) => readCoverDataUrl(file))
+
+  // Track metadata (tags + technical audio, cache-first) and file-existence checks.
+  ipcMain.handle('metadata:get', (_e, file: string, hash?: string) =>
+    getTrackMetadata(file, hash, forBinaries(currentBin(), getMetaCache()))
+  )
+  ipcMain.handle('files:exist', (_e, paths: string[]) => paths.map((p) => existsSync(p)))
 
   // History.
   ipcMain.handle('history:get', () => loadSettings().history)
@@ -65,17 +91,12 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   })
   ipcMain.handle('job:start', async (_e, url: string, folderOverride?: string) => {
     const settings = loadSettings()
-    const bin = binaryPaths({
-      packaged: app.isPackaged,
-      arch: arch() === 'arm64' ? 'arm64' : 'x64',
-      resourcesPath: process.resourcesPath,
-      projectRoot: app.getAppPath()
-    })
     abort = new AbortController()
     const result = await runJob(url, {
-      bin,
+      bin: currentBin(),
       settings,
       homeBase: expandHome(settings.downloads.baseFolder),
+      cache: getMetaCache(),
       onProgress: (p) => {
         const win = getWindow()
         win?.webContents.send('job:progress', p)
