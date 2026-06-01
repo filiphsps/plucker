@@ -24,17 +24,17 @@ Format: `type(optional scope): summary`
 
 Allowed types and their release impact:
 
-| Type | Use for | Version bump |
-| --- | --- | --- |
-| `feat` | a new user-facing feature | **minor** |
-| `fix` | a bug fix | **patch** |
-| `perf` | a performance improvement | **patch** |
-| `docs` | documentation only | none |
-| `refactor` | code change that neither fixes a bug nor adds a feature | none |
-| `test` | adding or fixing tests | none |
-| `build` | build system, deps, packaging | none |
-| `ci` | CI configuration | none |
-| `chore` | anything else (tooling, housekeeping) | none |
+| Type       | Use for                                                 | Version bump |
+| ---------- | ------------------------------------------------------- | ------------ |
+| `feat`     | a new user-facing feature                               | **minor**    |
+| `fix`      | a bug fix                                               | **patch**    |
+| `perf`     | a performance improvement                               | **patch**    |
+| `docs`     | documentation only                                      | none         |
+| `refactor` | code change that neither fixes a bug nor adds a feature | none         |
+| `test`     | adding or fixing tests                                  | none         |
+| `build`    | build system, deps, packaging                           | none         |
+| `ci`       | CI configuration                                        | none         |
+| `chore`    | anything else (tooling, housekeeping)                   | none         |
 
 Breaking changes: append `!` after the type (`feat!: …`) **or** add a
 `BREAKING CHANGE:` footer → **major** bump.

@@ -10,14 +10,14 @@ software / DAWs (Traktor Pro 4 first, then Studio One / FL Studio)**, executed t
 rather than as a parody.
 
 Priority, per the user: aesthetics, native-grade UX, and flow are co-primary. The DAW
-identity is the chosen *visual language* — dense, instrument-like, precise — but kept
+identity is the chosen _visual language_ — dense, instrument-like, precise — but kept
 flat and modern, never cheesy or skeuomorphic-overload.
 
 ### What "native" means here
 
 Native-grade **UX**, **not** native **looks**. We do **not** clone macOS chrome, system
 controls, vibrancy, or stock components — that reads as a cheap knock-off. We take from
-native only the *behavior*: instant feedback, real keyboard shortcuts, drag-and-drop,
+native only the _behavior_: instant feedback, real keyboard shortcuts, drag-and-drop,
 correct focus handling, no web-page jank, fast and tactile. The visual identity is
 entirely our own.
 
@@ -99,7 +99,7 @@ deliberate native-UX touch.
     was dropped at the user's request).
   - Tab style: soft accent-filled pills with icon + label.
 - **Persistent transport deck** pinned to the bottom — the signature DAW element. It is
-  the **active-job status bar**, *not* a media transport (no playback yet). It shows: the
+  the **active-job status bar**, _not_ a media transport (no playback yet). It shows: the
   now-plucking track's cover + name + subtitle, a segmented **JOB PROGRESS** meter, a
   `done/total` counter, and a **Cancel** (×) button.
   - The deck is **contextual**: visible only while a job is running; hidden when idle

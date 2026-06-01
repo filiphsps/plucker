@@ -490,6 +490,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       t.reason = dl.errors[dl.errors.length - 1]?.message ?? 'Download failed'
       if (dl.code) t.errorCode = `yt-dlp ${dl.code}`
       log.warn('yt-dlp', `download failed for "${t.title}": ${t.reason}`)
+      log.error('yt-dlp', `download result for "${t.title}":`, dl)
       t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
       emit()
       return

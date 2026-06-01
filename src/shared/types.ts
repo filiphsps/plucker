@@ -57,6 +57,35 @@ export interface Settings {
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 /**
+ * A serialized log argument, preserving its runtime type so the developer console can
+ * render it the way browser devtools does — type-coloured primitives and expandable
+ * objects/arrays/errors — instead of a flat string. Produced in the main process and
+ * shipped over IPC, so every variant is structured-clone-safe (no live references).
+ */
+export type LogValue =
+  | { kind: 'string'; value: string }
+  | { kind: 'number'; value: number }
+  | { kind: 'bigint'; value: string }
+  | { kind: 'boolean'; value: boolean }
+  | { kind: 'null' }
+  | { kind: 'undefined' }
+  | { kind: 'symbol'; value: string }
+  | { kind: 'function'; value: string }
+  | { kind: 'date'; value: string }
+  | { kind: 'error'; name: string; message: string; stack?: string }
+  | { kind: 'array'; items: LogValue[]; truncated?: number }
+  | { kind: 'object'; ctor?: string; entries: LogEntryField[]; truncated?: number }
+  /** A node the serializer refused to descend into (cycle or depth cap). */
+  | { kind: 'circular' }
+  | { kind: 'max-depth' }
+
+/** One `key: value` pair inside a serialized object. */
+export interface LogEntryField {
+  key: string
+  value: LogValue
+}
+
+/**
  * A single line in the unified main-process log stream — surfaced live in the
  * developer console overlay and appended to `~/.plucker/plucker.log`.
  */
@@ -66,7 +95,14 @@ export interface LogEntry {
   level: LogLevel
   /** Subsystem that emitted the line (e.g. `app`, `yt-dlp`, `transform`). */
   scope: string
+  /** Flat `console.log`-formatted text — the file/clipboard representation. */
   message: string
+  /**
+   * Structured form of the original log arguments, for rich console rendering. Only
+   * populated when at least one argument is non-string (a pure-string line is fully
+   * represented by {@link message}); consumers fall back to `message` when absent.
+   */
+  args?: LogValue[]
 }
 
 export type TrackStatus =

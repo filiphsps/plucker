@@ -15,6 +15,7 @@ tests and a build on pull requests.
 Use **release-please** (`googleapis/release-please-action@v4`, `release-type: node`).
 
 Rejected alternatives:
+
 - **semantic-release** — releases immediately on every `feat:`/`fix:` merge with no
   human-gated approval step. We want a reviewable Release PR.
 - **Custom script** — more maintenance; release-please is battle-tested.

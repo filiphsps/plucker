@@ -15,6 +15,7 @@
 ## File Structure
 
 **Create:**
+
 - `src/shared/transforms.ts` — shared, serializable transform types (`ConfigField`, `TransformInstance`, `TransformManifest`).
 - `src/main/transforms/types.ts` — main-only types (`TransformDefinition`, `TrackContext`, `TransformServices`, `ChainResult`).
 - `src/main/transforms/auto-tag.ts` + `auto-tag.test.ts` — the auto-tag transform + pure helpers.
@@ -26,6 +27,7 @@
 - `src/renderer/src/TransformsSection.tsx` + `TransformsSection.test.tsx` — reorderable instance list.
 
 **Modify:**
+
 - `src/shared/types.ts` — Settings v2 (`transforms`, drop `tagging`/`rename`), `TrackStatus` add `'transforming'`, `TrackProgress.transformPercent`, `JobProgress.overall`.
 - `src/shared/defaults.ts` — `version: 2`, default `transforms` chain, drop `tagging`/`rename`.
 - `src/main/settings.ts` — `mergeDefaults` v1→v2 migration.
@@ -43,6 +45,7 @@
 ## Task 1: Shared transform contract types
 
 **Files:**
+
 - Create: `src/shared/transforms.ts`
 
 These are pure types consumed by both renderer and main. No runtime behavior — verified by `pnpm typecheck` at Task 18.
@@ -97,6 +100,7 @@ git commit -m "feat: shared transform contract types"
 ## Task 2: Settings schema v2 + defaults + migration
 
 **Files:**
+
 - Modify: `src/shared/types.ts:9-28` (Settings), `:30` (TrackStatus), `:32-44` (TrackProgress), `:46-54` (JobProgress)
 - Modify: `src/shared/defaults.ts`
 - Modify: `src/main/settings.ts:15-30` (mergeDefaults)
@@ -176,13 +180,7 @@ export interface Settings {
 Replace the `TrackStatus` line with (adds `transforming`):
 
 ```ts
-export type TrackStatus =
-  | 'queued'
-  | 'downloading'
-  | 'transforming'
-  | 'done'
-  | 'failed'
-  | 'skipped'
+export type TrackStatus = 'queued' | 'downloading' | 'transforming' | 'done' | 'failed' | 'skipped'
 ```
 
 In `TrackProgress`, add after `percent?: number`:
@@ -195,8 +193,8 @@ In `TrackProgress`, add after `percent?: number`:
 In `JobProgress`, add:
 
 ```ts
-  /** 0..1 overall job progress (download-weighted), for the OS progress bar. */
-  overall: number
+/** 0..1 overall job progress (download-weighted), for the OS progress bar. */
+overall: number
 ```
 
 - [ ] **Step 4: Update defaults**
@@ -283,6 +281,7 @@ git commit -m "feat: settings schema v2 with transforms list + migration"
 ## Task 3: Main transform types
 
 **Files:**
+
 - Create: `src/main/transforms/types.ts`
 
 Pure types — verified by typecheck at Task 18.
@@ -349,6 +348,7 @@ git commit -m "feat: main-side transform types"
 ## Task 4: auto-tag transform
 
 **Files:**
+
 - Create: `src/main/transforms/auto-tag.ts`, `src/main/transforms/auto-tag.test.ts`
 
 Logic is moved out of `pipeline.ts`. Pure helpers `mergeTags` and `enrich` are tested; `run` does thin file IO.
@@ -372,7 +372,13 @@ const baseConfig: AutoTagConfig = {
 
 describe('mergeTags', () => {
   const yt = { artist: 'YT Artist', title: 'YT Title' }
-  const mb = { artist: 'MB Artist', title: 'MB Title', album: 'MB Album', year: '1999', genre: 'Rock' }
+  const mb = {
+    artist: 'MB Artist',
+    title: 'MB Title',
+    album: 'MB Album',
+    year: '1999',
+    genre: 'Rock'
+  }
   it('youtube primary keeps YT, fills gaps from MB', () => {
     const m = mergeTags(yt, mb, 'youtube')
     expect(m.artist).toBe('YT Artist')
@@ -390,7 +396,13 @@ describe('enrich', () => {
       new Response(
         JSON.stringify({
           recordings: [
-            { id: 'rec1', score: 100, title: 'Real Title', 'artist-credit': [{ artist: { name: 'Real Artist' } }], releases: [{ id: 'rel1', title: 'Real Album', date: '2001-05-01' }] }
+            {
+              id: 'rec1',
+              score: 100,
+              title: 'Real Title',
+              'artist-credit': [{ artist: { name: 'Real Artist' } }],
+              releases: [{ id: 'rel1', title: 'Real Album', date: '2001-05-01' }]
+            }
           ]
         }),
         { status: 200 }
@@ -402,8 +414,17 @@ describe('enrich', () => {
   })
 
   it('returns empty tags when enrich disabled', async () => {
-    const services = { bin: {} as never, fetch: (async () => new Response('')) as unknown as typeof fetch, log: () => {}, reportProgress: () => {} }
-    const out = await enrich({ artist: 'a', title: 't' }, { ...baseConfig, enrichWithMusicBrainz: false }, services)
+    const services = {
+      bin: {} as never,
+      fetch: (async () => new Response('')) as unknown as typeof fetch,
+      log: () => {},
+      reportProgress: () => {}
+    }
+    const out = await enrich(
+      { artist: 'a', title: 't' },
+      { ...baseConfig, enrichWithMusicBrainz: false },
+      services
+    )
     expect(out.tags).toEqual({})
   })
 })
@@ -506,12 +527,44 @@ const CONFIG_SCHEMA: ConfigField[] = [
       { value: 'musicbrainz', labelKey: 'transforms.autoTag.options.musicbrainz' }
     ]
   },
-  { key: 'enrichWithMusicBrainz', labelKey: 'transforms.autoTag.fields.enrich', type: 'boolean', default: true },
-  { key: 'fetchCoverArt', labelKey: 'transforms.autoTag.fields.fetchCover', type: 'boolean', default: true },
-  { key: 'fetchGenre', labelKey: 'transforms.autoTag.fields.fetchGenre', type: 'boolean', default: true },
-  { key: 'fetchTrackNumber', labelKey: 'transforms.autoTag.fields.fetchTrackNumber', type: 'boolean', default: true },
-  { key: 'minMatchScore', labelKey: 'transforms.autoTag.fields.minMatchScore', type: 'number', default: 80, min: 0, max: 100 },
-  { key: 'userAgentEmail', labelKey: 'transforms.autoTag.fields.contactEmail', type: 'string', default: 'you@example.com' }
+  {
+    key: 'enrichWithMusicBrainz',
+    labelKey: 'transforms.autoTag.fields.enrich',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'fetchCoverArt',
+    labelKey: 'transforms.autoTag.fields.fetchCover',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'fetchGenre',
+    labelKey: 'transforms.autoTag.fields.fetchGenre',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'fetchTrackNumber',
+    labelKey: 'transforms.autoTag.fields.fetchTrackNumber',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'minMatchScore',
+    labelKey: 'transforms.autoTag.fields.minMatchScore',
+    type: 'number',
+    default: 80,
+    min: 0,
+    max: 100
+  },
+  {
+    key: 'userAgentEmail',
+    labelKey: 'transforms.autoTag.fields.contactEmail',
+    type: 'string',
+    default: 'you@example.com'
+  }
 ]
 
 export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
@@ -565,6 +618,7 @@ git commit -m "feat: auto-tag transform"
 ## Task 5: rename transform
 
 **Files:**
+
 - Create: `src/main/transforms/rename.ts`, `src/main/transforms/rename-transform.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -575,16 +629,29 @@ import { describe, it, expect } from 'vitest'
 import { renameTransform } from './rename'
 import type { TrackContext, TransformServices } from './types'
 
-const services = { bin: {} as never, fetch: fetch, log: () => {}, reportProgress: () => {} } as TransformServices
+const services = {
+  bin: {} as never,
+  fetch: fetch,
+  log: () => {},
+  reportProgress: () => {}
+} as TransformServices
 
 function ctx(tags: TrackContext['tags']): TrackContext {
-  return { workingFile: '/tmp/x.mp3', tags, info: { rawTitle: '', sourceFile: '/tmp/x.mp3', index: 1 } }
+  return {
+    workingFile: '/tmp/x.mp3',
+    tags,
+    info: { rawTitle: '', sourceFile: '/tmp/x.mp3', index: 1 }
+  }
 }
 
 describe('renameTransform', () => {
   it('sets outputName from tags via the template', async () => {
     const c = ctx({ artist: 'A', title: 'T', album: 'Alb', year: '2020', trackNumber: '3' })
-    await renameTransform.run(c, { template: '{artist} - {track}. {title} - {album} ({year})' }, services)
+    await renameTransform.run(
+      c,
+      { template: '{artist} - {track}. {title} - {album} ({year})' },
+      services
+    )
     expect(c.outputName).toBe('A - 03. T - Alb (2020)')
   })
   it('leaves outputName undefined when the template renders empty', async () => {
@@ -613,7 +680,12 @@ export interface RenameConfig {
 }
 
 const CONFIG_SCHEMA: ConfigField[] = [
-  { key: 'template', labelKey: 'transforms.rename.fields.template', type: 'string', default: '{artist} - {track}. {title} - {album} ({year})' }
+  {
+    key: 'template',
+    labelKey: 'transforms.rename.fields.template',
+    type: 'string',
+    default: '{artist} - {track}. {title} - {album} ({year})'
+  }
 ]
 
 export const renameTransform: TransformDefinition<RenameConfig> = {
@@ -649,6 +721,7 @@ git commit -m "feat: rename transform"
 ## Task 6: Registry + serializable catalog
 
 **Files:**
+
 - Create: `src/main/transforms/registry.ts`, `src/main/transforms/registry.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -730,6 +803,7 @@ git commit -m "feat: transform registry + serializable catalog"
 ## Task 7: Bounded concurrency pool
 
 **Files:**
+
 - Create: `src/main/pool.ts`, `src/main/pool.test.ts`
 
 Tasks arrive dynamically (as downloads complete), so the pool accepts tasks over time and exposes `drain()`.
@@ -793,7 +867,7 @@ export function createPool(limit: number): {
 
   const acquire = (): Promise<void> =>
     active < limit
-      ? ((active++), Promise.resolve())
+      ? (active++, Promise.resolve())
       : new Promise<void>((resolve) => waiters.push(resolve)).then(() => {
           active++
         })
@@ -837,6 +911,7 @@ git commit -m "feat: dynamic bounded concurrency pool"
 ## Task 8: Transform chain runner
 
 **Files:**
+
 - Create: `src/main/transforms/run-chain.ts`, `src/main/transforms/run-chain.test.ts`
 
 Copies the source to a temp working file, runs enabled instances in order honoring `failureMode`, flushes tags, and commits by moving the working file to the final name.
@@ -862,14 +937,30 @@ const services = { bin: {} as never, fetch, log: () => {}, reportProgress: () =>
 
 // A transform that sets outputName, and one that throws.
 const renamer: TransformDefinition = {
-  type: 'r', apiVersion: 1, labelKey: '', descriptionKey: '', allowMultiple: true, failureMode: 'skip',
-  configSchema: [], defaultConfig: {},
-  async run(ctx) { ctx.outputName = 'Final Name' }
+  type: 'r',
+  apiVersion: 1,
+  labelKey: '',
+  descriptionKey: '',
+  allowMultiple: true,
+  failureMode: 'skip',
+  configSchema: [],
+  defaultConfig: {},
+  async run(ctx) {
+    ctx.outputName = 'Final Name'
+  }
 }
 const fatalBoom: TransformDefinition = {
-  type: 'boom', apiVersion: 1, labelKey: '', descriptionKey: '', allowMultiple: true, failureMode: 'fatal',
-  configSchema: [], defaultConfig: {},
-  async run() { throw new Error('boom') }
+  type: 'boom',
+  apiVersion: 1,
+  labelKey: '',
+  descriptionKey: '',
+  allowMultiple: true,
+  failureMode: 'fatal',
+  configSchema: [],
+  defaultConfig: {},
+  async run() {
+    throw new Error('boom')
+  }
 }
 const skipBoom: TransformDefinition = { ...fatalBoom, type: 'skipboom', failureMode: 'skip' }
 
@@ -879,10 +970,13 @@ describe('runTransformChain', () => {
     writeFileSync(src, 'AUDIO')
     const registry = new Map([['r', renamer]])
     const res = await runTransformChain(
-      src, dir,
+      src,
+      dir,
       { rawTitle: 'orig', sourceFile: src, index: 1 },
       [{ instanceId: 'i1', type: 'r', enabled: true, config: {} }],
-      registry, services, () => {}
+      registry,
+      services,
+      () => {}
     )
     expect(res.failed).toBe(false)
     expect(res.outputFile).toBe(join(dir, 'Final Name.mp3'))
@@ -895,9 +989,13 @@ describe('runTransformChain', () => {
     writeFileSync(src, 'AUDIO')
     const registry = new Map([['boom', fatalBoom]])
     const res = await runTransformChain(
-      src, dir, { rawTitle: 'orig', sourceFile: src, index: 1 },
+      src,
+      dir,
+      { rawTitle: 'orig', sourceFile: src, index: 1 },
       [{ instanceId: 'i1', type: 'boom', enabled: true, config: {} }],
-      registry, services, () => {}
+      registry,
+      services,
+      () => {}
     )
     expect(res.failed).toBe(true)
     expect(existsSync(src)).toBe(true)
@@ -907,14 +1005,21 @@ describe('runTransformChain', () => {
   it('skip failure continues the chain and still commits', async () => {
     const src = join(dir, 'orig.mp3')
     writeFileSync(src, 'AUDIO')
-    const registry = new Map([['skipboom', skipBoom], ['r', renamer]])
+    const registry = new Map([
+      ['skipboom', skipBoom],
+      ['r', renamer]
+    ])
     const res = await runTransformChain(
-      src, dir, { rawTitle: 'orig', sourceFile: src, index: 1 },
+      src,
+      dir,
+      { rawTitle: 'orig', sourceFile: src, index: 1 },
       [
         { instanceId: 'i1', type: 'skipboom', enabled: true, config: {} },
         { instanceId: 'i2', type: 'r', enabled: true, config: {} }
       ],
-      registry, services, () => {}
+      registry,
+      services,
+      () => {}
     )
     expect(res.failed).toBe(false)
     expect(res.outputFile).toBe(join(dir, 'Final Name.mp3'))
@@ -1023,6 +1128,7 @@ git commit -m "feat: transform chain runner with temp-copy commit"
 ## Task 9: yt-dlp completion sentinel
 
 **Files:**
+
 - Modify: `src/main/ytdlp.ts:18-49` (buildDownloadArgs), add `parseCompleteLine`, `:82-119` (runYtDlp)
 - Test: `src/main/ytdlp.test.ts`
 
@@ -1048,7 +1154,10 @@ describe('parseCompleteLine', () => {
 describe('buildDownloadArgs completion sentinel', () => {
   it('adds an after_move print of the final filepath', () => {
     const args = buildDownloadArgs({
-      url: 'u', destFolder: '/d', settings: DEFAULT_SETTINGS, ffmpegPath: '/ff'
+      url: 'u',
+      destFolder: '/d',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/ff'
     })
     const idx = args.indexOf('--print')
     expect(idx).toBeGreaterThan(-1)
@@ -1146,6 +1255,7 @@ git commit -m "feat: yt-dlp per-file completion sentinel + onComplete"
 ## Task 10: resolvePlaylist returns all entries
 
 **Files:**
+
 - Modify: `src/main/pipeline.ts:38-56` (ResolvedJob + resolveJob)
 - Test: `src/main/pipeline.test.ts`
 
@@ -1262,6 +1372,7 @@ git commit -m "feat: resolvePlaylist returns full entry list"
 ## Task 11: Rewrite runJob around the transform pipeline
 
 **Files:**
+
 - Modify: `src/main/pipeline.ts` (remove `mergeTags` lines 22-36; rewrite `RunJobDeps`/`runJob` lines 72-256; keep `destFolderFor` and `readSidecar`)
 - Modify: `src/main/pipeline.test.ts` (remove the `mergeTags` describe block)
 
@@ -1347,7 +1458,14 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
   const overall = (): number =>
     tracks.length ? tracks.reduce((sum, t) => sum + trackProgress(t), 0) / tracks.length : 0
   const emit = (): void =>
-    onProgress({ jobTitle: job.title, total: tracks.length, tracks: [...tracks], folder: dest, url, overall: overall() })
+    onProgress({
+      jobTitle: job.title,
+      total: tracks.length,
+      tracks: [...tracks],
+      folder: dest,
+      url,
+      overall: overall()
+    })
   emit()
 
   const registry = buildRegistry()
@@ -1364,7 +1482,12 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
   const findByVideo = (videoId?: string): TrackProgress | undefined =>
     videoId ? tracks.find((x) => x.videoId === videoId) : undefined
 
-  const onDownloadProgress = (e: { index: number; percent: number; videoId: string; title: string }): void => {
+  const onDownloadProgress = (e: {
+    index: number
+    percent: number
+    videoId: string
+    title: string
+  }): void => {
     const t = findByVideo(e.videoId) ?? tracks.find((x) => x.index === e.index)
     if (!t) return
     if (t.status === 'queued' || t.status === 'downloading') {
@@ -1388,7 +1511,12 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       const res = await runTransformChain(
         filePath,
         dest,
-        { videoId: sidecar.id, rawTitle: sidecar.title ?? t.title, sourceFile: filePath, index: t.index },
+        {
+          videoId: sidecar.id,
+          rawTitle: sidecar.title ?? t.title,
+          sourceFile: filePath,
+          index: t.index
+        },
         enabled,
         registry,
         services,
@@ -1465,6 +1593,7 @@ git commit -m "feat: per-track concurrent transform pipeline in runJob"
 ## Task 12: Catalog IPC + Electron progress bar
 
 **Files:**
+
 - Modify: `src/main/index.ts` (imports, `registerIpc`, `job:start`)
 - Modify: `src/preload/index.ts`, `src/preload/index.d.ts`
 
@@ -1479,7 +1608,7 @@ import { getCatalog } from './transforms/registry'
 In `registerIpc`, add next to the other `settings:` handlers:
 
 ```ts
-  ipcMain.handle('transforms:catalog', () => getCatalog())
+ipcMain.handle('transforms:catalog', () => getCatalog())
 ```
 
 - [ ] **Step 2: Drive the OS progress bar from job progress**
@@ -1497,7 +1626,7 @@ In `job:start`, change the `onProgress` callback (currently line ~73) to also se
 After the `runJob(...)` call resolves (after the `await runJob`, before/around the history block), clear the bar:
 
 ```ts
-    getWindow()?.setProgressBar(-1)
+getWindow()?.setProgressBar(-1)
 ```
 
 (Place it immediately after the `const result = await runJob(...)` assignment so it clears on completion regardless of history.)
@@ -1537,6 +1666,7 @@ git commit -m "feat: transform catalog IPC + OS progress bar"
 ## Task 13: SchemaForm renderer
 
 **Files:**
+
 - Create: `src/renderer/src/SchemaForm.tsx`, `src/renderer/src/SchemaForm.test.tsx`
 
 Renders a `ConfigField[]` into inputs and emits config changes. Uses the existing vitest + (assumed) jsdom setup used by `i18n.test.ts`. If a DOM testing library is not yet a dependency, the test below uses only `react-dom/server` rendering to avoid adding deps.
@@ -1554,13 +1684,27 @@ const fields: ConfigField[] = [
   { key: 'flag', labelKey: 'flag', type: 'boolean', default: true },
   { key: 'num', labelKey: 'num', type: 'number', default: 5, min: 0, max: 10 },
   { key: 'txt', labelKey: 'txt', type: 'string', default: 'hi' },
-  { key: 'mode', labelKey: 'mode', type: 'enum', default: 'a', options: [{ value: 'a', labelKey: 'a' }, { value: 'b', labelKey: 'b' }] }
+  {
+    key: 'mode',
+    labelKey: 'mode',
+    type: 'enum',
+    default: 'a',
+    options: [
+      { value: 'a', labelKey: 'a' },
+      { value: 'b', labelKey: 'b' }
+    ]
+  }
 ]
 
 describe('SchemaForm', () => {
   it('renders an input per field, falling back to labelKey for missing translations', () => {
     const html = renderToStaticMarkup(
-      <SchemaForm fields={fields} config={{ flag: false, num: 7, txt: 'yo', mode: 'b' }} onChange={() => {}} t={(k) => k} />
+      <SchemaForm
+        fields={fields}
+        config={{ flag: false, num: 7, txt: 'yo', mode: 'b' }}
+        onChange={() => {}}
+        t={(k) => k}
+      />
     )
     expect(html).toContain('type="checkbox"')
     expect(html).toContain('type="number"')
@@ -1604,7 +1748,11 @@ export function SchemaForm({
         if (f.type === 'boolean') {
           return (
             <label key={f.key} className="flex gap-2 items-center text-sm">
-              <input type="checkbox" checked={Boolean(value)} onChange={(e) => set(f.key, e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={Boolean(value)}
+                onChange={(e) => set(f.key, e.target.checked)}
+              />
               {label}
             </label>
           )
@@ -1628,7 +1776,11 @@ export function SchemaForm({
           return (
             <label key={f.key} className="text-sm block">
               {label}
-              <select className={field} value={String(value)} onChange={(e) => set(f.key, e.target.value)}>
+              <select
+                className={field}
+                value={String(value)}
+                onChange={(e) => set(f.key, e.target.value)}
+              >
                 {f.options.map((o) => (
                   <option key={o.value} value={o.value}>
                     {t(o.labelKey)}
@@ -1641,7 +1793,11 @@ export function SchemaForm({
         return (
           <label key={f.key} className="text-sm block">
             {label}
-            <input className={field} value={String(value)} onChange={(e) => set(f.key, e.target.value)} />
+            <input
+              className={field}
+              value={String(value)}
+              onChange={(e) => set(f.key, e.target.value)}
+            />
           </label>
         )
       })}
@@ -1667,6 +1823,7 @@ git commit -m "feat: schema-driven config form renderer"
 ## Task 14: TransformsSection (add/remove/reorder/configure)
 
 **Files:**
+
 - Create: `src/renderer/src/TransformsSection.tsx`, `src/renderer/src/TransformsSection.test.tsx`
 
 A controlled component: receives `instances`, `catalog`, and `onChange`. Pure list helpers are exported and unit-tested; the React shell wires them to buttons.
@@ -1684,8 +1841,24 @@ const insts: TransformInstance[] = [
   { instanceId: 'b', type: 'rename', enabled: true, config: {} }
 ]
 const catalog: TransformManifest[] = [
-  { type: 'auto-tag', apiVersion: 1, labelKey: '', descriptionKey: '', allowMultiple: false, configSchema: [], defaultConfig: { x: 1 } },
-  { type: 'trim', apiVersion: 1, labelKey: '', descriptionKey: '', allowMultiple: true, configSchema: [], defaultConfig: {} }
+  {
+    type: 'auto-tag',
+    apiVersion: 1,
+    labelKey: '',
+    descriptionKey: '',
+    allowMultiple: false,
+    configSchema: [],
+    defaultConfig: { x: 1 }
+  },
+  {
+    type: 'trim',
+    apiVersion: 1,
+    labelKey: '',
+    descriptionKey: '',
+    allowMultiple: true,
+    configSchema: [],
+    defaultConfig: {}
+  }
 ]
 
 describe('list helpers', () => {
@@ -1735,7 +1908,12 @@ export function addInstance(
 ): TransformInstance[] {
   return [
     ...list,
-    { instanceId: newId(), type: manifest.type, enabled: true, config: { ...manifest.defaultConfig } }
+    {
+      instanceId: newId(),
+      type: manifest.type,
+      enabled: true,
+      config: { ...manifest.defaultConfig }
+    }
   ]
 }
 
@@ -1756,7 +1934,8 @@ export function TransformsSection({
   t: (key: string) => string
 }): React.JSX.Element {
   const [open, setOpen] = useState<string | null>(null)
-  const byType = (type: string): TransformManifest | undefined => catalog.find((m) => m.type === type)
+  const byType = (type: string): TransformManifest | undefined =>
+    catalog.find((m) => m.type === type)
   const newId = (): string => crypto.randomUUID()
 
   const heading = 'text-sm uppercase tracking-wide text-neutral-500 mb-2'
@@ -1773,12 +1952,41 @@ export function TransformsSection({
           return (
             <li key={inst.instanceId} className="rounded border border-neutral-800 p-2">
               <div className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={inst.enabled} onChange={(e) => update(inst.instanceId, { enabled: e.target.checked })} />
+                <input
+                  type="checkbox"
+                  checked={inst.enabled}
+                  onChange={(e) => update(inst.instanceId, { enabled: e.target.checked })}
+                />
                 <span className="flex-1">{label}</span>
-                <button aria-label="up" onClick={() => onChange(move(instances, idx, idx - 1))} className="px-1 text-neutral-400 hover:text-white">▲</button>
-                <button aria-label="down" onClick={() => onChange(move(instances, idx, idx + 1))} className="px-1 text-neutral-400 hover:text-white">▼</button>
-                <button onClick={() => setOpen(open === inst.instanceId ? null : inst.instanceId)} className="px-1 text-neutral-400 hover:text-white">⚙</button>
-                <button aria-label="remove" onClick={() => onChange(instances.filter((i) => i.instanceId !== inst.instanceId))} className="px-1 text-red-400 hover:text-red-300">✕</button>
+                <button
+                  aria-label="up"
+                  onClick={() => onChange(move(instances, idx, idx - 1))}
+                  className="px-1 text-neutral-400 hover:text-white"
+                >
+                  ▲
+                </button>
+                <button
+                  aria-label="down"
+                  onClick={() => onChange(move(instances, idx, idx + 1))}
+                  className="px-1 text-neutral-400 hover:text-white"
+                >
+                  ▼
+                </button>
+                <button
+                  onClick={() => setOpen(open === inst.instanceId ? null : inst.instanceId)}
+                  className="px-1 text-neutral-400 hover:text-white"
+                >
+                  ⚙
+                </button>
+                <button
+                  aria-label="remove"
+                  onClick={() =>
+                    onChange(instances.filter((i) => i.instanceId !== inst.instanceId))
+                  }
+                  className="px-1 text-red-400 hover:text-red-300"
+                >
+                  ✕
+                </button>
               </div>
               {open === inst.instanceId && manifest && (
                 <SchemaForm
@@ -1831,6 +2039,7 @@ git commit -m "feat: transforms settings section with reorder/add/remove"
 ## Task 15: Wire TransformsSection into SettingsPanel
 
 **Files:**
+
 - Modify: `src/renderer/src/SettingsPanel.tsx`
 
 Remove the Tagging and Naming sections and the `TAGGING_TOGGLES` constant; add the Transforms section fed by the catalog.
@@ -1851,11 +2060,11 @@ Delete the `TAGGING_TOGGLES` constant (lines 11-17).
 Inside the component, add state and a loader next to the existing settings load:
 
 ```ts
-  const [catalog, setCatalog] = useState<TransformManifest[]>([])
-  useEffect(() => {
-    window.plucker.getSettings().then(setS)
-    window.plucker.getTransformCatalog().then(setCatalog)
-  }, [])
+const [catalog, setCatalog] = useState<TransformManifest[]>([])
+useEffect(() => {
+  window.plucker.getSettings().then(setS)
+  window.plucker.getTransformCatalog().then(setCatalog)
+}, [])
 ```
 
 (Replace the existing single-effect `getSettings` call with the combined effect above.)
@@ -1865,12 +2074,12 @@ Inside the component, add state and a loader next to the existing settings load:
 Delete the entire `<section>` for Tagging (old lines 159-208) and the `<section>` for Naming (old lines 210-226). In their place insert:
 
 ```tsx
-        <TransformsSection
-          instances={s.transforms}
-          catalog={catalog}
-          onChange={(transforms) => set({ transforms })}
-          t={t}
-        />
+<TransformsSection
+  instances={s.transforms}
+  catalog={catalog}
+  onChange={(transforms) => set({ transforms })}
+  t={t}
+/>
 ```
 
 - [ ] **Step 4: Verify renderer typecheck + tests**
@@ -1890,6 +2099,7 @@ git commit -m "feat: replace tagging/naming settings with transforms section"
 ## Task 16: DownloadView 'transforming' status
 
 **Files:**
+
 - Modify: `src/renderer/src/DownloadView.tsx:6-13` (ICON), `:25-26` (statusText)
 
 - [ ] **Step 1: Add the transforming icon**
@@ -1907,12 +2117,12 @@ In the `ICON` record, add a `transforming` entry (place after `downloading`):
 Replace `statusText` (lines 25-26) with:
 
 ```ts
-  const statusText = (status: TrackStatus, percent?: number, transformPercent?: number): string =>
-    status === 'downloading'
-      ? `${Math.round(percent ?? 0)}%`
-      : status === 'transforming'
-        ? `${Math.round(transformPercent ?? 0)}%`
-        : t(`status.${status}`)
+const statusText = (status: TrackStatus, percent?: number, transformPercent?: number): string =>
+  status === 'downloading'
+    ? `${Math.round(percent ?? 0)}%`
+    : status === 'transforming'
+      ? `${Math.round(transformPercent ?? 0)}%`
+      : t(`status.${status}`)
 ```
 
 Update the call site (the `statusLabel` prop) to pass the third arg:
@@ -1938,6 +2148,7 @@ git commit -m "feat: show transforming status + percent in download view"
 ## Task 17: i18n strings (en + de)
 
 **Files:**
+
 - Modify: `src/renderer/src/i18n/locales/en.ts`, `src/renderer/src/i18n/locales/de.ts`
 - Test: `src/renderer/src/i18n/i18n.test.ts` (if it checks key parity)
 
@@ -1946,9 +2157,9 @@ git commit -m "feat: show transforming status + percent in download view"
 In `src/renderer/src/i18n/locales/en.ts`: in `status`, replace `tagging: 'tagging'` with `transforming: 'transforming'`. In `settings.sections`, replace `tagging`/`naming` entries with `transforms: 'Transforms'`. Remove the `settings.tagging` and `settings.naming` objects. Add a `settings.transforms` object and a top-level `transforms` object:
 
 ```ts
-    transforms: {
-      add: 'Add transform…'
-    }
+transforms: {
+  add: 'Add transform…'
+}
 ```
 
 And at the root of the exported object (sibling of `settings`):
@@ -2022,6 +2233,7 @@ Expected: typecheck + electron-vite build succeed.
 - [ ] **Step 5: Manual smoke test (document result)**
 
 Run: `pnpm dev`. Then:
+
 1. Open Settings → confirm a **Transforms** section listing `Auto-tag` and `Rename file`, each with ▲/▼/⚙/✕ controls and an "Add transform…" dropdown (Auto-tag disabled when already present).
 2. Expand Auto-tag (⚙) → confirm the schema form shows primary source (select), the boolean toggles, min match score (number), and contact email (text). Edit a value, Done, reopen → persisted.
 3. Paste a small playlist URL → confirm **all tracks appear immediately as `queued`**, then move to `downloading` (%) → `transforming` (%) → `done`, and the dock/taskbar shows a progress bar that fills and clears at the end.
@@ -2041,4 +2253,7 @@ git commit -m "chore: transform pipeline verification pass"
 - **Spec coverage:** versioned interface (Task 3), temp-copy commit (Task 8), schema-driven UI + escape-hatch-ready manifest (Tasks 1/13), `allowMultiple` (Tasks 6/14), `failureMode` (Task 8), auto-tag + rename built-ins (Tasks 4/5), v1→v2 fresh-defaults migration (Task 2), single-yt-dlp completion watch + bounded pool (Tasks 7/9/11), tracklist-first (Tasks 10/11), two-phase weighted progress + OS bar (Tasks 11/12), settings UI (Tasks 14/15), i18n (Task 17), tests throughout.
 - **Type consistency:** `runYtDlp(onProgress, onComplete, signal)` arity matches Task 9 ↔ Task 11; `JobProgress.overall` defined (Task 2) and produced (Task 11) and consumed (Task 12); `TrackStatus` `'transforming'` defined (Task 2), produced (Task 11), rendered (Task 16); `resolvePlaylist`/`parseEntries` names consistent (Tasks 10/11); `getCatalog` (main) vs `getTransformCatalog` (preload) intentionally distinct.
 - **No placeholders:** every code step contains full code; the only deferred item is the documented future escape hatch (out of scope, Task list does not depend on it).
+
+```
+
 ```
