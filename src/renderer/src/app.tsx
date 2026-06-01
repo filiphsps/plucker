@@ -5,6 +5,7 @@ import { SettingsPanel } from './settings-panel'
 import { CacheView } from './cache-view'
 import { TransportDeck } from './transport-deck'
 import { Header, type View } from './header'
+import { Page } from './ui/page'
 import { applyLanguage } from './i18n'
 import type { JobProgress } from '../../shared/types'
 
@@ -44,6 +45,7 @@ export default function App(): React.JSX.Element {
       (tk) => tk.status === 'queued' || tk.status === 'downloading' || tk.status === 'transforming'
     ) ?? false
   const deckVisible = progress !== null && (running || jobActive)
+  const overlayOpen = settingsOpen || cacheOpen
 
   return (
     <div className="flex h-screen flex-col bg-surface text-ink">
@@ -62,14 +64,21 @@ export default function App(): React.JSX.Element {
       />
 
       <div className="min-h-0 flex-1">
-        {cacheOpen ? (
-          <CacheView
-            onBack={() => {
-              setCacheOpen(false)
-              setSettingsOpen(true)
+        {/* Every page is always rendered and wrapped in <Page>, which freezes the
+            inactive ones (state + DOM preserved, Effects unmounted) and restores
+            them on return. Exactly one page is active at a time. */}
+        <Page active={!overlayOpen && view === 'download'}>
+          <DownloadView progress={progress} onRunningChange={setRunning} />
+        </Page>
+        <Page active={!overlayOpen && view === 'history'}>
+          <HistoryView
+            onNavigateDownload={() => {
+              setSettingsOpen(false)
+              setView('download')
             }}
           />
-        ) : settingsOpen ? (
+        </Page>
+        <Page active={settingsOpen}>
           <SettingsPanel
             onClose={() => setSettingsOpen(false)}
             onOpenCache={() => {
@@ -77,16 +86,15 @@ export default function App(): React.JSX.Element {
               setCacheOpen(true)
             }}
           />
-        ) : view === 'download' ? (
-          <DownloadView progress={progress} onRunningChange={setRunning} />
-        ) : (
-          <HistoryView
-            onNavigateDownload={() => {
-              setSettingsOpen(false)
-              setView('download')
+        </Page>
+        <Page active={cacheOpen}>
+          <CacheView
+            onBack={() => {
+              setCacheOpen(false)
+              setSettingsOpen(true)
             }}
           />
-        )}
+        </Page>
       </div>
 
       {deckVisible && progress && (
