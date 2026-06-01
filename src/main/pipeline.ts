@@ -9,7 +9,13 @@ import type {
   HistoryTrack
 } from '../shared/types'
 import { sanitizeFileName } from './rename'
-import { buildDownloadArgs, runYtDlp, priorityToNice, type ProgressEvent } from './ytdlp'
+import {
+  buildDownloadArgs,
+  runYtDlp,
+  priorityToNice,
+  type ProgressEvent,
+  type SpawnResult
+} from './ytdlp'
 import { spawnManaged } from './spawn'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
@@ -251,6 +257,39 @@ export function jobOutcome(tracks: HistoryTrack[], aborted: boolean): JobOutcome
   return 'partial'
 }
 
+/** How a finished yt-dlp download for one entry should be classified. */
+export type DownloadClassification =
+  | { kind: 'done'; file: string }
+  | { kind: 'skipped'; reason: 'below minimum quality' }
+  | { kind: 'failed'; reason: string }
+
+/**
+ * Decide a single download's terminal status from its yt-dlp result.
+ *
+ * The subtle case is `skipped`: yt-dlp emits "Requested format is not available"
+ * whenever the format selector matches nothing, but that only means *below minimum
+ * quality* when we actually asked for a source-bitrate floor (`-f ba[abr>=N]`, no
+ * fallback). With no floor configured (`minBitrate == null`) that same message is a
+ * real extraction failure — a restricted/geo response, a video yt-dlp can't read, a
+ * stale extractor — and must surface as a failure, not be disguised as a quality skip.
+ */
+export function classifyDownload(
+  downloadedFile: string | null,
+  result: Pick<SpawnResult, 'skipped' | 'errors'>,
+  minBitrate: number | null
+): DownloadClassification {
+  if (downloadedFile) return { kind: 'done', file: downloadedFile }
+  if (result.skipped.length > 0 && minBitrate != null) {
+    return { kind: 'skipped', reason: 'below minimum quality' }
+  }
+  // parseErrorLine excludes the format-not-available line, so when that was the only
+  // signal `errors` is empty — give an honest reason instead of a bare "Download failed".
+  const reason =
+    result.errors[result.errors.length - 1]?.message ??
+    (result.skipped.length > 0 ? 'No downloadable audio format found' : 'Download failed')
+  return { kind: 'failed', reason }
+}
+
 /** 0..1 progress for one track: download weighted 0.8, transforms 0.2. */
 function trackProgress(t: TrackProgress): number {
   if (t.status === 'done' || t.status === 'failed' || t.status === 'skipped') return 1
@@ -476,18 +515,21 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
 
     t.stage = undefined
     t.speedBytesPerSec = undefined
-    // Below-floor skip: yt-dlp reported "format not available" for this video.
-    if (!downloaded && dl.skipped.length > 0) {
+    const outcome = classifyDownload(downloaded, dl, settings.audio.minBitrate)
+    if (outcome.kind === 'skipped') {
       t.status = 'skipped'
-      t.reason = 'below minimum quality'
-      log.info('yt-dlp', `skipped "${t.title}" — below minimum quality`)
+      t.reason = outcome.reason
+      log.info(
+        'yt-dlp',
+        `skipped "${t.title}" — no source audio at/above ${settings.audio.minBitrate} kbps`
+      )
       t.elapsedMs = Math.round(trackSpan.end(`${t.title} (skipped)`))
       emit()
       return
     }
-    if (!downloaded) {
+    if (outcome.kind === 'failed') {
       t.status = 'failed'
-      t.reason = dl.errors[dl.errors.length - 1]?.message ?? 'Download failed'
+      t.reason = outcome.reason
       if (dl.code) t.errorCode = `yt-dlp ${dl.code}`
       log.warn('yt-dlp', `download failed for "${t.title}": ${t.reason}`)
       log.error('yt-dlp', `download result for "${t.title}":`, dl)
@@ -499,7 +541,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     // track stuck in `transforming`. Mark it failed here so the row settles
     // immediately rather than waiting on the end-of-job backstop.
     try {
-      await finishTrack(t, downloaded)
+      await finishTrack(t, outcome.file)
       t.elapsedMs = Math.round(trackSpan.end(t.title))
     } catch (err) {
       t.status = 'failed'

@@ -6,7 +6,8 @@ import {
   isRelevantStatusLine,
   markCancelledTracks,
   toHistoryTracks,
-  jobOutcome
+  jobOutcome,
+  classifyDownload
 } from './pipeline'
 import type { TrackProgress, HistoryTrack } from '../shared/types'
 
@@ -16,6 +17,42 @@ const tp = (index: number, status: TrackProgress['status']): TrackProgress => ({
   status,
   percent: 0,
   transformPercent: 0
+})
+
+describe('classifyDownload', () => {
+  const ok = { skipped: [], errors: [] }
+
+  it('is done when a file was produced, regardless of stray skip/error noise', () => {
+    expect(
+      classifyDownload('/out/x.mp3', { skipped: [{ videoId: 'a' }], errors: [] }, 128)
+    ).toEqual({ kind: 'done', file: '/out/x.mp3' })
+  })
+
+  it('is a below-minimum-quality skip only when a bitrate floor is configured', () => {
+    const dl = { skipped: [{ videoId: 'a' }], errors: [] }
+    expect(classifyDownload(null, dl, 128)).toEqual({
+      kind: 'skipped',
+      reason: 'below minimum quality'
+    })
+  })
+
+  it('treats format-not-available as a real failure when NO floor is set', () => {
+    // The reported x64 regression: healthy tracks mislabeled "below minimum quality".
+    const dl = { skipped: [{ videoId: 'a' }], errors: [] }
+    expect(classifyDownload(null, dl, null)).toEqual({
+      kind: 'failed',
+      reason: 'No downloadable audio format found'
+    })
+  })
+
+  it('prefers yt-dlp’s own error message when one was captured', () => {
+    const dl = { skipped: [], errors: [{ message: 'Video unavailable' }] }
+    expect(classifyDownload(null, dl, 128)).toEqual({ kind: 'failed', reason: 'Video unavailable' })
+  })
+
+  it('falls back to a generic failure when there is no signal at all', () => {
+    expect(classifyDownload(null, ok, 128)).toEqual({ kind: 'failed', reason: 'Download failed' })
+  })
 })
 
 describe('markCancelledTracks', () => {
