@@ -34,7 +34,16 @@ export default function App(): React.JSX.Element {
     []
   )
 
-  const deckVisible = running && progress !== null
+  // The transport deck (bottom bar) must follow the *job*, not just the download
+  // view's local `running` flag — re-downloads launched from the History page
+  // start a job without ever flipping that flag. Treat any in-flight progress
+  // (queued/downloading/transforming) as a live job so the deck shows regardless
+  // of where the download was triggered, and hides once every track is terminal.
+  const jobActive =
+    progress?.tracks.some(
+      (tk) => tk.status === 'queued' || tk.status === 'downloading' || tk.status === 'transforming'
+    ) ?? false
+  const deckVisible = progress !== null && (running || jobActive)
 
   return (
     <div className="flex h-screen flex-col bg-surface text-ink">
