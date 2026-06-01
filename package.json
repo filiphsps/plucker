@@ -1,5 +1,6 @@
 {
   "name": "plucker",
+  "productName": "Plucker",
   "version": "1.0.0",
   "description": "Download YouTube playlists as tagged MP3s",
   "main": "./out/main/index.js",

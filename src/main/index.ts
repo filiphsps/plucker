@@ -52,7 +52,9 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
-    }
+    },
+    // Set title to app name.
+    title: app.getName()
   })
   mainWindow = win
 
