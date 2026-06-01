@@ -10,14 +10,14 @@ import { loadSettings, saveSettings, settingsPath, expandHome } from './settings
 import { binaryPaths, type BinaryPaths } from './binaries'
 import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
-import { readCoverDataUrl } from './tagger'
+import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { addEntry, removeEntry, removeTrack } from './history'
 import { checkForUpdates } from './updater'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
-import { createMetadataCache, type MetadataCache } from './metadata-cache'
-import type { Settings, HistoryEntry } from '../shared/types'
+import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
+import type { Settings, HistoryEntry, CachedTrack, TrackTags } from '../shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel
 // (built when the app becomes ready) read "Plucker" instead of "Electron".
@@ -65,6 +65,45 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     getTrackMetadata(file, hash, forBinaries(currentBin(), getMetaCache()))
   )
   ipcMain.handle('files:exist', (_e, paths: string[]) => paths.map((p) => existsSync(p)))
+
+  // Metadata cache manager.
+  const toCachedTrack = (r: CacheRecord): CachedTrack => ({
+    ...r,
+    fileExists: !!r.track?.file && existsSync(r.track.file)
+  })
+  const listCache = (): CachedTrack[] =>
+    getMetaCache()
+      .list()
+      .map(toCachedTrack)
+      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+
+  ipcMain.handle('cache:list', () => listCache())
+  ipcMain.handle('cache:cover', (_e, hash: string) => {
+    const buf = getMetaCache().readCover(hash)
+    return buf ? `data:image/jpeg;base64,${buf.toString('base64')}` : null
+  })
+  ipcMain.handle('cache:update', (_e, hash: string, mb: TrackTags) => {
+    const cache = getMetaCache()
+    cache.update(hash, mb)
+    // Also rewrite the library file's ID3 tags when it still exists.
+    const file = cache.read(hash)?.track?.file
+    if (file && existsSync(file)) {
+      try {
+        writeTrackTags(file, mb)
+      } catch {
+        /* non-mp3 / unwritable — cache is still updated */
+      }
+    }
+    return listCache()
+  })
+  ipcMain.handle('cache:delete', (_e, hash: string) => {
+    getMetaCache().remove(hash)
+    return listCache()
+  })
+  ipcMain.handle('cache:clear', () => {
+    getMetaCache().clear()
+    return listCache()
+  })
 
   // History.
   ipcMain.handle('history:get', () => loadSettings().history)

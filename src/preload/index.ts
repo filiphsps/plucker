@@ -5,7 +5,9 @@ import type {
   JobProgress,
   HistoryEntry,
   MenuNavTarget,
-  TrackMetadata
+  TrackMetadata,
+  CachedTrack,
+  TrackTags
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
 
@@ -38,6 +40,14 @@ const api = {
   getTrackMetadata: (file: string, hash?: string): Promise<TrackMetadata> =>
     ipcRenderer.invoke('metadata:get', file, hash),
   filesExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('files:exist', paths),
+  // Metadata cache manager
+  getCache: (): Promise<CachedTrack[]> => ipcRenderer.invoke('cache:list'),
+  getCacheCover: (hash: string): Promise<string | null> => ipcRenderer.invoke('cache:cover', hash),
+  updateCacheTrack: (hash: string, tags: TrackTags): Promise<CachedTrack[]> =>
+    ipcRenderer.invoke('cache:update', hash, tags),
+  deleteCacheTrack: (hash: string): Promise<CachedTrack[]> =>
+    ipcRenderer.invoke('cache:delete', hash),
+  clearCache: (): Promise<CachedTrack[]> => ipcRenderer.invoke('cache:clear'),
   // History
   getHistory: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:get'),
   removeHistoryEntry: (id: string, deleteFiles: boolean): Promise<HistoryEntry[]> =>
