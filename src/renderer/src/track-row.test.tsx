@@ -16,16 +16,16 @@ describe('TrackRow', () => {
     expect(html).toContain('Avril 14th')
   })
 
-  it('keeps the detail grid collapsed until expanded, and exposes an expand control', () => {
+  it('keeps the detail panel collapsed until expanded, and exposes an expand control', () => {
     const html = renderToStaticMarkup(
       <TrackRow
         variant="download"
         index={1}
         track={{ title: 'Avril 14th', status: 'downloading', percent: 64 }}
-        detail={{ Source: 'youtube.com/watch?v=x' }}
+        source={{ videoId: 'x' }}
       />
     )
-    // collapsed by default → detail value not rendered yet
+    // collapsed by default → detail panel (and source url) not rendered yet
     expect(html).not.toContain('youtube.com/watch?v=x')
     expect(html).toContain('aria-label="expand"')
   })
@@ -36,5 +36,18 @@ describe('TrackRow', () => {
     )
     expect(html).toContain('9:49')
     expect(html).toContain('Stratus')
+  })
+
+  it('shows a missing badge and warning subtitle when the file is gone', () => {
+    const html = renderToStaticMarkup(
+      <TrackRow
+        variant="history"
+        index={3}
+        track={{ title: 'Lost Track', file: '/gone/lost.mp3' }}
+        missing
+      />
+    )
+    expect(html).toContain('MISSING')
+    expect(html).toContain('File missing')
   })
 })

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Music, ChevronRight, ChevronDown, Check, X } from 'lucide-react'
-import type { TrackStatus } from '../../shared/types'
+import { Music, ChevronRight, ChevronDown, Check, X, AlertTriangle } from 'lucide-react'
+import type { TrackStatus, TrackMetadata } from '../../shared/types'
+import { TrackDetail, type TrackSource } from './ui/meta/track-detail'
 
 export interface TrackRowData {
   title: string
@@ -15,6 +16,9 @@ export interface TrackRowData {
   /** Mono duration string for the history variant, e.g. "3:32". */
   duration?: string
   reason?: string
+  videoId?: string
+  /** Audio-content hash; cache key for the expanded metadata panel. */
+  hash?: string
 }
 
 const METER_CELLS = 14
@@ -41,39 +45,58 @@ export function TrackRow({
   variant,
   index,
   track,
-  detail,
+  source,
   actions,
-  active = false
+  active = false,
+  missing = false
 }: {
   variant: 'download' | 'history'
   index: number
   track: TrackRowData
-  /** key→value pairs rendered in the expanded detail grid. */
-  detail?: Record<string, string>
+  /** Source info (video id, url, download date) for the expanded detail panel. */
+  source?: TrackSource
   /** Trailing hover actions (history variant). */
   actions?: React.ReactNode
   /** Highlight this as the single active ("now plucking") row (download variant). */
   active?: boolean
+  /** The track's file is no longer on disk (history variant). */
+  missing?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [cover, setCover] = useState<{ file: string; url: string | null } | null>(null)
+  const [meta, setMeta] = useState<{ file: string; data: TrackMetadata } | null>(null)
 
   useEffect(() => {
     const file = track.file
-    if (!file) return
-    let active = true
-    window.plucker.getCover(file).then((url) => active && setCover({ file, url }))
+    if (!file || missing) return
+    let live = true
+    window.plucker.getCover(file).then((url) => live && setCover({ file, url }))
     return () => {
-      active = false
+      live = false
     }
-  }, [track.file])
+  }, [track.file, missing])
+
+  // Lazily read metadata the first time the row is expanded (per file).
+  useEffect(() => {
+    const file = track.file
+    if (!open || missing || !file || meta?.file === file) return
+    let live = true
+    window.plucker.getTrackMetadata(file, track.hash).then((data) => {
+      if (live) setMeta({ file, data })
+    })
+    return () => {
+      live = false
+    }
+  }, [open, track.file, track.hash, missing, meta?.file])
 
   const coverUrl = cover && cover.file === track.file ? cover.url : null
   const failed = track.status === 'failed'
-  const subtitle = failed
-    ? (track.reason ?? t('status.failed'))
-    : [track.artist, track.album, track.year].filter(Boolean).join(' · ')
+  const subtitle = missing
+    ? t('history.missing')
+    : failed
+      ? (track.reason ?? t('status.failed'))
+      : [track.artist, track.album, track.year].filter(Boolean).join(' · ')
 
   const statusEl = (): React.JSX.Element => {
     if (track.status === 'done')
@@ -103,6 +126,13 @@ export function TrackRow({
   }
 
   const activeRow = variant === 'download' && active
+  // No file yet (download in progress) → show source + dashes; file present but
+  // metadata not loaded for it yet → loading; otherwise ready.
+  const detailState = missing
+    ? 'unavailable'
+    : track.file && meta?.file !== track.file
+      ? 'loading'
+      : 'ready'
 
   return (
     <div
@@ -127,11 +157,13 @@ export function TrackRow({
         <div
           className={
             'flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-[5px] border bg-[#23272e] ' +
-            (failed ? 'border-bad/30' : 'border-line')
+            (failed || missing ? 'border-warn/30' : 'border-line')
           }
         >
           {coverUrl ? (
             <img src={coverUrl} alt={t('track.coverAlt')} className="h-full w-full object-cover" />
+          ) : missing ? (
+            <AlertTriangle size={15} className="text-warn" />
           ) : failed ? (
             <X size={15} className="text-bad" />
           ) : (
@@ -140,17 +172,25 @@ export function TrackRow({
         </div>
         <button
           type="button"
-          disabled={!track.file}
+          disabled={!track.file || missing}
           onClick={() => track.file && window.plucker.revealFile(track.file)}
           className="min-w-0 flex-1 text-left disabled:cursor-default"
         >
           <div
-            className={'truncate text-[13px] font-medium ' + (failed ? 'text-ink-dim' : 'text-ink')}
+            className={
+              'truncate text-[13px] font-medium ' +
+              (failed || missing ? 'text-ink-dim' : 'text-ink')
+            }
           >
             {track.title}
           </div>
           {subtitle && (
-            <div className={'truncate text-[11px] ' + (failed ? 'text-bad' : 'text-ink-dim')}>
+            <div
+              className={
+                'truncate text-[11px] ' +
+                (failed ? 'text-bad' : missing ? 'text-warn' : 'text-ink-dim')
+              }
+            >
               {subtitle}
             </div>
           )}
@@ -166,6 +206,11 @@ export function TrackRow({
           </>
         ) : (
           <>
+            {missing && (
+              <span className="rounded-md border border-warn/30 bg-warn/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-warn">
+                {t('history.missingBadge')}
+              </span>
+            )}
             <span className="w-12 text-right font-mono text-[11px] text-ink-faint">
               {track.duration ?? '—'}
             </span>
@@ -178,17 +223,12 @@ export function TrackRow({
         )}
       </div>
 
-      {open && detail && (
-        <div className="grid grid-cols-4 gap-x-[22px] gap-y-3 bg-gradient-to-b from-accent-dim to-transparent px-4 pb-4 pl-[42px] pt-1">
-          {Object.entries(detail).map(([k, v]) => (
-            <div key={k}>
-              <div className="mb-[3px] font-mono text-[9px] uppercase tracking-[1px] text-ink-faint">
-                {k}
-              </div>
-              <div className="truncate font-mono text-[12px] text-ink">{v}</div>
-            </div>
-          ))}
-        </div>
+      {open && (
+        <TrackDetail
+          meta={meta && meta.file === track.file ? meta.data : null}
+          source={source}
+          state={detailState}
+        />
       )}
     </div>
   )

@@ -16,11 +16,24 @@ export function HistoryView({
   const { t } = useTranslation()
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [query, setQuery] = useState('')
+  const [missing, setMissing] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     window.plucker.getHistory().then(setHistory)
     return window.plucker.onHistoryChanged(() => window.plucker.getHistory().then(setHistory))
   }, [])
+
+  // Flag tracks whose file is no longer on disk.
+  useEffect(() => {
+    const files = history.flatMap((e) => e.tracks.map((tk) => tk.file)).filter(Boolean)
+    let live = true
+    window.plucker.filesExist(files).then((exists) => {
+      if (live) setMissing(new Set(files.filter((_, i) => !exists[i])))
+    })
+    return () => {
+      live = false
+    }
+  }, [history])
 
   function redownload(url: string, folder: string): void {
     onNavigateDownload()
@@ -127,10 +140,8 @@ export function HistoryView({
                 variant="history"
                 index={i + 1}
                 track={tk}
-                detail={{
-                  [t('history.colFile')]: tk.file?.split('/').pop() ?? '—',
-                  [t('download.colSource')]: tk.videoId ? watchUrl(tk.videoId) : '—'
-                }}
+                missing={!!tk.file && missing.has(tk.file)}
+                source={{ videoId: tk.videoId, downloadedAt: entry.completedAt }}
                 actions={
                   <>
                     <button

@@ -32,7 +32,9 @@ const de: typeof en = {
     completeBadge: 'FERTIG',
     failedBadge_one: '{{count}} FEHLER',
     failedBadge_other: '{{count}} FEHLER',
-    colFile: 'Datei'
+    colFile: 'Datei',
+    missing: 'Datei fehlt',
+    missingBadge: 'FEHLT'
   },
   download: {
     urlLabel: 'YouTube-Playlist- oder Video-URL einfügen',
@@ -108,6 +110,31 @@ const de: typeof en = {
     updates: {
       checkOnLaunch: 'Beim Start nach Updates suchen',
       desc: 'Benachrichtigen, wenn eine neue Version verfügbar ist'
+    }
+  },
+  meta: {
+    loading: 'Metadaten werden gelesen…',
+    unavailable: 'Datei nicht verfügbar',
+    audio: {
+      bitrate: 'Bitrate',
+      duration: 'Dauer',
+      sampleRate: 'Abtastrate',
+      channels: 'Kanäle',
+      codec: 'Codec',
+      size: 'Größe'
+    },
+    tags: {
+      artist: 'Künstler',
+      title: 'Titel',
+      album: 'Album',
+      year: 'Jahr',
+      trackNumber: 'Titelnr.',
+      genre: 'Genre'
+    },
+    source: {
+      url: 'URL',
+      videoId: 'Video-ID',
+      downloaded: 'Heruntergeladen'
     }
   },
   transforms: {

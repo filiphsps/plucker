@@ -31,7 +31,9 @@ export default {
     completeBadge: 'COMPLETE',
     failedBadge_one: '{{count}} FAILED',
     failedBadge_other: '{{count}} FAILED',
-    colFile: 'File'
+    colFile: 'File',
+    missing: 'File missing',
+    missingBadge: 'MISSING'
   },
   download: {
     urlLabel: 'Paste a YouTube playlist or video URL',
@@ -107,6 +109,31 @@ export default {
     updates: {
       checkOnLaunch: 'Check for updates on launch',
       desc: 'Notify me when a new version is available'
+    }
+  },
+  meta: {
+    loading: 'Reading metadata…',
+    unavailable: 'File not available',
+    audio: {
+      bitrate: 'Bitrate',
+      duration: 'Duration',
+      sampleRate: 'Sample rate',
+      channels: 'Channels',
+      codec: 'Codec',
+      size: 'Size'
+    },
+    tags: {
+      artist: 'Artist',
+      title: 'Title',
+      album: 'Album',
+      year: 'Year',
+      trackNumber: 'Track #',
+      genre: 'Genre'
+    },
+    source: {
+      url: 'URL',
+      videoId: 'Video ID',
+      downloaded: 'Downloaded'
     }
   },
   transforms: {

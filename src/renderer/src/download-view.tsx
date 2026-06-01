@@ -75,10 +75,7 @@ export function DownloadView({
                 index={tr.index}
                 track={tr}
                 active={tr.index === activeIndex}
-                detail={{
-                  [t('download.colSource')]: tr.videoId ? `youtube.com/watch?v=${tr.videoId}` : '—',
-                  [t('download.colDest')]: tr.file ?? '—'
-                }}
+                source={{ videoId: tr.videoId }}
               />
             ))}
           </div>
