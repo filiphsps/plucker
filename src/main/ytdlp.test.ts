@@ -37,6 +37,27 @@ describe('buildDownloadArgs', () => {
     expect(args).toContain('edge')
   })
 
+  it('uses --cookies with the exported file and omits --cookies-from-browser', () => {
+    const s = { ...DEFAULT_SETTINGS, cookies: { source: 'safari' as const } }
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/o',
+      settings: s,
+      ffmpegPath: '/f',
+      cookieFile: '/tmp/c.txt'
+    })
+    expect(args).toContain('--cookies')
+    expect(args[args.indexOf('--cookies') + 1]).toBe('/tmp/c.txt')
+    expect(args).not.toContain('--cookies-from-browser')
+  })
+
+  it('falls back to --cookies-from-browser when no cookieFile is given', () => {
+    const s = { ...DEFAULT_SETTINGS, cookies: { source: 'safari' as const } }
+    const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })
+    expect(args).toContain('--cookies-from-browser')
+    expect(args).not.toContain('--cookies')
+  })
+
   it('omits cookies when source is none', () => {
     const s = { ...DEFAULT_SETTINGS, cookies: { source: 'none' as const } }
     const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })

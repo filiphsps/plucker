@@ -14,6 +14,12 @@ export interface DownloadArgsInput {
    * multiple playlist entries at once within one process.
    */
   singleVideo?: boolean
+  /**
+   * Path to a Netscape cookie file exported via a privileged step. When set, the
+   * download reads cookies from this file (`--cookies`) instead of the live
+   * browser store (`--cookies-from-browser`), so the download runs unprivileged.
+   */
+  cookieFile?: string
 }
 
 // Custom progress line we can parse deterministically:
@@ -24,7 +30,7 @@ const PROGRESS_TEMPLATE =
   'PLUCKER %(info.playlist_index|1)s %(progress._percent)d %(progress.speed)s %(info.id)s %(info.title)s'
 
 export function buildDownloadArgs(input: DownloadArgsInput): string[] {
-  const { url, destFolder, settings, ffmpegPath, singleVideo } = input
+  const { url, destFolder, settings, ffmpegPath, singleVideo, cookieFile } = input
   // libmp3lame algorithm effort: higher = faster encode (big help on slow CPUs),
   // inaudible at our bitrates. Use -compression_level (not -q:a, which would
   // switch the CBR encode to VBR and change the target bitrate). When a sample
@@ -67,7 +73,9 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
   if (settings.audio.minBitrate != null) {
     args.push('-f', `ba[abr>=${settings.audio.minBitrate}]`)
   }
-  if (settings.cookies.source !== 'none' && settings.cookies.source !== 'auto') {
+  if (cookieFile) {
+    args.push('--cookies', cookieFile)
+  } else if (settings.cookies.source !== 'none' && settings.cookies.source !== 'auto') {
     args.push('--cookies-from-browser', settings.cookies.source)
   }
   args.push(url)

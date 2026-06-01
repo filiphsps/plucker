@@ -17,6 +17,12 @@ import {
   type SpawnResult
 } from './ytdlp'
 import { spawnManaged } from './spawn'
+import {
+  needsCookieEscalation,
+  isCookiePermissionError,
+  exportBrowserCookies,
+  cleanupCookieFile
+} from './cookies'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
 import { createPool } from './pool'
@@ -99,7 +105,8 @@ export async function resolvePlaylist(
   ytdlpPath: string,
   url: string,
   onLine?: (line: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  cookieArgs: string[] = []
 ): Promise<ResolvedJob> {
   const { stdout, stderr, code, error } = await new Promise<{
     stdout: string
@@ -112,7 +119,7 @@ export async function resolvePlaylist(
     // Managed + signal-aware so cancelling during resolution force-kills it.
     const child = spawnManaged(
       ytdlpPath,
-      ['--verbose', '--flat-playlist', '--dump-single-json', url],
+      ['--verbose', '--flat-playlist', '--dump-single-json', ...cookieArgs, url],
       {},
       signal
     )
@@ -302,289 +309,321 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
   log.info('app', `job start: ${url}`)
   const jobSpan = startSpan('job', 'pipeline')
   onStatus?.({ phase: 'resolving', key: 'launching' })
-  const job = await timed('resolve-playlist', 'pipeline', () =>
-    resolvePlaylist(
-      bin.ytdlp,
-      url,
-      (line) => {
-        // Drive the inline resolve panel and mirror the verbose line into the console log.
-        onStatus?.({ phase: 'resolving', line })
-        log.debug('yt-dlp', line)
-      },
-      signal
+
+  // When a browser cookie source is selected we first try reading it directly.
+  // If yt-dlp can't access the cookie store (permission error in the packaged
+  // app), we escalate ONCE: a privileged step exports the cookies to a temp file
+  // that every subsequent (unprivileged) resolve/download reads via `--cookies`.
+  let cookieFile: string | undefined
+  let cookieArgs: string[] = needsCookieEscalation(settings)
+    ? ['--cookies-from-browser', settings.cookies.source]
+    : []
+  const resolveOnce = (): Promise<ResolvedJob> =>
+    timed('resolve-playlist', 'pipeline', () =>
+      resolvePlaylist(
+        bin.ytdlp,
+        url,
+        (line) => {
+          // Drive the inline resolve panel and mirror the verbose line into the console log.
+          onStatus?.({ phase: 'resolving', line })
+          log.debug('yt-dlp', line)
+        },
+        signal,
+        cookieArgs
+      )
     )
-  )
-  onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
-  log.info('app', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
-  const dest =
-    deps.folderOverride ??
-    destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
-  mkdirSync(dest, { recursive: true })
 
-  // Pre-populate every entry as queued so the whole list shows immediately.
-  const tracks: TrackProgress[] = job.entries.map((e) => ({
-    index: e.index,
-    title: e.title,
-    videoId: e.videoId,
-    status: 'queued',
-    percent: 0,
-    transformPercent: 0
-  }))
-
-  const overall = (): number =>
-    tracks.length ? tracks.reduce((sum, t) => sum + trackProgress(t), 0) / tracks.length : 0
-  const emit = (): void =>
-    onProgress({
-      jobTitle: job.title,
-      total: tracks.length,
-      tracks: [...tracks],
-      folder: dest,
-      url,
-      overall: overall()
-    })
-  emit()
-
-  const registry = buildRegistry()
-  const enabled = settings.transforms.filter((i) => i.enabled)
-  const services = {
-    bin,
-    fetch: deps.mbFetch ?? fetch,
-    signal,
-    log: (m: string) => console.warn(m),
-    cache: deps.cache
-  }
-  // One slot per concurrent track pipeline. Each slot owns a single-video download
-  // *and* its transform, so `performance.parallel` is the number of full track
-  // pipelines running at once (yt-dlp can't download playlist entries concurrently
-  // within one process, so we fan out into one single-video download per entry).
-  const pool = createPool(Math.max(1, settings.performance.parallel))
-  // Collect history by playlist index so the recorded order is stable regardless
-  // of which concurrent track finishes first.
-  const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
-
-  const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
-  const watchUrl = (id: string): string => `https://www.youtube.com/watch?v=${id}`
-  // Prefer the flat-playlist entry URL; fall back to a watch URL (or, for a single
-  // video job, the original URL) so a missing entry URL never blocks a download.
-  const entryUrl = (e: PlaylistEntry): string =>
-    isHttpUrl(e.url) ? e.url : job.kind === 'video' ? url : watchUrl(e.videoId)
-
-  /** Hash + transform a freshly-downloaded file, updating the track + history. */
-  const finishTrack = async (t: TrackProgress, filePath: string): Promise<void> => {
-    const sidecarPath = filePath.replace(/\.mp3$/i, '.info.json')
-    const sidecar = readSidecar(sidecarPath)
-    // Hash the audio frames once (tag-independent), so auto-tag + probe can reuse
-    // cached results and history can point straight at the cache entry.
-    t.speedBytesPerSec = undefined
-    let hash: string | undefined
+  try {
+    let job: ResolvedJob
     try {
-      t.stage = 'hashing'
-      emit()
-      hash = await timed('hash', 'pipeline', () => hashAudioFile(filePath))
-      t.hash = hash
-    } catch {
-      /* unreadable download — proceed without a cache key */
+      job = await resolveOnce()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const escalate =
+        !(signal?.aborted ?? false) &&
+        needsCookieEscalation(settings) &&
+        !cookieFile &&
+        isCookiePermissionError(msg)
+      if (!escalate) throw err
+      cookieFile = await exportBrowserCookies(bin.ytdlp, settings.cookies.source, url)
+      cookieArgs = ['--cookies', cookieFile]
+      job = await resolveOnce()
     }
-    t.status = 'transforming'
-    t.percent = 100
-    t.transformPercent = 0
+    onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
+    log.info('app', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
+    const dest =
+      deps.folderOverride ??
+      destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
+    mkdirSync(dest, { recursive: true })
+
+    // Pre-populate every entry as queued so the whole list shows immediately.
+    const tracks: TrackProgress[] = job.entries.map((e) => ({
+      index: e.index,
+      title: e.title,
+      videoId: e.videoId,
+      status: 'queued',
+      percent: 0,
+      transformPercent: 0
+    }))
+
+    const overall = (): number =>
+      tracks.length ? tracks.reduce((sum, t) => sum + trackProgress(t), 0) / tracks.length : 0
+    const emit = (): void =>
+      onProgress({
+        jobTitle: job.title,
+        total: tracks.length,
+        tracks: [...tracks],
+        folder: dest,
+        url,
+        overall: overall()
+      })
     emit()
 
-    const transformSpan = startSpan('transform-chain', 'pipeline')
-    const res = await runTransformChain(
-      filePath,
-      dest,
-      {
-        videoId: sidecar.id,
-        rawTitle: sidecar.title ?? t.title,
-        sourceFile: filePath,
-        index: t.index,
-        contentHash: hash
-      },
-      enabled,
-      registry,
-      services,
-      (f) => {
-        t.transformPercent = Math.round(f * 100)
-        emit()
-      },
-      (stage) => {
-        t.stage = stage
-        emit()
-      }
-    )
-    transformSpan.end(t.title)
-    if (existsSync(sidecarPath)) rmSync(sidecarPath, { force: true })
-    if (res.failed) {
-      t.status = 'failed'
-      t.stage = undefined
-      t.reason = res.reason
-      log.warn('transform', `transform failed for "${t.title}": ${res.reason}`)
-      emit()
-      return
+    const registry = buildRegistry()
+    const enabled = settings.transforms.filter((i) => i.enabled)
+    const services = {
+      bin,
+      fetch: deps.mbFetch ?? fetch,
+      signal,
+      log: (m: string) => console.warn(m),
+      cache: deps.cache
     }
-    if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
-    // Probe technical audio properties once and cache them by content hash;
-    // a cache hit (re-download of identical audio) skips the ffmpeg probe.
-    // Also record the track's display identity so the cache manager can list it.
-    if (hash && deps.cache) {
-      if (!deps.cache.read(hash)?.audio) {
-        let sizeBytes: number | undefined
-        try {
-          sizeBytes = statSync(res.outputFile).size
-        } catch {
-          /* stat failed — leave size undefined */
-        }
-        t.stage = 'probing'
+    // One slot per concurrent track pipeline. Each slot owns a single-video download
+    // *and* its transform, so `performance.parallel` is the number of full track
+    // pipelines running at once (yt-dlp can't download playlist entries concurrently
+    // within one process, so we fan out into one single-video download per entry).
+    const pool = createPool(Math.max(1, settings.performance.parallel))
+    // Collect history by playlist index so the recorded order is stable regardless
+    // of which concurrent track finishes first.
+    const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
+
+    const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
+    const watchUrl = (id: string): string => `https://www.youtube.com/watch?v=${id}`
+    // Prefer the flat-playlist entry URL; fall back to a watch URL (or, for a single
+    // video job, the original URL) so a missing entry URL never blocks a download.
+    const entryUrl = (e: PlaylistEntry): string =>
+      isHttpUrl(e.url) ? e.url : job.kind === 'video' ? url : watchUrl(e.videoId)
+
+    /** Hash + transform a freshly-downloaded file, updating the track + history. */
+    const finishTrack = async (t: TrackProgress, filePath: string): Promise<void> => {
+      const sidecarPath = filePath.replace(/\.mp3$/i, '.info.json')
+      const sidecar = readSidecar(sidecarPath)
+      // Hash the audio frames once (tag-independent), so auto-tag + probe can reuse
+      // cached results and history can point straight at the cache entry.
+      t.speedBytesPerSec = undefined
+      let hash: string | undefined
+      try {
+        t.stage = 'hashing'
         emit()
-        deps.cache.writeAudio(hash, {
-          ...(await timed('probe', 'pipeline', () =>
-            probeAudio(bin.ffmpeg, res.outputFile, signal)
-          )),
-          sizeBytes
+        hash = await timed('hash', 'pipeline', () => hashAudioFile(filePath))
+        t.hash = hash
+      } catch {
+        /* unreadable download — proceed without a cache key */
+      }
+      t.status = 'transforming'
+      t.percent = 100
+      t.transformPercent = 0
+      emit()
+
+      const transformSpan = startSpan('transform-chain', 'pipeline')
+      const res = await runTransformChain(
+        filePath,
+        dest,
+        {
+          videoId: sidecar.id,
+          rawTitle: sidecar.title ?? t.title,
+          sourceFile: filePath,
+          index: t.index,
+          contentHash: hash
+        },
+        enabled,
+        registry,
+        services,
+        (f) => {
+          t.transformPercent = Math.round(f * 100)
+          emit()
+        },
+        (stage) => {
+          t.stage = stage
+          emit()
+        }
+      )
+      transformSpan.end(t.title)
+      if (existsSync(sidecarPath)) rmSync(sidecarPath, { force: true })
+      if (res.failed) {
+        t.status = 'failed'
+        t.stage = undefined
+        t.reason = res.reason
+        log.warn('transform', `transform failed for "${t.title}": ${res.reason}`)
+        emit()
+        return
+      }
+      if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
+      // Probe technical audio properties once and cache them by content hash;
+      // a cache hit (re-download of identical audio) skips the ffmpeg probe.
+      // Also record the track's display identity so the cache manager can list it.
+      if (hash && deps.cache) {
+        if (!deps.cache.read(hash)?.audio) {
+          let sizeBytes: number | undefined
+          try {
+            sizeBytes = statSync(res.outputFile).size
+          } catch {
+            /* stat failed — leave size undefined */
+          }
+          t.stage = 'probing'
+          emit()
+          deps.cache.writeAudio(hash, {
+            ...(await timed('probe', 'pipeline', () =>
+              probeAudio(bin.ffmpeg, res.outputFile, signal)
+            )),
+            sizeBytes
+          })
+        }
+        deps.cache.writeTrack(hash, {
+          title: res.tags.title ?? t.title,
+          file: res.outputFile,
+          videoId: sidecar.id
         })
       }
-      deps.cache.writeTrack(hash, {
-        title: res.tags.title ?? t.title,
+      t.status = 'done'
+      t.stage = undefined
+      t.file = res.outputFile
+      t.artist = res.tags.artist
+      t.album = res.tags.album
+      t.year = res.tags.year
+      if (res.tags.title) t.title = res.tags.title
+      t.transformPercent = 100
+      historyByIndex[t.index - 1] = {
+        status: 'done',
         file: res.outputFile,
-        videoId: sidecar.id
-      })
+        title: res.tags.title ?? t.title,
+        artist: res.tags.artist,
+        album: res.tags.album,
+        year: res.tags.year,
+        videoId: sidecar.id,
+        hash
+      }
+      log.info('app', `track done: ${t.title}`)
+      emit()
     }
-    t.status = 'done'
-    t.stage = undefined
-    t.file = res.outputFile
-    t.artist = res.tags.artist
-    t.album = res.tags.album
-    t.year = res.tags.year
-    if (res.tags.title) t.title = res.tags.title
-    t.transformPercent = 100
-    historyByIndex[t.index - 1] = {
-      status: 'done',
-      file: res.outputFile,
-      title: res.tags.title ?? t.title,
-      artist: res.tags.artist,
-      album: res.tags.album,
-      year: res.tags.year,
-      videoId: sidecar.id,
-      hash
-    }
-    log.info('app', `track done: ${t.title}`)
-    emit()
-  }
 
-  /** Download one entry's video on its own, then hand it to {@link finishTrack}. */
-  const processEntry = async (entry: PlaylistEntry, t: TrackProgress): Promise<void> => {
-    const trackSpan = startSpan('track-process', 'pipeline')
-    let downloaded: string | null = null
-    const onProgress = (e: ProgressEvent): void => {
-      if (t.status === 'queued' || t.status === 'downloading') {
+    /** Download one entry's video on its own, then hand it to {@link finishTrack}. */
+    const processEntry = async (entry: PlaylistEntry, t: TrackProgress): Promise<void> => {
+      const trackSpan = startSpan('track-process', 'pipeline')
+      let downloaded: string | null = null
+      const onProgress = (e: ProgressEvent): void => {
+        if (t.status === 'queued' || t.status === 'downloading') {
+          t.status = 'downloading'
+          t.stage = 'downloading'
+          t.percent = e.percent
+          t.speedBytesPerSec = e.speedBytesPerSec
+          if (e.title) t.title = e.title
+        }
+        emit()
+      }
+      const args = buildDownloadArgs({
+        url: entryUrl(entry),
+        destFolder: dest,
+        settings,
+        ffmpegPath: bin.ffmpeg,
+        singleVideo: true,
+        cookieFile
+      })
+      // Mark the track active right before spawning yt-dlp, so the row reflects
+      // work immediately instead of sitting on "queued" through process startup
+      // and format selection — the first progress line can be seconds away.
+      if (t.status === 'queued') {
         t.status = 'downloading'
         t.stage = 'downloading'
-        t.percent = e.percent
-        t.speedBytesPerSec = e.speedBytesPerSec
-        if (e.title) t.title = e.title
+        log.info('yt-dlp', `downloading "${t.title}"`)
+        emit()
+      }
+      const dl = await runYtDlp(
+        bin.ytdlp,
+        args,
+        onProgress,
+        (f) => {
+          downloaded = f
+        },
+        signal,
+        priorityToNice(settings.performance.priority)
+      )
+
+      t.stage = undefined
+      t.speedBytesPerSec = undefined
+      const outcome = classifyDownload(downloaded, dl, settings.audio.minBitrate)
+      if (outcome.kind === 'skipped') {
+        t.status = 'skipped'
+        t.reason = outcome.reason
+        log.info(
+          'yt-dlp',
+          `skipped "${t.title}" — no source audio at/above ${settings.audio.minBitrate} kbps`
+        )
+        t.elapsedMs = Math.round(trackSpan.end(`${t.title} (skipped)`))
+        emit()
+        return
+      }
+      if (outcome.kind === 'failed') {
+        t.status = 'failed'
+        t.reason = outcome.reason
+        if (dl.code) t.errorCode = `yt-dlp ${dl.code}`
+        log.warn('yt-dlp', `download failed for "${t.title}": ${t.reason}`)
+        log.error('yt-dlp', `download result for "${t.title}":`, dl)
+        t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
+        emit()
+        return
+      }
+      // A throw inside finishTrack (hash/transform/probe) would otherwise leave the
+      // track stuck in `transforming`. Mark it failed here so the row settles
+      // immediately rather than waiting on the end-of-job backstop.
+      try {
+        await finishTrack(t, outcome.file)
+        t.elapsedMs = Math.round(trackSpan.end(t.title))
+      } catch (err) {
+        t.status = 'failed'
+        t.stage = undefined
+        t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
+        t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
+        log.warn('transform', `track failed "${t.title}": ${t.reason}`)
       }
       emit()
     }
-    const args = buildDownloadArgs({
-      url: entryUrl(entry),
-      destFolder: dest,
-      settings,
-      ffmpegPath: bin.ffmpeg,
-      singleVideo: true
-    })
-    // Mark the track active right before spawning yt-dlp, so the row reflects
-    // work immediately instead of sitting on "queued" through process startup
-    // and format selection — the first progress line can be seconds away.
-    if (t.status === 'queued') {
-      t.status = 'downloading'
-      t.stage = 'downloading'
-      log.info('yt-dlp', `downloading "${t.title}"`)
-      emit()
-    }
-    const dl = await runYtDlp(
-      bin.ytdlp,
-      args,
-      onProgress,
-      (f) => {
-        downloaded = f
-      },
-      signal,
-      priorityToNice(settings.performance.priority)
-    )
 
-    t.stage = undefined
-    t.speedBytesPerSec = undefined
-    const outcome = classifyDownload(downloaded, dl, settings.audio.minBitrate)
-    if (outcome.kind === 'skipped') {
-      t.status = 'skipped'
-      t.reason = outcome.reason
-      log.info(
-        'yt-dlp',
-        `skipped "${t.title}" — no source audio at/above ${settings.audio.minBitrate} kbps`
-      )
-      t.elapsedMs = Math.round(trackSpan.end(`${t.title} (skipped)`))
-      emit()
-      return
-    }
-    if (outcome.kind === 'failed') {
-      t.status = 'failed'
-      t.reason = outcome.reason
-      if (dl.code) t.errorCode = `yt-dlp ${dl.code}`
-      log.warn('yt-dlp', `download failed for "${t.title}": ${t.reason}`)
-      log.error('yt-dlp', `download result for "${t.title}":`, dl)
-      t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
-      emit()
-      return
-    }
-    // A throw inside finishTrack (hash/transform/probe) would otherwise leave the
-    // track stuck in `transforming`. Mark it failed here so the row settles
-    // immediately rather than waiting on the end-of-job backstop.
-    try {
-      await finishTrack(t, outcome.file)
-      t.elapsedMs = Math.round(trackSpan.end(t.title))
-    } catch (err) {
-      t.status = 'failed'
-      t.stage = undefined
-      t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
-      t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
-      log.warn('transform', `track failed "${t.title}": ${t.reason}`)
+    job.entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
+    await pool.drain()
+
+    const aborted = signal?.aborted ?? false
+    if (aborted) {
+      // User cancelled: relabel every unfinished track as cancelled (distinct from
+      // a genuine failure) so the history badge and rows read correctly.
+      markCancelledTracks(tracks)
+    } else {
+      // Safety net: a slot that threw before assigning a terminal status (e.g. a
+      // throw during transform/probe) counts as failed, so the job always settles
+      // to idle once every track has been attempted.
+      for (const t of finalizePendingTracks(tracks)) {
+        log.warn('app', `track did not complete "${t.title}": ${t.reason}`)
+      }
     }
     emit()
+
+    // Record every terminal track (not just the successes) so failed/cancelled
+    // downloads still appear in history, clearly marked.
+    const history = toHistoryTracks(tracks, historyByIndex)
+    const outcome = jobOutcome(history, aborted)
+
+    const doneCount = tracks.filter((t) => t.status === 'done').length
+    const failedCount = tracks.filter((t) => t.status === 'failed').length
+    const skippedCount = tracks.filter((t) => t.status === 'skipped').length
+    const cancelledCount = tracks.filter((t) => t.status === 'cancelled').length
+    jobSpan.end(`${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`)
+    log.info(
+      'app',
+      `job ${outcome} "${job.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped, ${cancelledCount} cancelled`
+    )
+
+    return { title: job.title, folder: dest, url, kind: job.kind, outcome, tracks: history }
+  } finally {
+    if (cookieFile) cleanupCookieFile(cookieFile)
   }
-
-  job.entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
-  await pool.drain()
-
-  const aborted = signal?.aborted ?? false
-  if (aborted) {
-    // User cancelled: relabel every unfinished track as cancelled (distinct from
-    // a genuine failure) so the history badge and rows read correctly.
-    markCancelledTracks(tracks)
-  } else {
-    // Safety net: a slot that threw before assigning a terminal status (e.g. a
-    // throw during transform/probe) counts as failed, so the job always settles
-    // to idle once every track has been attempted.
-    for (const t of finalizePendingTracks(tracks)) {
-      log.warn('app', `track did not complete "${t.title}": ${t.reason}`)
-    }
-  }
-  emit()
-
-  // Record every terminal track (not just the successes) so failed/cancelled
-  // downloads still appear in history, clearly marked.
-  const history = toHistoryTracks(tracks, historyByIndex)
-  const outcome = jobOutcome(history, aborted)
-
-  const doneCount = tracks.filter((t) => t.status === 'done').length
-  const failedCount = tracks.filter((t) => t.status === 'failed').length
-  const skippedCount = tracks.filter((t) => t.status === 'skipped').length
-  const cancelledCount = tracks.filter((t) => t.status === 'cancelled').length
-  jobSpan.end(`${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`)
-  log.info(
-    'app',
-    `job ${outcome} "${job.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped, ${cancelledCount} cancelled`
-  )
-
-  return { title: job.title, folder: dest, url, kind: job.kind, outcome, tracks: history }
 }
