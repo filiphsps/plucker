@@ -33,7 +33,9 @@ export interface ResolvedJob { kind: 'playlist' | 'video'; title: string }
 export async function resolveJob(ytdlpPath: string, url: string): Promise<ResolvedJob> {
   const { spawnSync } = await import('node:child_process')
   const out = spawnSync(ytdlpPath, ['--flat-playlist', '--dump-single-json', url], { encoding: 'utf8' })
-  if (out.status !== 0) throw new Error(out.stderr.slice(-2000) || 'yt-dlp resolve failed')
+  if (out.error) throw new Error(`yt-dlp failed to start: ${out.error.message}`)
+  if (out.status !== 0) throw new Error((out.stderr || '').slice(-2000) || `yt-dlp exited ${out.status}`)
+  if (!out.stdout?.trim()) throw new Error('yt-dlp returned no metadata')
   const json = JSON.parse(out.stdout)
   const isPlaylist = json._type === 'playlist' || Array.isArray(json.entries)
   return { kind: isPlaylist ? 'playlist' : 'video', title: json.title ?? 'Plucker' }
@@ -122,10 +124,15 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<void> {
           if (target !== full && !existsSync(target)) renameSync(full, target)
         }
       }
-      const t = tracks.find((x) => x.title && parsed.title.includes(x.title)) ?? tracks.find((x) => x.status === 'tagging')
+      const t = tracks.find((x) => x.title && x.title.includes(parsed.title)) ?? tracks.find((x) => x.status === 'tagging')
       if (t) { t.status = 'done'; emit() }
     }
   }
-  tracks.forEach((t) => { if (t.status !== 'failed' && t.status !== 'skipped') t.status = 'done' })
+  // Tracks that reached post-processing (100% → 'tagging') are done; tracks that
+  // never completed (still 'downloading') errored under --ignore-errors → failed.
+  tracks.forEach((t) => {
+    if (t.status === 'skipped' || t.status === 'done') return
+    t.status = t.status === 'tagging' ? 'done' : 'failed'
+  })
   emit()
 }

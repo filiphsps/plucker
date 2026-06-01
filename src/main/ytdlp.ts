@@ -12,7 +12,7 @@ export interface DownloadArgsInput {
 // Custom progress line we can parse deterministically:
 //   "PLUCKER <playlist_index> <percent_no_%> <title>"
 const PROGRESS_TEMPLATE =
-  'PLUCKER %(info.playlist_index)s %(progress._percent_str)s %(info.title)s'
+  'PLUCKER %(info.playlist_index|1)s %(progress._percent_str)s %(info.title)s'
 
 export function buildDownloadArgs(input: DownloadArgsInput): string[] {
   const { url, destFolder, settings, ffmpegPath } = input
@@ -44,9 +44,10 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
 export interface ProgressEvent { index: number; percent: number; title: string }
 
 export function parseProgressLine(line: string): ProgressEvent | null {
-  const m = line.match(/^PLUCKER\s+(\d+)\s+([\d.]+)\s+(.+)$/)
+  const m = line.match(/^PLUCKER\s+(\S+)\s+([\d.]+)\s+(.+)$/)
   if (!m) return null
-  return { index: Number(m[1]), percent: Number(m[2]), title: m[3].trim() }
+  const index = /^\d+$/.test(m[1]) ? Number(m[1]) : 1
+  return { index, percent: Number(m[2]), title: m[3].trim() }
 }
 
 export interface SkipEvent { videoId: string }

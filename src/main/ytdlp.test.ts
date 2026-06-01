@@ -52,6 +52,11 @@ describe('parseProgressLine', () => {
   it('returns null for unrelated lines', () => {
     expect(parseProgressLine('[download] Destination: x')).toBeNull()
   })
+  it('coerces a non-numeric (single-video NA) index to 1', () => {
+    expect(parseProgressLine('PLUCKER NA 100 Song Title')).toEqual({
+      index: 1, percent: 100, title: 'Song Title',
+    })
+  })
 })
 
 describe('parseSkipLine', () => {
