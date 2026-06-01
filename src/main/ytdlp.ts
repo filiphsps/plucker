@@ -7,6 +7,13 @@ export interface DownloadArgsInput {
   destFolder: string
   settings: Settings
   ffmpegPath: string
+  /**
+   * Download only the single video the URL points at (`--no-playlist`) instead of
+   * the whole playlist. The pipeline fans a playlist out into one single-video
+   * download per entry so they can run concurrently — yt-dlp can't download
+   * multiple playlist entries at once within one process.
+   */
+  singleVideo?: boolean
 }
 
 // Custom progress line we can parse deterministically:
@@ -16,7 +23,7 @@ const PROGRESS_TEMPLATE =
   'PLUCKER %(info.playlist_index|1)s %(progress._percent)d %(info.id)s %(info.title)s'
 
 export function buildDownloadArgs(input: DownloadArgsInput): string[] {
-  const { url, destFolder, settings, ffmpegPath } = input
+  const { url, destFolder, settings, ffmpegPath, singleVideo } = input
   const args = [
     '--ignore-errors',
     '--extract-audio',
@@ -36,7 +43,7 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
     'after_move:PLUCKERDONE %(filepath)s',
     '-o',
     join(destFolder, '%(artist,uploader)s - %(track,title)s.%(ext)s'),
-    '--yes-playlist'
+    singleVideo ? '--no-playlist' : '--yes-playlist'
   ]
   // Source-bitrate floor: select best audio at/above the floor with NO fallback,
   // so below-floor videos yield no format and are skipped under --ignore-errors.

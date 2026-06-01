@@ -2,7 +2,7 @@ import { mkdirSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Settings, JobProgress, TrackProgress, HistoryTrack } from '../shared/types'
 import { sanitizeFileName } from './rename'
-import { buildDownloadArgs, runYtDlp } from './ytdlp'
+import { buildDownloadArgs, runYtDlp, type ProgressEvent } from './ytdlp'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
 import { createPool } from './pool'
@@ -27,6 +27,8 @@ export interface PlaylistEntry {
   videoId: string
   title: string
   index: number
+  /** Per-entry page URL from the flat playlist, used to download this video alone. */
+  url?: string
 }
 
 export interface ResolvedJob {
@@ -40,21 +42,25 @@ export function parseEntries(json: {
   _type?: string
   title?: string
   id?: string
-  entries?: Array<{ id?: string; title?: string }>
+  webpage_url?: string
+  entries?: Array<{ id?: string; title?: string; url?: string }>
 }): ResolvedJob {
   const isPlaylist = json._type === 'playlist' || Array.isArray(json.entries)
   if (isPlaylist) {
     const entries: PlaylistEntry[] = (json.entries ?? []).map((e, i) => ({
       videoId: e.id ?? String(i + 1),
       title: e.title ?? e.id ?? `Track ${i + 1}`,
-      index: i + 1
+      index: i + 1,
+      url: e.url
     }))
     return { kind: 'playlist', title: json.title ?? 'Plucker', entries }
   }
   return {
     kind: 'video',
     title: json.title ?? 'Plucker',
-    entries: [{ videoId: json.id ?? '1', title: json.title ?? 'Plucker', index: 1 }]
+    entries: [
+      { videoId: json.id ?? '1', title: json.title ?? 'Plucker', index: 1, url: json.webpage_url }
+    ]
   }
 }
 
@@ -177,40 +183,26 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     log: (m: string) => console.warn(m),
     cache: deps.cache
   }
+  // One slot per concurrent track pipeline. Each slot owns a single-video download
+  // *and* its transform, so `performance.parallel` is the number of full track
+  // pipelines running at once (yt-dlp can't download playlist entries concurrently
+  // within one process, so we fan out into one single-video download per entry).
   const pool = createPool(Math.max(1, settings.performance.parallel))
-  const history: HistoryTrack[] = []
+  // Collect history by playlist index so the recorded order is stable regardless
+  // of which concurrent track finishes first.
+  const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
 
-  const findByVideo = (videoId?: string): TrackProgress | undefined =>
-    videoId ? tracks.find((x) => x.videoId === videoId) : undefined
+  const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
+  const watchUrl = (id: string): string => `https://www.youtube.com/watch?v=${id}`
+  // Prefer the flat-playlist entry URL; fall back to a watch URL (or, for a single
+  // video job, the original URL) so a missing entry URL never blocks a download.
+  const entryUrl = (e: PlaylistEntry): string =>
+    isHttpUrl(e.url) ? e.url : job.kind === 'video' ? url : watchUrl(e.videoId)
 
-  const onDownloadProgress = (e: {
-    index: number
-    percent: number
-    videoId: string
-    title: string
-  }): void => {
-    const t = findByVideo(e.videoId) ?? tracks.find((x) => x.index === e.index)
-    if (!t) return
-    if (t.status === 'queued' || t.status === 'downloading') {
-      t.status = 'downloading'
-      t.percent = e.percent
-      if (e.title) t.title = e.title
-    }
-    emit()
-  }
-
-  // In-flight completion handlers (async because they hash + probe off the event
-  // loop). We await these before draining so a late completion can't be missed.
-  const completions: Promise<void>[] = []
-  const onComplete = (filePath: string): void => {
-    completions.push(handleComplete(filePath))
-  }
-
-  const handleComplete = async (filePath: string): Promise<void> => {
+  /** Hash + transform a freshly-downloaded file, updating the track + history. */
+  const finishTrack = async (t: TrackProgress, filePath: string): Promise<void> => {
     const sidecarPath = filePath.replace(/\.mp3$/i, '.info.json')
     const sidecar = readSidecar(sidecarPath)
-    const t = findByVideo(sidecar.id) ?? tracks.find((x) => x.status === 'downloading')
-    if (!t) return
     // Hash the audio frames once (tag-independent), so auto-tag + probe can reuse
     // cached results and history can point straight at the cache entry.
     let hash: string | undefined
@@ -224,119 +216,141 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     t.percent = 100
     t.transformPercent = 0
     emit()
-    pool.run(async () => {
-      const trackSpan = startSpan('track-process', 'pipeline')
-      const transformSpan = startSpan('transform-chain', 'pipeline')
-      const res = await runTransformChain(
-        filePath,
-        dest,
-        {
-          videoId: sidecar.id,
-          rawTitle: sidecar.title ?? t.title,
-          sourceFile: filePath,
-          index: t.index,
-          contentHash: hash
-        },
-        enabled,
-        registry,
-        services,
-        (f) => {
-          t.transformPercent = Math.round(f * 100)
-          emit()
-        }
-      )
-      transformSpan.end(t.title)
-      if (existsSync(sidecarPath)) rmSync(sidecarPath, { force: true })
-      if (res.failed) {
-        t.status = 'failed'
-        t.reason = res.reason
-        log.warn('pipeline', `transform failed for "${t.title}": ${res.reason}`)
-      } else {
-        if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
-        // Probe technical audio properties once and cache them by content hash;
-        // a cache hit (re-download of identical audio) skips the ffmpeg probe.
-        // Also record the track's display identity so the cache manager can list it.
-        if (hash && deps.cache) {
-          if (!deps.cache.read(hash)?.audio) {
-            let sizeBytes: number | undefined
-            try {
-              sizeBytes = statSync(res.outputFile).size
-            } catch {
-              /* stat failed — leave size undefined */
-            }
-            deps.cache.writeAudio(hash, {
-              ...(await timed('probe', 'pipeline', () => probeAudio(bin.ffmpeg, res.outputFile))),
-              sizeBytes
-            })
-          }
-          deps.cache.writeTrack(hash, {
-            title: res.tags.title ?? t.title,
-            file: res.outputFile,
-            videoId: sidecar.id
-          })
-        }
-        t.status = 'done'
-        t.file = res.outputFile
-        t.artist = res.tags.artist
-        t.album = res.tags.album
-        t.year = res.tags.year
-        if (res.tags.title) t.title = res.tags.title
-        t.transformPercent = 100
-        history.push({
-          file: res.outputFile,
-          title: res.tags.title ?? t.title,
-          artist: res.tags.artist,
-          album: res.tags.album,
-          year: res.tags.year,
-          videoId: sidecar.id,
-          hash
-        })
-        log.debug('pipeline', `track done: ${t.title}`)
+
+    const transformSpan = startSpan('transform-chain', 'pipeline')
+    const res = await runTransformChain(
+      filePath,
+      dest,
+      {
+        videoId: sidecar.id,
+        rawTitle: sidecar.title ?? t.title,
+        sourceFile: filePath,
+        index: t.index,
+        contentHash: hash
+      },
+      enabled,
+      registry,
+      services,
+      (f) => {
+        t.transformPercent = Math.round(f * 100)
+        emit()
       }
-      trackSpan.end(t.title)
+    )
+    transformSpan.end(t.title)
+    if (existsSync(sidecarPath)) rmSync(sidecarPath, { force: true })
+    if (res.failed) {
+      t.status = 'failed'
+      t.reason = res.reason
+      log.warn('pipeline', `transform failed for "${t.title}": ${res.reason}`)
       emit()
-    })
+      return
+    }
+    if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
+    // Probe technical audio properties once and cache them by content hash;
+    // a cache hit (re-download of identical audio) skips the ffmpeg probe.
+    // Also record the track's display identity so the cache manager can list it.
+    if (hash && deps.cache) {
+      if (!deps.cache.read(hash)?.audio) {
+        let sizeBytes: number | undefined
+        try {
+          sizeBytes = statSync(res.outputFile).size
+        } catch {
+          /* stat failed — leave size undefined */
+        }
+        deps.cache.writeAudio(hash, {
+          ...(await timed('probe', 'pipeline', () => probeAudio(bin.ffmpeg, res.outputFile))),
+          sizeBytes
+        })
+      }
+      deps.cache.writeTrack(hash, {
+        title: res.tags.title ?? t.title,
+        file: res.outputFile,
+        videoId: sidecar.id
+      })
+    }
+    t.status = 'done'
+    t.file = res.outputFile
+    t.artist = res.tags.artist
+    t.album = res.tags.album
+    t.year = res.tags.year
+    if (res.tags.title) t.title = res.tags.title
+    t.transformPercent = 100
+    historyByIndex[t.index - 1] = {
+      file: res.outputFile,
+      title: res.tags.title ?? t.title,
+      artist: res.tags.artist,
+      album: res.tags.album,
+      year: res.tags.year,
+      videoId: sidecar.id,
+      hash
+    }
+    log.debug('pipeline', `track done: ${t.title}`)
+    emit()
   }
 
-  const args = buildDownloadArgs({ url, destFolder: dest, settings, ffmpegPath: bin.ffmpeg })
-  const dlSpan = startSpan('download-phase', 'pipeline')
-  const dl = await runYtDlp(bin.ytdlp, args, onDownloadProgress, onComplete, signal)
-  dlSpan.end(`exit ${dl.code}`)
+  /** Download one entry's video on its own, then hand it to {@link finishTrack}. */
+  const processEntry = async (entry: PlaylistEntry, t: TrackProgress): Promise<void> => {
+    const trackSpan = startSpan('track-process', 'pipeline')
+    let downloaded: string | null = null
+    const onProgress = (e: ProgressEvent): void => {
+      if (t.status === 'queued' || t.status === 'downloading') {
+        t.status = 'downloading'
+        t.percent = e.percent
+        if (e.title) t.title = e.title
+      }
+      emit()
+    }
+    const args = buildDownloadArgs({
+      url: entryUrl(entry),
+      destFolder: dest,
+      settings,
+      ffmpegPath: bin.ffmpeg,
+      singleVideo: true
+    })
+    const dl = await runYtDlp(
+      bin.ytdlp,
+      args,
+      onProgress,
+      (f) => {
+        downloaded = f
+      },
+      signal
+    )
 
-  // Await any completion handlers still hashing/probing so none is dropped before
-  // we drain the transform pool below.
-  await Promise.allSettled(completions)
-
-  // Mark below-floor skips reported by yt-dlp.
-  for (const s of dl.skipped) {
-    const t = findByVideo(s.videoId)
-    if (t && (t.status === 'queued' || t.status === 'downloading')) {
+    // Below-floor skip: yt-dlp reported "format not available" for this video.
+    if (!downloaded && dl.skipped.length > 0) {
       t.status = 'skipped'
       t.reason = 'below minimum quality'
+      trackSpan.end(`${t.title} (skipped)`)
+      emit()
+      return
     }
+    if (!downloaded) {
+      t.status = 'failed'
+      t.reason = dl.errors[dl.errors.length - 1]?.message ?? 'Download failed'
+      log.warn('pipeline', `download failed for "${t.title}": ${t.reason}`)
+      trackSpan.end(`${t.title} (failed)`)
+      emit()
+      return
+    }
+    await finishTrack(t, downloaded)
+    trackSpan.end(t.title)
   }
 
-  // Wait for all in-flight transform tasks before finalizing.
+  job.entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
   await pool.drain()
 
-  // Map yt-dlp error reasons to their videos; keep the last as a job-level fallback.
-  const errByVideo = new Map<string, string>()
-  let lastError: string | undefined
-  for (const e of dl.errors) {
-    if (e.videoId) errByVideo.set(e.videoId, e.message)
-    lastError = e.message
-  }
-
-  // Any track that never completed downloading is a failure — surface why.
+  // Safety net: a slot that threw before assigning a terminal status counts as failed.
   tracks.forEach((t) => {
     if (t.status === 'queued' || t.status === 'downloading') {
       t.status = 'failed'
-      t.reason =
-        (t.videoId ? errByVideo.get(t.videoId) : undefined) ?? lastError ?? 'Download failed'
+      t.reason = t.reason ?? 'Download failed'
       log.warn('pipeline', `download failed for "${t.title}": ${t.reason}`)
     }
   })
   emit()
+
+  const history = historyByIndex.filter((h): h is HistoryTrack => h !== undefined)
 
   const doneCount = tracks.filter((t) => t.status === 'done').length
   const failedCount = tracks.filter((t) => t.status === 'failed').length

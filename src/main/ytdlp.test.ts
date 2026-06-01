@@ -53,6 +53,29 @@ describe('buildDownloadArgs', () => {
     expect(args[fi + 1]).toBe('ba[abr>=128]') // no "/ba" fallback → skips below-floor videos
   })
 
+  it('downloads the whole playlist by default', () => {
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/o',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/f'
+    })
+    expect(args).toContain('--yes-playlist')
+    expect(args).not.toContain('--no-playlist')
+  })
+
+  it('restricts to a single video when singleVideo is set', () => {
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/o',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/f',
+      singleVideo: true
+    })
+    expect(args).toContain('--no-playlist')
+    expect(args).not.toContain('--yes-playlist')
+  })
+
   it('omits the format filter when minBitrate is null', () => {
     const args = buildDownloadArgs({
       url: 'u',

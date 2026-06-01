@@ -40,4 +40,12 @@ describe('parseEntries', () => {
     expect(r.kind).toBe('video')
     expect(r.entries).toEqual([{ videoId: 'vid', title: 'Solo', index: 1 }])
   })
+  it('captures the per-entry url for single-video downloads', () => {
+    const json = {
+      _type: 'playlist',
+      title: 'My List',
+      entries: [{ id: 'aaa', title: 'First', url: 'https://youtu.be/aaa' }]
+    }
+    expect(parseEntries(json).entries[0].url).toBe('https://youtu.be/aaa')
+  })
 })
