@@ -20,6 +20,9 @@ importers:
       '@fontsource/geist-mono':
         specifier: 5.2.8
         version: 5.2.8
+      '@vscode/sudo-prompt':
+        specifier: 9.3.2
+        version: 9.3.2
       electron-updater:
         specifier: 6.8.3
         version: 6.8.3
@@ -1106,6 +1109,9 @@ packages:
 
   '@vitest/utils@4.1.7':
     resolution: {integrity: sha512-T532WBu791cBxJlCl6SO+J14l81DQx6uQHm1bQbmCDY7nqlEIgkza/UFnSBNaUtSf41unldDFjdOBYEQC4b5Hw==}
+
+  '@vscode/sudo-prompt@9.3.2':
+    resolution: {integrity: sha512-gcXoCN00METUNFeQOFJ+C9xUI0DKB+0EGMVg7wbVYRHBw2Eq3fKisDZOkRdOz3kqXRKOENMfShPOmypw1/8nOw==}
 
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
@@ -4023,6 +4029,8 @@ snapshots:
       '@vitest/pretty-format': 4.1.7
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
+
+  '@vscode/sudo-prompt@9.3.2': {}
 
   '@xmldom/xmldom@0.8.13': {}
 
