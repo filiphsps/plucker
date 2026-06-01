@@ -320,6 +320,14 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       ffmpegPath: bin.ffmpeg,
       singleVideo: true
     })
+    // Mark the track active right before spawning yt-dlp, so the row reflects
+    // work immediately instead of sitting on "queued" through process startup
+    // and format selection — the first progress line can be seconds away.
+    if (t.status === 'queued') {
+      t.status = 'downloading'
+      t.stage = 'downloading'
+      emit()
+    }
     const dl = await runYtDlp(
       bin.ytdlp,
       args,
