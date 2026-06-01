@@ -57,6 +57,11 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
     join(destFolder, '%(artist,uploader)s - %(track,title)s.%(ext)s'),
     singleVideo ? '--no-playlist' : '--yes-playlist'
   ]
+  // Parallel fragment downloads speed up segmented (HLS/DASH) formats; a no-op
+  // for single-file audio, so only added when above yt-dlp's default of 1.
+  if (settings.performance.concurrentFragments > 1) {
+    args.push('--concurrent-fragments', String(settings.performance.concurrentFragments))
+  }
   // Source-bitrate floor: select best audio at/above the floor with NO fallback,
   // so below-floor videos yield no format and are skipped under --ignore-errors.
   if (settings.audio.minBitrate != null) {
@@ -137,18 +142,25 @@ export interface SpawnResult {
   errors: ErrorEvent[]
 }
 
+/** Map the user-facing priority setting to an `os` nice value (higher = lower priority). */
+export function priorityToNice(priority: Settings['performance']['priority']): number {
+  return priority === 'low' ? 10 : 0
+}
+
 /** Spawn yt-dlp, stream progress + skips, resolve with exit code + tail of stderr. */
 export function runYtDlp(
   ytdlpPath: string,
   args: string[],
   onProgress: (e: ProgressEvent) => void,
   onComplete: (filePath: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  priority?: number
 ): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
     // Managed spawn: own process group, force-killed (with its ffmpeg child) on
-    // abort, and tracked so app-quit can reap any orphan.
-    const child = spawnManaged(ytdlpPath, args, {}, signal)
+    // abort, tracked so app-quit can reap any orphan, and niced to the chosen
+    // priority (its ffmpeg child inherits it).
+    const child = spawnManaged(ytdlpPath, args, {}, signal, priority)
     let stderrTail = ''
     let outBuf = ''
     let errBuf = ''

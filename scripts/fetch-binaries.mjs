@@ -27,12 +27,16 @@ const HOST_ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
 // per track.
 //
 // Per-arch version pin:
-//   arm64 → latest (built on the macos-14 / Apple-Silicon runner).
-//   x64   → 2025.07.21, the last release built on the macos-13 (Ventura, x86_64)
-//           runner. From 2025.08.11 onward yt-dlp's macOS build moved to macos-14
-//           and dropped the Ventura/Intel toolchain, so newer builds aren't
-//           guaranteed to run on an Intel Ventura Mac.
-const YTDLP_VERSION = { arm64: 'latest', x64: '2025.07.21' }
+//   arm64 → latest.
+//   x64   → pinned to a recent build that still runs on Ventura. yt-dlp_macos is
+//           universal2 (x86_64 + arm64); its Ventura floor comes from the bundled
+//           libcurl-impersonate dylib, which is built with minos 13.0 — so the
+//           binary runs on macOS 13+ but not 12. We pin (rather than track latest)
+//           so a future yt-dlp that raises that floor above 13.0 can't silently
+//           break Intel Ventura users; bump this after verifying a newer release's
+//           x86_64 slice still targets macOS ≤ 13 (`vtool -show-build`). 2026.03.17
+//           is current enough for YouTube extraction and verified Ventura-compatible.
+const YTDLP_VERSION = { arm64: 'latest', x64: '2026.03.17' }
 const ytdlpUrl = (arch) => {
   const v = YTDLP_VERSION[arch]
   const base =

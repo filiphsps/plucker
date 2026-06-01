@@ -1,6 +1,12 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, History as HistoryIcon, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+import {
+  Download,
+  History as HistoryIcon,
+  SlidersHorizontal,
+  Terminal,
+  type LucideIcon
+} from 'lucide-react'
 
 export type View = 'download' | 'history'
 
@@ -8,12 +14,19 @@ export function Header({
   view,
   onNavigate,
   onOpenSettings,
-  settingsActive = false
+  settingsActive = false,
+  consoleAvailable = false,
+  consoleOpen = false,
+  onToggleConsole
 }: {
   view: View
   onNavigate: (v: View) => void
   onOpenSettings: () => void
   settingsActive?: boolean
+  /** Show the console toggle (dev mode or enabled in settings). */
+  consoleAvailable?: boolean
+  consoleOpen?: boolean
+  onToggleConsole?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
 
@@ -44,6 +57,21 @@ export function Header({
         {tab('history', t('nav.history'), HistoryIcon)}
       </nav>
       <div className="flex-1" />
+      {consoleAvailable && (
+        <button
+          onClick={onToggleConsole}
+          aria-label={t('console.toggle')}
+          title={t('console.toggle')}
+          className={
+            'no-drag flex h-8 w-8 items-center justify-center rounded-md transition-colors ' +
+            (consoleOpen
+              ? 'bg-accent-dim text-accent'
+              : 'text-ink-faint hover:bg-raise hover:text-ink')
+          }
+        >
+          <Terminal size={18} />
+        </button>
+      )}
       <button
         onClick={onOpenSettings}
         aria-label={t('app.settings')}

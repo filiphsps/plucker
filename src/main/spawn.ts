@@ -4,6 +4,7 @@ import {
   type ChildProcessWithoutNullStreams,
   type SpawnOptions
 } from 'node:child_process'
+import { setPriority } from 'node:os'
 
 /**
  * Subprocess management for yt-dlp / ffmpeg.
@@ -64,7 +65,13 @@ export function spawnManaged(
   command: string,
   args: string[],
   options: SpawnOptions = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /**
+   * Scheduling priority (`os` nice value, -20..19). Applied to the child after
+   * spawn; its own children (e.g. yt-dlp's ffmpeg) inherit it. Best-effort —
+   * raising priority (negative) needs privileges and is silently ignored if denied.
+   */
+  priority?: number
 ): ChildProcessWithoutNullStreams {
   // Default (pipe) stdio, so stdout/stderr are always present — callers stream
   // them. Cast reflects that; do not pass a non-pipe `stdio` to this helper.
@@ -73,6 +80,14 @@ export function spawnManaged(
     detached: !isWindows
   }) as ChildProcessWithoutNullStreams
   live.add(child)
+
+  if (priority !== undefined && child.pid !== undefined) {
+    try {
+      setPriority(child.pid, priority)
+    } catch {
+      /* insufficient privileges or unsupported — leave at default priority */
+    }
+  }
 
   const onAbort = (): void => hardKill(child)
   if (signal) {

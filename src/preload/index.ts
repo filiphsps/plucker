@@ -8,7 +8,8 @@ import type {
   MenuNavTarget,
   TrackMetadata,
   CachedTrack,
-  TrackTags
+  TrackTags,
+  LogEntry
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
 
@@ -70,6 +71,27 @@ const api = {
     const fn = (_: unknown, target: MenuNavTarget): void => cb(target)
     ipcRenderer.on('menu:navigate', fn)
     return () => ipcRenderer.removeListener('menu:navigate', fn)
+  },
+  // Developer console: live log stream, buffered tail, and reveal-in-Finder.
+  onLog: (cb: (entry: LogEntry) => void): (() => void) => {
+    const fn = (_: unknown, entry: LogEntry): void => cb(entry)
+    ipcRenderer.on('log:line', fn)
+    return () => ipcRenderer.removeListener('log:line', fn)
+  },
+  getLogTail: (): Promise<LogEntry[]> => ipcRenderer.invoke('log:tail'),
+  revealLog: (): Promise<void> => ipcRenderer.invoke('log:reveal'),
+  // Toggle the console drawer from the application menu (⌘J).
+  onToggleConsole: (cb: () => void): (() => void) => {
+    const fn = (): void => cb()
+    ipcRenderer.on('menu:toggle-console', fn)
+    return () => ipcRenderer.removeListener('menu:toggle-console', fn)
+  },
+  // Settings persisted elsewhere (e.g. saved in the Settings panel) — lets the UI
+  // react live (e.g. show/hide the console button when the developer flag changes).
+  onSettingsChanged: (cb: (s: Settings) => void): (() => void) => {
+    const fn = (_: unknown, s: Settings): void => cb(s)
+    ipcRenderer.on('settings:changed', fn)
+    return () => ipcRenderer.removeListener('settings:changed', fn)
   }
 }
 

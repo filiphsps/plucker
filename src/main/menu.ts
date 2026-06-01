@@ -38,10 +38,20 @@ export function buildAppMenu(getWindow: GetWindow): void {
     click: () => void shell.openExternal(RELEASES_URL)
   }
 
+  // The developer console toggle (⌘J) is only offered when the feature is available:
+  // in dev, or when the user has enabled it in Settings.
+  const consoleAvailable = !app.isPackaged || loadSettings().developer.console
+  const consoleItem: MenuItemConstructorOptions = {
+    label: t.toggleConsole,
+    accelerator: 'CmdOrCtrl+J',
+    click: () => getWindow()?.webContents.send('menu:toggle-console')
+  }
+
   // Download / History navigation, shared by the Go menu (and the mac app menu omits it).
   const goSubmenu: MenuItemConstructorOptions[] = [
     { label: t.download, accelerator: 'CmdOrCtrl+1', click: navigate('download') },
     { label: t.history, accelerator: 'CmdOrCtrl+2', click: navigate('history') },
+    ...(consoleAvailable ? [{ type: 'separator' } as MenuItemConstructorOptions, consoleItem] : []),
     ...(!isMac ? [{ type: 'separator' } as MenuItemConstructorOptions, settingsItem] : [])
   ]
 

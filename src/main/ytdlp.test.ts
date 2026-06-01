@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildDownloadArgs,
+  priorityToNice,
   parseProgressLine,
   parseSkipLine,
   parseCompleteLine,
@@ -54,11 +55,37 @@ describe('buildDownloadArgs', () => {
   })
 
   it('passes the libmp3lame compression level to the audio extractor', () => {
-    const s = { ...DEFAULT_SETTINGS, performance: { parallel: 4, compressionLevel: 7 as const } }
+    const s = {
+      ...DEFAULT_SETTINGS,
+      performance: { ...DEFAULT_SETTINGS.performance, compressionLevel: 7 as const }
+    }
     const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })
     const i = args.indexOf('--postprocessor-args')
     expect(i).toBeGreaterThanOrEqual(0)
     expect(args[i + 1]).toBe('ExtractAudio:-compression_level 7')
+  })
+
+  it('adds --concurrent-fragments when above 1, and omits it at 1', () => {
+    const many = {
+      ...DEFAULT_SETTINGS,
+      performance: { ...DEFAULT_SETTINGS.performance, concurrentFragments: 8 }
+    }
+    const a = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: many, ffmpegPath: '/f' })
+    const i = a.indexOf('--concurrent-fragments')
+    expect(i).toBeGreaterThanOrEqual(0)
+    expect(a[i + 1]).toBe('8')
+
+    const one = {
+      ...DEFAULT_SETTINGS,
+      performance: { ...DEFAULT_SETTINGS.performance, concurrentFragments: 1 }
+    }
+    const b = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: one, ffmpegPath: '/f' })
+    expect(b).not.toContain('--concurrent-fragments')
+  })
+
+  it('maps the priority setting to a nice value (low = niced down)', () => {
+    expect(priorityToNice('normal')).toBe(0)
+    expect(priorityToNice('low')).toBe(10)
   })
 
   it('omits -ar (keeps the source sample rate) when sampleRate is null', () => {

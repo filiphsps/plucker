@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
-import type { JobProgress, JobStatus } from '../../shared/types'
+import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
 import { TrackRow } from './track-row'
 import { statusColumnWidth } from './status-column'
 import { ResolvePanel } from './resolve-panel'
@@ -9,11 +9,15 @@ import { ResolvePanel } from './resolve-panel'
 export function DownloadView({
   progress,
   statusLog,
+  resolveLog,
   onRunningChange,
   onStart
 }: {
   progress: JobProgress | null
+  /** Resolving trigger: non-null while a job is starting, null once tracks arrive. */
   statusLog: JobStatus[] | null
+  /** Live log lines for the current job (shared with the developer console). */
+  resolveLog: LogEntry[]
   onRunningChange: (running: boolean) => void
   onStart: () => void
 }): React.JSX.Element {
@@ -94,7 +98,7 @@ export function DownloadView({
           </div>
         </>
       ) : statusLog !== null ? (
-        <ResolvePanel events={statusLog} />
+        <ResolvePanel entries={resolveLog} />
       ) : (
         <div className="flex flex-1 items-center justify-center text-ink-faint">
           {t('download.emptyHint')}

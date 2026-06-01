@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { DownloadView } from './download-view'
 import { HistoryView } from './history-view'
 import { SettingsPanel } from './settings-panel'
 import { CacheView } from './cache-view'
 import { TransportDeck } from './transport-deck'
 import { Header, type View } from './header'
+import { ConsoleDrawer } from './console-drawer'
 import { Page } from './ui/page'
 import { applyLanguage } from './i18n'
-import type { JobProgress, JobStatus } from '../../shared/types'
+import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
 
 export default function App(): React.JSX.Element {
   const [view, setView] = useState<View>('download')
@@ -16,10 +17,56 @@ export default function App(): React.JSX.Element {
   const [progress, setProgress] = useState<JobProgress | null>(null)
   const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
   const [running, setRunning] = useState(false)
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
+  const [consoleOpen, setConsoleOpen] = useState(false)
+  const [consoleHeight, setConsoleHeight] = useState(260)
+  const [consoleAvailable, setConsoleAvailable] = useState(import.meta.env.DEV)
+  // Index into the log buffer at the moment the current job started — the loader
+  // shows everything from here on, so it mirrors the console scoped to this job.
+  const logLen = useRef(0)
+  const [jobLogStart, setJobLogStart] = useState(0)
 
   useEffect(() => {
-    window.plucker.getSettings().then((s) => applyLanguage(s.language))
+    window.plucker.getSettings().then((s) => {
+      applyLanguage(s.language)
+      setConsoleAvailable(import.meta.env.DEV || s.developer.console)
+    })
   }, [])
+
+  // React live to the developer-console setting being toggled in Settings.
+  useEffect(
+    () =>
+      window.plucker.onSettingsChanged((s) =>
+        setConsoleAvailable(import.meta.env.DEV || s.developer.console)
+      ),
+    []
+  )
+
+  // Live log stream → bounded buffer, seeded with the main-process tail on mount.
+  useEffect(() => {
+    const off = window.plucker.onLog((e) =>
+      setLogEntries((prev) => {
+        const next = [...prev, e].slice(-1000)
+        logLen.current = next.length
+        return next
+      })
+    )
+    window.plucker.getLogTail().then((tail) => setLogEntries((prev) => (prev.length ? prev : tail)))
+    return off
+  }, [])
+
+  // Toggle the console from the application menu (⌘J).
+  useEffect(() => window.plucker.onToggleConsole(() => setConsoleOpen((v) => !v)), [])
+
+  // Esc closes the console while it's open.
+  useEffect(() => {
+    if (!consoleOpen) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setConsoleOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [consoleOpen])
 
   useEffect(
     () =>
@@ -68,6 +115,9 @@ export default function App(): React.JSX.Element {
       <Header
         view={view}
         settingsActive={settingsOpen}
+        consoleAvailable={consoleAvailable}
+        consoleOpen={consoleOpen}
+        onToggleConsole={() => setConsoleOpen((v) => !v)}
         onNavigate={(v) => {
           setSettingsOpen(false)
           setCacheOpen(false)
@@ -87,10 +137,12 @@ export default function App(): React.JSX.Element {
           <DownloadView
             progress={progress}
             statusLog={statusLog}
+            resolveLog={logEntries.slice(jobLogStart)}
             onRunningChange={setRunning}
             onStart={() => {
               setProgress(null)
               setStatusLog([])
+              setJobLogStart(logLen.current)
             }}
           />
         </Page>
@@ -123,6 +175,16 @@ export default function App(): React.JSX.Element {
 
       {deckVisible && progress && (
         <TransportDeck progress={progress} onCancel={() => window.plucker.cancel()} />
+      )}
+
+      {consoleAvailable && consoleOpen && (
+        <ConsoleDrawer
+          entries={logEntries}
+          height={consoleHeight}
+          onHeightChange={setConsoleHeight}
+          onClose={() => setConsoleOpen(false)}
+          onClear={() => setLogEntries([])}
+        />
       )}
     </div>
   )

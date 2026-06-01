@@ -1,14 +1,30 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
-import type { JobStatus } from '../../shared/types'
+import type { LogEntry, LogLevel } from '../../shared/types'
 
-/** Loading panel shown on the download page during the yt-dlp resolve phase:
- *  curated i18n steps + live (verbose) console lines, skeleton before anything
- *  streams in, and an inline error block on a failed start. */
-export function ResolvePanel({ events }: { events: JobStatus[] }): React.JSX.Element {
+const LEVEL_COLOR: Record<LogLevel, string> = {
+  debug: 'text-ink-faint',
+  info: 'text-ink',
+  warn: 'text-warn',
+  error: 'text-bad'
+}
+
+function formatTime(ms: number): string {
+  const d = new Date(ms)
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+/**
+ * Download-page loading panel shown during the yt-dlp resolve phase. It renders the
+ * same unified log stream as the developer console (scoped to the current job), so the
+ * loader and the console are one mechanism: a skeleton before anything streams in, live
+ * console lines as they arrive, and a red error state if the start fails.
+ */
+export function ResolvePanel({ entries }: { entries: LogEntry[] }): React.JSX.Element {
   const { t } = useTranslation()
-  const errored = events.some((e) => e.phase === 'error')
+  const errored = entries.some((e) => e.level === 'error')
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-6">
@@ -19,7 +35,7 @@ export function ResolvePanel({ events }: { events: JobStatus[] }): React.JSX.Ele
         </span>
       </div>
 
-      {events.length === 0 ? (
+      {entries.length === 0 ? (
         <div className="flex flex-col gap-2">
           <div className="h-3 w-2/3 animate-pulse rounded bg-line" />
           <div className="h-3 w-1/2 animate-pulse rounded bg-line" />
@@ -27,12 +43,11 @@ export function ResolvePanel({ events }: { events: JobStatus[] }): React.JSX.Ele
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto rounded-[7px] border border-line bg-[#0a0b0e] p-3 font-mono text-[11px] leading-relaxed">
-          {events.map((e, i) => (
-            <div
-              key={i}
-              className={e.phase === 'error' ? 'text-bad' : e.key ? 'text-ink' : 'text-ink-faint'}
-            >
-              {e.phase === 'error' ? e.error : e.key ? t(`resolve.${e.key}`, e.params) : e.line}
+          {entries.map((e, i) => (
+            <div key={i} className="flex gap-2 whitespace-pre-wrap break-all">
+              <span className="shrink-0 text-ink-faint">{formatTime(e.time)}</span>
+              <span className="shrink-0 text-ink-faint">[{e.scope}]</span>
+              <span className={LEVEL_COLOR[e.level]}>{e.message}</span>
             </div>
           ))}
         </div>

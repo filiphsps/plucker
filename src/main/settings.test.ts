@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { loadSettings, saveSettings, expandHome } from './settings'
+import { loadSettings, saveSettings, expandHome, migrateConfigLocation } from './settings'
 import { DEFAULT_SETTINGS } from '../shared/defaults'
 
 let dir: string
@@ -37,7 +37,10 @@ describe('loadSettings', () => {
 
 describe('saveSettings', () => {
   it('round-trips', () => {
-    const next = { ...DEFAULT_SETTINGS, performance: { parallel: 8, compressionLevel: 7 as const } }
+    const next = {
+      ...DEFAULT_SETTINGS,
+      performance: { ...DEFAULT_SETTINGS.performance, parallel: 8 }
+    }
     saveSettings(file, next)
     expect(JSON.parse(readFileSync(file, 'utf8')).performance.parallel).toBe(8)
   })
@@ -80,5 +83,36 @@ describe('expandHome', () => {
   })
   it('leaves absolute paths untouched', () => {
     expect(expandHome('/tmp/a', '/Users/x')).toBe('/tmp/a')
+  })
+})
+
+describe('migrateConfigLocation', () => {
+  it('moves the legacy config to the new path when only the old one exists', () => {
+    const oldPath = join(dir, '.plucker.json')
+    const newPath = join(dir, '.plucker', 'config.json')
+    writeFileSync(oldPath, JSON.stringify({ version: 2, language: 'de' }))
+    const moved = migrateConfigLocation(oldPath, newPath)
+    expect(moved).toBe(true)
+    expect(existsSync(oldPath)).toBe(false)
+    expect(existsSync(newPath)).toBe(true)
+    expect(JSON.parse(readFileSync(newPath, 'utf8')).language).toBe('de')
+  })
+
+  it('does not clobber an existing new config', () => {
+    const oldPath = join(dir, '.plucker.json')
+    const newPath = join(dir, '.plucker', 'config.json')
+    writeFileSync(oldPath, JSON.stringify({ language: 'de' }))
+    mkdirSync(join(dir, '.plucker'), { recursive: true })
+    writeFileSync(newPath, JSON.stringify({ language: 'en' }))
+    const moved = migrateConfigLocation(oldPath, newPath)
+    expect(moved).toBe(false)
+    expect(existsSync(oldPath)).toBe(true) // old left in place
+    expect(JSON.parse(readFileSync(newPath, 'utf8')).language).toBe('en') // new untouched
+  })
+
+  it('is a no-op when neither file exists', () => {
+    expect(migrateConfigLocation(join(dir, 'nope.json'), join(dir, 'sub', 'config.json'))).toBe(
+      false
+    )
   })
 })

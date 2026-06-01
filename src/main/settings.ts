@@ -1,12 +1,53 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  renameSync,
+  copyFileSync
+} from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Settings } from '../shared/types'
 import { DEFAULT_SETTINGS } from '../shared/defaults'
 import { normalizeHistory } from './history'
 
+/** Plucker's app-data directory (`~/.plucker`), holding the config + log. Created on access. */
+export function pluckerDir(home = homedir()): string {
+  const dir = join(home, '.plucker')
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 export function settingsPath(): string {
-  return join(homedir(), '.plucker.json')
+  return join(pluckerDir(), 'config.json')
+}
+
+/** Absolute path of the unified log file (`~/.plucker/plucker.log`). */
+export function logPath(): string {
+  return join(pluckerDir(), 'plucker.log')
+}
+
+/**
+ * One-time relocation of the legacy `~/.plucker.json` config into `~/.plucker/config.json`.
+ * Idempotent and safe to run every launch: migrates only when the old file exists and the
+ * new one does not, never clobbering an existing new config. Returns true when it moved a file.
+ */
+export function migrateConfigLocation(oldPath: string, newPath: string): boolean {
+  if (!existsSync(oldPath) || existsSync(newPath)) return false
+  mkdirSync(join(newPath, '..'), { recursive: true })
+  try {
+    renameSync(oldPath, newPath)
+  } catch {
+    // Cross-device or locked rename: fall back to copy (leaving the old file in place).
+    copyFileSync(oldPath, newPath)
+  }
+  return true
+}
+
+/** Run the legacy → `~/.plucker/` config migration using the real home directory. */
+export function migrateLegacyConfig(home = homedir()): void {
+  migrateConfigLocation(join(home, '.plucker.json'), join(home, '.plucker', 'config.json'))
 }
 
 export function expandHome(p: string, home = homedir()): string {
@@ -28,7 +69,8 @@ function mergeDefaults(partial: unknown): Settings {
     transforms:
       isV2 && Array.isArray(p.transforms) ? (p.transforms as Settings['transforms']) : d.transforms,
     performance: { ...d.performance, ...(p.performance ?? {}) },
-    updates: { ...d.updates, ...(p.updates ?? {}) }
+    updates: { ...d.updates, ...(p.updates ?? {}) },
+    developer: { ...d.developer, ...(p.developer ?? {}) }
   }
 }
 

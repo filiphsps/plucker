@@ -12,7 +12,8 @@ export const menu = {
     viewReleases: 'View Releases',
     go: 'Go',
     download: 'Download',
-    history: 'History'
+    history: 'History',
+    toggleConsole: 'Toggle Console'
   },
   de: {
     settings: 'Einstellungen …',
@@ -20,7 +21,8 @@ export const menu = {
     viewReleases: 'Releases ansehen',
     go: 'Gehe zu',
     download: 'Download',
-    history: 'Verlauf'
+    history: 'Verlauf',
+    toggleConsole: 'Konsole umschalten'
   }
 }
 

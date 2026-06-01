@@ -70,6 +70,19 @@ export default {
     resolved_other: 'Found {{count}} tracks',
     errorTitle: 'Couldn’t start download'
   },
+  console: {
+    toggle: 'Toggle console',
+    title: 'Console',
+    empty: 'No log output yet',
+    clear: 'Clear',
+    copy: 'Copy',
+    copied: 'Copied',
+    reveal: 'Reveal log file',
+    autoScroll: 'Auto-scroll',
+    levels: 'Levels',
+    scopes: 'Scopes',
+    counts: '{{shown}} / {{total}}'
+  },
   status: {
     queued: 'queued',
     downloading: 'downloading',
@@ -101,12 +114,17 @@ export default {
       transforms: 'Transform Chain',
       performance: 'Performance',
       updates: 'Updates',
-      cache: 'Cache'
+      cache: 'Cache',
+      developer: 'Developer'
     },
     cache: {
       manage: 'Metadata cache',
       manageDesc: 'Browse, edit and delete cached track metadata',
       open: 'Open cache'
+    },
+    developer: {
+      console: 'Enable console',
+      consoleDesc: 'Show a live log console overlay (terminal button in the header)'
     },
     language: {
       label: 'Language',
@@ -145,7 +163,15 @@ export default {
       parallelDesc: 'How many tracks to pluck at once (1–16)',
       compressionLevel: 'Encoding effort',
       compressionLevelDesc:
-        'libmp3lame quality vs speed (0 = best, 9 = fastest). Higher is much faster on older Macs and inaudible at high bitrates.'
+        'libmp3lame quality vs speed (0 = best, 9 = fastest). Higher is much faster on older Macs and inaudible at high bitrates.',
+      concurrentFragments: 'Concurrent fragments',
+      concurrentFragmentsDesc:
+        'Parallel fragment downloads per track (1–16). Speeds up segmented (HLS/DASH) sources; no effect on single-file audio.',
+      priority: 'Download priority',
+      priorityDesc:
+        'Run downloads at lower CPU priority to keep your Mac responsive while encoding on older hardware.',
+      priorityNormal: 'Normal',
+      priorityLow: 'Low (background)'
     },
     updates: {
       checkOnLaunch: 'Check for updates on launch',

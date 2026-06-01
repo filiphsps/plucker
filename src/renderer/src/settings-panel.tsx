@@ -9,6 +9,7 @@ import {
   Gauge,
   RefreshCw,
   Database,
+  Terminal,
   ChevronRight
 } from 'lucide-react'
 import type {
@@ -17,6 +18,7 @@ import type {
   MinBitrate,
   SampleRate,
   CompressionLevel,
+  ProcessPriority,
   CookieSource,
   Language
 } from '../../shared/types'
@@ -233,6 +235,34 @@ export function SettingsPanel({
               }
             />
           </PanelRow>
+          <PanelRow
+            name={t('settings.performance.concurrentFragments')}
+            desc={t('settings.performance.concurrentFragmentsDesc')}
+          >
+            <Stepper
+              value={s.performance.concurrentFragments}
+              min={1}
+              max={16}
+              onChange={(n) => set({ performance: { ...s.performance, concurrentFragments: n } })}
+            />
+          </PanelRow>
+          <PanelRow
+            name={t('settings.performance.priority')}
+            desc={t('settings.performance.priorityDesc')}
+          >
+            <select
+              className={sel}
+              value={s.performance.priority}
+              onChange={(e) =>
+                set({
+                  performance: { ...s.performance, priority: e.target.value as ProcessPriority }
+                })
+              }
+            >
+              <option value="normal">{t('settings.performance.priorityNormal')}</option>
+              <option value="low">{t('settings.performance.priorityLow')}</option>
+            </select>
+          </PanelRow>
         </Panel>
 
         <Panel icon={RefreshCw} title={t('settings.sections.updates')}>
@@ -253,6 +283,18 @@ export function SettingsPanel({
               {t('settings.cache.open')}
               <ChevronRight size={15} />
             </button>
+          </PanelRow>
+        </Panel>
+
+        <Panel icon={Terminal} title={t('settings.sections.developer')}>
+          <PanelRow
+            name={t('settings.developer.console')}
+            desc={t('settings.developer.consoleDesc')}
+          >
+            <Switch
+              checked={s.developer.console}
+              onChange={(v) => set({ developer: { ...s.developer, console: v } })}
+            />
           </PanelRow>
         </Panel>
       </div>

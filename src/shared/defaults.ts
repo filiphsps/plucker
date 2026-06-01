@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   audio: { format: 'mp3', preferredBitrate: 320, minBitrate: null, sampleRate: null },
   cookies: { source: 'auto' },
   transforms: DEFAULT_TRANSFORMS,
-  performance: { parallel: 4, compressionLevel: 7 },
-  updates: { checkOnLaunch: true }
+  performance: { parallel: 4, compressionLevel: 7, concurrentFragments: 4, priority: 'normal' },
+  updates: { checkOnLaunch: true },
+  developer: { console: false }
 }

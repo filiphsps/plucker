@@ -13,6 +13,13 @@ export type SampleRate = 44100 | 48000 | 32000
  */
 export type CompressionLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
+/**
+ * Scheduling priority for the yt-dlp/ffmpeg subprocess. `low` runs the download
+ * niced down so heavy encoding keeps the rest of the system (and the UI)
+ * responsive on older machines; `normal` competes for CPU as usual.
+ */
+export type ProcessPriority = 'normal' | 'low'
+
 /** UI language: 'system' follows the OS locale, otherwise an explicit override. */
 export type Language = 'system' | 'en' | 'de'
 
@@ -33,8 +40,33 @@ export interface Settings {
   }
   cookies: { source: CookieSource }
   transforms: TransformInstance[]
-  performance: { parallel: number; compressionLevel: CompressionLevel }
+  performance: {
+    parallel: number
+    compressionLevel: CompressionLevel
+    /** yt-dlp `--concurrent-fragments`: parallel fragment downloads for HLS/DASH. */
+    concurrentFragments: number
+    /** Scheduling priority for the download/encode subprocess. */
+    priority: ProcessPriority
+  }
   updates: { checkOnLaunch: boolean }
+  /** Developer/diagnostics options. */
+  developer: { console: boolean }
+}
+
+/** Severity of a log line, in ascending order. */
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+/**
+ * A single line in the unified main-process log stream — surfaced live in the
+ * developer console overlay and appended to `~/.plucker/plucker.log`.
+ */
+export interface LogEntry {
+  /** Epoch milliseconds when the line was emitted. */
+  time: number
+  level: LogLevel
+  /** Subsystem that emitted the line (e.g. `app`, `yt-dlp`, `transform`). */
+  scope: string
+  message: string
 }
 
 export type TrackStatus =

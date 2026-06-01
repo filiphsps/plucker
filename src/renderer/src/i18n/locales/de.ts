@@ -71,6 +71,19 @@ const de: typeof en = {
     resolved_other: '{{count}} Titel gefunden',
     errorTitle: 'Download konnte nicht gestartet werden'
   },
+  console: {
+    toggle: 'Konsole umschalten',
+    title: 'Konsole',
+    empty: 'Noch keine Protokollausgabe',
+    clear: 'Leeren',
+    copy: 'Kopieren',
+    copied: 'Kopiert',
+    reveal: 'Protokolldatei anzeigen',
+    autoScroll: 'Auto-Scroll',
+    levels: 'Stufen',
+    scopes: 'Bereiche',
+    counts: '{{shown}} / {{total}}'
+  },
   status: {
     queued: 'in Warteschlange',
     downloading: 'lädt herunter',
@@ -102,12 +115,17 @@ const de: typeof en = {
       transforms: 'Transformationskette',
       performance: 'Leistung',
       updates: 'Aktualisierungen',
-      cache: 'Cache'
+      cache: 'Cache',
+      developer: 'Entwickler'
     },
     cache: {
       manage: 'Metadaten-Cache',
       manageDesc: 'Zwischengespeicherte Titel-Metadaten ansehen, bearbeiten und löschen',
       open: 'Cache öffnen'
+    },
+    developer: {
+      console: 'Konsole aktivieren',
+      consoleDesc: 'Eine Live-Protokollkonsole anzeigen (Terminal-Schaltfläche in der Kopfzeile)'
     },
     language: {
       label: 'Sprache',
@@ -146,7 +164,15 @@ const de: typeof en = {
       parallelDesc: 'Wie viele Titel gleichzeitig geladen werden (1–16)',
       compressionLevel: 'Encoding-Aufwand',
       compressionLevelDesc:
-        'libmp3lame Qualität vs. Tempo (0 = beste, 9 = schnellste). Höhere Werte sind auf älteren Macs deutlich schneller und bei hohen Bitraten nicht hörbar.'
+        'libmp3lame Qualität vs. Tempo (0 = beste, 9 = schnellste). Höhere Werte sind auf älteren Macs deutlich schneller und bei hohen Bitraten nicht hörbar.',
+      concurrentFragments: 'Gleichzeitige Fragmente',
+      concurrentFragmentsDesc:
+        'Parallele Fragment-Downloads pro Titel (1–16). Beschleunigt segmentierte Quellen (HLS/DASH); kein Effekt bei Einzeldatei-Audio.',
+      priority: 'Download-Priorität',
+      priorityDesc:
+        'Downloads mit niedrigerer CPU-Priorität ausführen, damit dein Mac beim Encoding auf älterer Hardware reaktionsfähig bleibt.',
+      priorityNormal: 'Normal',
+      priorityLow: 'Niedrig (Hintergrund)'
     },
     updates: {
       checkOnLaunch: 'Beim Start nach Updates suchen',

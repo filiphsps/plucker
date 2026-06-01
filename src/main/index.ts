@@ -6,7 +6,16 @@ import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { version as appVersion } from '../../package.json'
 import icon from '../../resources/icon.png?asset'
-import { loadSettings, saveSettings, settingsPath, expandHome } from './settings'
+import {
+  loadSettings,
+  saveSettings,
+  settingsPath,
+  expandHome,
+  logPath,
+  migrateLegacyConfig
+} from './settings'
+import { log, addLogTransport, getLogTail } from './log'
+import { createFileTransport } from './log-file'
 import { binaryPaths, type BinaryPaths } from './binaries'
 import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
@@ -44,11 +53,42 @@ function getMetaCache(): MetadataCache {
   return metaCache
 }
 
+// Console logging (file + live IPC stream) is a developer feature: on in dev, and
+// otherwise gated behind the `developer.console` setting. We attach/detach the
+// transports as the setting changes so a normal user gets no log file at all.
+let detachFileLog: (() => void) | null = null
+let detachIpcLog: (() => void) | null = null
+
+function applyConsoleLogging(getWindow: () => BrowserWindow | null): void {
+  const enabled = !app.isPackaged || loadSettings().developer.console
+  if (enabled && !detachIpcLog) {
+    detachIpcLog = addLogTransport((e) => getWindow()?.webContents.send('log:line', e))
+  } else if (!enabled && detachIpcLog) {
+    detachIpcLog()
+    detachIpcLog = null
+  }
+  if (enabled && !detachFileLog) {
+    detachFileLog = addLogTransport(createFileTransport(logPath()))
+  } else if (!enabled && detachFileLog) {
+    detachFileLog()
+    detachFileLog = null
+  }
+}
+
 function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('app:locale', () => app.getLocale())
   ipcMain.handle('accent:get', () => getAccentColor())
   ipcMain.handle('settings:get', () => loadSettings())
-  ipcMain.handle('settings:save', (_e, s: Settings) => saveSettings(settingsPath(), s))
+  ipcMain.handle('settings:save', (_e, s: Settings) => {
+    saveSettings(settingsPath(), s)
+    // Re-evaluate console logging (the developer flag may have flipped) and let the
+    // renderer react live (show/hide the console button).
+    applyConsoleLogging(getWindow)
+    getWindow()?.webContents.send('settings:changed', s)
+  })
+  // Developer console: buffered tail (seeds the overlay on open) + reveal the log file.
+  ipcMain.handle('log:tail', () => getLogTail())
+  ipcMain.handle('log:reveal', () => shell.showItemInFolder(logPath()))
   ipcMain.handle('transforms:catalog', () => getCatalog())
   ipcMain.handle('dialog:chooseFolder', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
@@ -193,7 +233,10 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
 
       // Don't flash a red error panel for a deliberate cancellation.
       if (!cancelled) {
+        log.error('app', message)
         getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
+      } else {
+        log.info('app', 'job cancelled')
       }
       throw err
     }
@@ -244,6 +287,10 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Relocate the legacy ~/.plucker.json config into ~/.plucker/config.json before any
+  // settings read, so existing installs carry their settings over transparently.
+  migrateLegacyConfig()
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.plucker.app')
 
@@ -275,6 +322,10 @@ app.whenReady().then(() => {
   buildAppMenu(() => mainWindow)
 
   createWindow()
+
+  // Attach the file + live-stream log transports if the console is enabled.
+  applyConsoleLogging(() => mainWindow)
+  log.info('app', `Plucker ${appVersion} ready`)
 
   // Notify-only update check shortly after launch (opt-out via settings).
   if (loadSettings().updates.checkOnLaunch) {

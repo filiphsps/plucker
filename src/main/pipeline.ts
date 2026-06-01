@@ -9,7 +9,7 @@ import type {
   HistoryTrack
 } from '../shared/types'
 import { sanitizeFileName } from './rename'
-import { buildDownloadArgs, runYtDlp, type ProgressEvent } from './ytdlp'
+import { buildDownloadArgs, runYtDlp, priorityToNice, type ProgressEvent } from './ytdlp'
 import { spawnManaged } from './spawn'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
@@ -260,14 +260,23 @@ function trackProgress(t: TrackProgress): number {
 /** Full pipeline: resolve all entries → download → transform each track as it lands. */
 export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> {
   const { bin, settings, homeBase, onProgress, onStatus, signal } = deps
-  log.info('pipeline', `job start: ${url}`)
+  log.info('app', `job start: ${url}`)
   const jobSpan = startSpan('job', 'pipeline')
   onStatus?.({ phase: 'resolving', key: 'launching' })
   const job = await timed('resolve-playlist', 'pipeline', () =>
-    resolvePlaylist(bin.ytdlp, url, (line) => onStatus?.({ phase: 'resolving', line }), signal)
+    resolvePlaylist(
+      bin.ytdlp,
+      url,
+      (line) => {
+        // Drive the inline resolve panel and mirror the verbose line into the console log.
+        onStatus?.({ phase: 'resolving', line })
+        log.debug('yt-dlp', line)
+      },
+      signal
+    )
   )
   onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
-  log.info('pipeline', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
+  log.info('app', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
   const dest =
     deps.folderOverride ??
     destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
@@ -371,7 +380,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       t.status = 'failed'
       t.stage = undefined
       t.reason = res.reason
-      log.warn('pipeline', `transform failed for "${t.title}": ${res.reason}`)
+      log.warn('transform', `transform failed for "${t.title}": ${res.reason}`)
       emit()
       return
     }
@@ -420,7 +429,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       videoId: sidecar.id,
       hash
     }
-    log.debug('pipeline', `track done: ${t.title}`)
+    log.info('app', `track done: ${t.title}`)
     emit()
   }
 
@@ -451,6 +460,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     if (t.status === 'queued') {
       t.status = 'downloading'
       t.stage = 'downloading'
+      log.info('yt-dlp', `downloading "${t.title}"`)
       emit()
     }
     const dl = await runYtDlp(
@@ -460,7 +470,8 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       (f) => {
         downloaded = f
       },
-      signal
+      signal,
+      priorityToNice(settings.performance.priority)
     )
 
     t.stage = undefined
@@ -469,6 +480,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     if (!downloaded && dl.skipped.length > 0) {
       t.status = 'skipped'
       t.reason = 'below minimum quality'
+      log.info('yt-dlp', `skipped "${t.title}" — below minimum quality`)
       t.elapsedMs = Math.round(trackSpan.end(`${t.title} (skipped)`))
       emit()
       return
@@ -477,7 +489,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       t.status = 'failed'
       t.reason = dl.errors[dl.errors.length - 1]?.message ?? 'Download failed'
       if (dl.code) t.errorCode = `yt-dlp ${dl.code}`
-      log.warn('pipeline', `download failed for "${t.title}": ${t.reason}`)
+      log.warn('yt-dlp', `download failed for "${t.title}": ${t.reason}`)
       t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
       emit()
       return
@@ -493,7 +505,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       t.stage = undefined
       t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
       t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
-      log.warn('pipeline', `track failed "${t.title}": ${t.reason}`)
+      log.warn('transform', `track failed "${t.title}": ${t.reason}`)
     }
     emit()
   }
@@ -511,7 +523,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     // throw during transform/probe) counts as failed, so the job always settles
     // to idle once every track has been attempted.
     for (const t of finalizePendingTracks(tracks)) {
-      log.warn('pipeline', `track did not complete "${t.title}": ${t.reason}`)
+      log.warn('app', `track did not complete "${t.title}": ${t.reason}`)
     }
   }
   emit()
@@ -527,7 +539,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
   const cancelledCount = tracks.filter((t) => t.status === 'cancelled').length
   jobSpan.end(`${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`)
   log.info(
-    'pipeline',
+    'app',
     `job ${outcome} "${job.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped, ${cancelledCount} cancelled`
   )
 
