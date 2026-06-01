@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Settings } from '../shared/types'
 import { DEFAULT_SETTINGS } from '../shared/defaults'
+import { normalizeHistory } from './history'
 
 export function settingsPath(): string {
   return join(homedir(), '.plucker.json')
@@ -20,7 +21,7 @@ function mergeDefaults(partial: unknown): Settings {
   return {
     version: d.version,
     language: p.language ?? d.language,
-    history: Array.isArray(p.history) ? (p.history as Settings['history']) : d.history,
+    history: normalizeHistory(p.history),
     downloads: { ...d.downloads, ...(p.downloads ?? {}) },
     audio: { ...d.audio, ...(p.audio ?? {}) },
     cookies: { ...d.cookies, ...(p.cookies ?? {}) },

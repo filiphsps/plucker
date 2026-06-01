@@ -37,7 +37,14 @@ export interface Settings {
   updates: { checkOnLaunch: boolean }
 }
 
-export type TrackStatus = 'queued' | 'downloading' | 'transforming' | 'done' | 'failed' | 'skipped'
+export type TrackStatus =
+  | 'queued'
+  | 'downloading'
+  | 'transforming'
+  | 'done'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled'
 
 /**
  * Fine-grained "what is this track doing right now" pushed by the pipeline ticker.
@@ -98,10 +105,18 @@ export interface JobStatus {
   error?: string
 }
 
-/** A single tagged track recorded in history. */
+/** Terminal per-track outcome recorded in history. */
+export type HistoryTrackStatus = 'done' | 'failed' | 'skipped' | 'cancelled'
+
+/** A single track recorded in history (downloaded, failed, skipped, or cancelled). */
 export interface HistoryTrack {
-  file: string
   title: string
+  /** Terminal outcome of this track. */
+  status: HistoryTrackStatus
+  /** Absolute path to the final mp3 — present only for successfully downloaded tracks. */
+  file?: string
+  /** Failure/skip detail (e.g. yt-dlp error tail, "below minimum quality"). */
+  reason?: string
   artist?: string
   album?: string
   year?: string
@@ -110,7 +125,10 @@ export interface HistoryTrack {
   hash?: string
 }
 
-/** A completed download recorded in the persistent history. */
+/** Overall outcome of a recorded job, driving the history entry badge. */
+export type JobOutcome = 'completed' | 'partial' | 'failed' | 'cancelled'
+
+/** A download job recorded in the persistent history. */
 export interface HistoryEntry {
   id: string
   url: string
@@ -118,6 +136,10 @@ export interface HistoryEntry {
   folder: string
   kind: 'playlist' | 'video'
   completedAt: string // ISO timestamp
+  /** Job-level result: all done, some failed (partial), all failed, or cancelled. */
+  outcome: JobOutcome
+  /** Job-level error detail when the job failed to start (e.g. resolution failure). */
+  reason?: string
   tracks: HistoryTrack[]
 }
 

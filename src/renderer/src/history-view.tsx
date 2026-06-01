@@ -1,11 +1,23 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Music, Folder, RotateCw, Trash2, Search, Check } from 'lucide-react'
-import type { HistoryEntry } from '../../shared/types'
+import type { HistoryEntry, JobOutcome } from '../../shared/types'
 import { TrackRow } from './track-row'
 
 function watchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`
+}
+
+/** Per-outcome badge styling + i18n label key for a history entry. */
+const OUTCOME_BADGE: Record<JobOutcome, { cls: string; labelKey: string; check?: boolean }> = {
+  completed: {
+    cls: 'border-ok/30 bg-ok/[0.08] text-ok',
+    labelKey: 'history.outcomeCompleted',
+    check: true
+  },
+  partial: { cls: 'border-warn/30 bg-warn/[0.08] text-warn', labelKey: 'history.outcomePartial' },
+  failed: { cls: 'border-bad/30 bg-bad/[0.08] text-bad', labelKey: 'history.outcomeFailed' },
+  cancelled: { cls: 'border-line bg-raise text-ink-dim', labelKey: 'history.outcomeCancelled' }
 }
 
 export function HistoryView({
@@ -25,7 +37,9 @@ export function HistoryView({
 
   // Flag tracks whose file is no longer on disk.
   useEffect(() => {
-    const files = history.flatMap((e) => e.tracks.map((tk) => tk.file)).filter(Boolean)
+    const files = history
+      .flatMap((e) => e.tracks.map((tk) => tk.file))
+      .filter((f): f is string => !!f)
     let live = true
     window.plucker.filesExist(files).then((exists) => {
       if (live) setMissing(new Set(files.filter((_, i) => !exists[i])))
@@ -43,9 +57,9 @@ export function HistoryView({
     if (!window.confirm(t('actions.confirmDelete'))) return
     setHistory(await window.plucker.removeHistoryEntry(id, true))
   }
-  async function deleteTrack(id: string, file: string): Promise<void> {
+  async function deleteTrack(id: string, index: number): Promise<void> {
     if (!window.confirm(t('actions.confirmDelete'))) return
-    setHistory(await window.plucker.removeHistoryTrack(id, file, true))
+    setHistory(await window.plucker.removeHistoryTrack(id, index, true))
   }
 
   const filtered = history.filter((e) =>
@@ -78,9 +92,8 @@ export function HistoryView({
       </div>
 
       {filtered.map((entry) => {
-        const failed = entry.tracks.filter(
-          (tk) => (tk as { status?: string }).status === 'failed'
-        ).length
+        const failed = entry.tracks.filter((tk) => tk.status === 'failed').length
+        const badge = OUTCOME_BADGE[entry.outcome]
         return (
           <div
             key={entry.id}
@@ -102,17 +115,24 @@ export function HistoryView({
                   {new Date(entry.completedAt).toLocaleString()} ·{' '}
                   {t('download.tracks', { count: entry.tracks.length })}
                 </div>
+                {entry.reason && (
+                  <div
+                    className="mt-[3px] truncate font-mono text-[10.5px] text-bad"
+                    title={entry.reason}
+                  >
+                    {entry.reason}
+                  </div>
+                )}
               </div>
-              {failed > 0 ? (
-                <span className="rounded-md border border-warn/30 bg-warn/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-warn">
-                  {t('history.failedBadge', { count: failed })}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 rounded-md border border-ok/30 bg-ok/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-ok">
-                  <Check size={11} strokeWidth={3} />
-                  {t('history.completeBadge')}
-                </span>
-              )}
+              <span
+                className={
+                  'flex items-center gap-1.5 rounded-md border px-[7px] py-[3px] font-mono text-[10px] ' +
+                  badge.cls
+                }
+              >
+                {badge.check && <Check size={11} strokeWidth={3} />}
+                {t(badge.labelKey as never, { count: failed })}
+              </span>
               <div className="flex gap-1.5">
                 <button className={jbtn} onClick={() => window.plucker.openFolder(entry.folder)}>
                   <Folder size={14} />
@@ -144,13 +164,15 @@ export function HistoryView({
                 source={{ videoId: tk.videoId, downloadedAt: entry.completedAt }}
                 actions={
                   <>
-                    <button
-                      className={ra}
-                      title={t('actions.reveal')}
-                      onClick={() => tk.file && window.plucker.revealFile(tk.file)}
-                    >
-                      <Folder size={15} />
-                    </button>
+                    {tk.file && (
+                      <button
+                        className={ra}
+                        title={t('actions.reveal')}
+                        onClick={() => window.plucker.revealFile(tk.file!)}
+                      >
+                        <Folder size={15} />
+                      </button>
+                    )}
                     {tk.videoId && (
                       <button
                         className={ra}
@@ -163,7 +185,7 @@ export function HistoryView({
                     <button
                       className={ra + ' hover:text-bad'}
                       title={t('actions.delete')}
-                      onClick={() => deleteTrack(entry.id, tk.file)}
+                      onClick={() => deleteTrack(entry.id, i)}
                     >
                       <Trash2 size={15} />
                     </button>

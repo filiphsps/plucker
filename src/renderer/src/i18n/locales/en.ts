@@ -30,9 +30,11 @@ export default {
     title: 'History',
     empty: 'No downloads yet',
     search: 'Search history…',
-    completeBadge: 'COMPLETE',
-    failedBadge_one: '{{count}} FAILED',
-    failedBadge_other: '{{count}} FAILED',
+    outcomeCompleted: 'COMPLETE',
+    outcomePartial_one: '{{count}} FAILED',
+    outcomePartial_other: '{{count}} FAILED',
+    outcomeFailed: 'FAILED',
+    outcomeCancelled: 'CANCELLED',
     colFile: 'File',
     missing: 'File missing',
     missingBadge: 'MISSING'
@@ -68,7 +70,8 @@ export default {
     transforming: 'transforming',
     done: 'done',
     failed: 'failed',
-    skipped: 'skipped'
+    skipped: 'skipped',
+    cancelled: 'cancelled'
   },
   stage: {
     downloading: 'Downloading · yt-dlp',

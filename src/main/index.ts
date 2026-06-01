@@ -117,10 +117,13 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     saveSettings(settingsPath(), { ...s, history })
     return history
   })
-  ipcMain.handle('history:removeTrack', (_e, id: string, file: string, deleteFile: boolean) => {
+  ipcMain.handle('history:removeTrack', (_e, id: string, index: number, deleteFile: boolean) => {
     const s = loadSettings()
-    if (deleteFile) rmSync(file, { force: true })
-    const history = removeTrack(s.history, id, file)
+    if (deleteFile) {
+      const file = s.history.find((h) => h.id === id)?.tracks[index]?.file
+      if (file) rmSync(file, { force: true })
+    }
+    const history = removeTrack(s.history, id, index)
     saveSettings(settingsPath(), { ...s, history })
     return history
   })
@@ -148,27 +151,49 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       })
       getWindow()?.setProgressBar(-1)
 
-      // Record to history (re-load fresh so we don't clobber edits made during the run).
-      if (result.tracks.length > 0) {
-        const entry: HistoryEntry = {
-          id: randomUUID(),
-          url: result.url,
-          title: result.title,
-          folder: result.folder,
-          kind: result.kind,
-          completedAt: new Date().toISOString(),
-          tracks: result.tracks
-        }
-        const fresh = loadSettings()
-        saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-        getWindow()?.webContents.send('history:changed')
+      // Record every resolved job — including all-failed and cancelled ones —
+      // so the user always sees the outcome. (Re-load fresh so we don't clobber
+      // edits made during the run.)
+      const entry: HistoryEntry = {
+        id: randomUUID(),
+        url: result.url,
+        title: result.title,
+        folder: result.folder,
+        kind: result.kind,
+        completedAt: new Date().toISOString(),
+        outcome: result.outcome,
+        tracks: result.tracks
       }
+      const fresh = loadSettings()
+      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+      getWindow()?.webContents.send('history:changed')
     } catch (err) {
       getWindow()?.setProgressBar(-1)
-      getWindow()?.webContents.send('job:status', {
-        phase: 'error',
-        error: err instanceof Error ? err.message : String(err)
-      })
+      const cancelled = abort?.signal.aborted ?? false
+      const message = err instanceof Error ? err.message : String(err)
+
+      // The job threw before producing a result — typically resolution failed
+      // (bad URL, yt-dlp error). Record a minimal failed/cancelled entry so the
+      // attempt is still visible in history.
+      const fresh = loadSettings()
+      const entry: HistoryEntry = {
+        id: randomUUID(),
+        url,
+        title: url,
+        folder: folderOverride ?? expandHome(fresh.downloads.baseFolder),
+        kind: 'video',
+        completedAt: new Date().toISOString(),
+        outcome: cancelled ? 'cancelled' : 'failed',
+        reason: message,
+        tracks: []
+      }
+      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+      getWindow()?.webContents.send('history:changed')
+
+      // Don't flash a red error panel for a deliberate cancellation.
+      if (!cancelled) {
+        getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
+      }
       throw err
     }
   })

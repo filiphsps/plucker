@@ -1,6 +1,13 @@
 import { mkdirSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Settings, JobProgress, JobStatus, TrackProgress, HistoryTrack } from '../shared/types'
+import type {
+  Settings,
+  JobProgress,
+  JobStatus,
+  JobOutcome,
+  TrackProgress,
+  HistoryTrack
+} from '../shared/types'
 import { sanitizeFileName } from './rename'
 import { buildDownloadArgs, runYtDlp, type ProgressEvent } from './ytdlp'
 import { buildRegistry } from './transforms/registry'
@@ -155,6 +162,9 @@ export interface JobResult {
   folder: string
   url: string
   kind: 'playlist' | 'video'
+  /** Overall job outcome for the history badge. */
+  outcome: JobOutcome
+  /** Every terminal track (done/failed/skipped/cancelled), in playlist order. */
   tracks: HistoryTrack[]
 }
 
@@ -183,6 +193,54 @@ export function finalizePendingTracks(tracks: TrackProgress[]): TrackProgress[] 
     rescued.push(t)
   }
   return rescued
+}
+
+/**
+ * When a job is aborted, relabel every track that did not finish (anything other
+ * than `done` or an intentional `skipped`) as `cancelled` — so history can tell
+ * user cancellation apart from genuine failures. Mutates in place.
+ */
+export function markCancelledTracks(tracks: TrackProgress[]): void {
+  for (const t of tracks) {
+    if (t.status === 'done' || t.status === 'skipped') continue
+    t.status = 'cancelled'
+    t.stage = undefined
+    t.reason = undefined
+  }
+}
+
+/**
+ * Build the history track list from the final pipeline state. Successfully
+ * downloaded tracks reuse the rich record collected during the run (file + tags
+ * + hash); every other terminal track is recorded minimally with its status and
+ * failure reason so the row still shows up, just without a file.
+ */
+export function toHistoryTracks(
+  tracks: TrackProgress[],
+  byIndex: (HistoryTrack | undefined)[]
+): HistoryTrack[] {
+  return tracks.map((t) => {
+    const done = byIndex[t.index - 1]
+    if (done) return done
+    return {
+      title: t.title,
+      status: (t.status === 'failed' || t.status === 'skipped' || t.status === 'cancelled'
+        ? t.status
+        : 'failed') as HistoryTrack['status'],
+      reason: t.reason,
+      videoId: t.videoId
+    }
+  })
+}
+
+/** Derive the overall job outcome from the recorded tracks. */
+export function jobOutcome(tracks: HistoryTrack[], aborted: boolean): JobOutcome {
+  if (aborted) return 'cancelled'
+  const failed = tracks.filter((t) => t.status === 'failed').length
+  const done = tracks.filter((t) => t.status === 'done').length
+  if (failed === 0) return 'completed' // all done and/or intentionally skipped
+  if (done === 0) return 'failed' // nothing succeeded
+  return 'partial'
 }
 
 /** 0..1 progress for one track: download weighted 0.8, transforms 0.2. */
@@ -343,6 +401,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     if (res.tags.title) t.title = res.tags.title
     t.transformPercent = 100
     historyByIndex[t.index - 1] = {
+      status: 'done',
       file: res.outputFile,
       title: res.tags.title ?? t.title,
       artist: res.tags.artist,
@@ -431,24 +490,35 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
   job.entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
   await pool.drain()
 
-  // Safety net: a slot that threw before assigning a terminal status (e.g. a
-  // throw during transform/probe, or an aborted yt-dlp spawn) counts as failed,
-  // so the job always settles to idle once every track has been attempted.
-  for (const t of finalizePendingTracks(tracks)) {
-    log.warn('pipeline', `track did not complete "${t.title}": ${t.reason}`)
+  const aborted = signal?.aborted ?? false
+  if (aborted) {
+    // User cancelled: relabel every unfinished track as cancelled (distinct from
+    // a genuine failure) so the history badge and rows read correctly.
+    markCancelledTracks(tracks)
+  } else {
+    // Safety net: a slot that threw before assigning a terminal status (e.g. a
+    // throw during transform/probe) counts as failed, so the job always settles
+    // to idle once every track has been attempted.
+    for (const t of finalizePendingTracks(tracks)) {
+      log.warn('pipeline', `track did not complete "${t.title}": ${t.reason}`)
+    }
   }
   emit()
 
-  const history = historyByIndex.filter((h): h is HistoryTrack => h !== undefined)
+  // Record every terminal track (not just the successes) so failed/cancelled
+  // downloads still appear in history, clearly marked.
+  const history = toHistoryTracks(tracks, historyByIndex)
+  const outcome = jobOutcome(history, aborted)
 
   const doneCount = tracks.filter((t) => t.status === 'done').length
   const failedCount = tracks.filter((t) => t.status === 'failed').length
   const skippedCount = tracks.filter((t) => t.status === 'skipped').length
+  const cancelledCount = tracks.filter((t) => t.status === 'cancelled').length
   jobSpan.end(`${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`)
   log.info(
     'pipeline',
-    `job done "${job.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`
+    `job ${outcome} "${job.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped, ${cancelledCount} cancelled`
   )
 
-  return { title: job.title, folder: dest, url, kind: job.kind, tracks: history }
+  return { title: job.title, folder: dest, url, kind: job.kind, outcome, tracks: history }
 }

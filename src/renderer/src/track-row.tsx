@@ -122,10 +122,12 @@ export function TrackRow({
   const coverUrl = cover && cover.key === coverKey ? cover.url : null
   const resolvedMeta = meta ?? (fetched && fetched.file === track.file ? fetched.data : null)
   const failed = track.status === 'failed'
+  const unsuccessful =
+    track.status === 'failed' || track.status === 'cancelled' || track.status === 'skipped'
   const subtitle = missing
     ? t('history.missing')
-    : failed
-      ? (track.reason ?? t('status.failed'))
+    : unsuccessful
+      ? (track.reason ?? t(`status.${track.status}` as never))
       : [track.artist, track.album, track.year].filter(Boolean).join(' · ')
 
   const statusEl = (): React.JSX.Element => {

@@ -31,9 +31,11 @@ const de: typeof en = {
     title: 'Verlauf',
     empty: 'Noch keine Downloads',
     search: 'Verlauf durchsuchen …',
-    completeBadge: 'FERTIG',
-    failedBadge_one: '{{count}} FEHLER',
-    failedBadge_other: '{{count}} FEHLER',
+    outcomeCompleted: 'FERTIG',
+    outcomePartial_one: '{{count}} FEHLER',
+    outcomePartial_other: '{{count}} FEHLER',
+    outcomeFailed: 'FEHLGESCHLAGEN',
+    outcomeCancelled: 'ABGEBROCHEN',
     colFile: 'Datei',
     missing: 'Datei fehlt',
     missingBadge: 'FEHLT'
@@ -69,7 +71,8 @@ const de: typeof en = {
     transforming: 'verarbeitet',
     done: 'fertig',
     failed: 'fehlgeschlagen',
-    skipped: 'übersprungen'
+    skipped: 'übersprungen',
+    cancelled: 'abgebrochen'
   },
   stage: {
     downloading: 'Lädt herunter · yt-dlp',

@@ -58,8 +58,8 @@ const api = {
   getHistory: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:get'),
   removeHistoryEntry: (id: string, deleteFiles: boolean): Promise<HistoryEntry[]> =>
     ipcRenderer.invoke('history:removeEntry', id, deleteFiles),
-  removeHistoryTrack: (id: string, file: string, deleteFile: boolean): Promise<HistoryEntry[]> =>
-    ipcRenderer.invoke('history:removeTrack', id, file, deleteFile),
+  removeHistoryTrack: (id: string, index: number, deleteFile: boolean): Promise<HistoryEntry[]> =>
+    ipcRenderer.invoke('history:removeTrack', id, index, deleteFile),
   onHistoryChanged: (cb: () => void): (() => void) => {
     const fn = (): void => cb()
     ipcRenderer.on('history:changed', fn)

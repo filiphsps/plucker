@@ -1,6 +1,33 @@
-import type { HistoryEntry } from '../shared/types'
+import type { HistoryEntry, HistoryTrack, JobOutcome } from '../shared/types'
 
 export const HISTORY_CAP = 100
+
+/**
+ * Normalize history loaded from disk for backward compatibility: entries written
+ * before per-track status / job outcome existed only ever recorded successful
+ * downloads, so a missing track `status` defaults to `done` and a missing entry
+ * `outcome` is derived from the tracks. Keeps old `~/.plucker.json` files valid
+ * without a version bump.
+ */
+export function normalizeHistory(raw: unknown): HistoryEntry[] {
+  if (!Array.isArray(raw)) return []
+  return (raw as HistoryEntry[]).map((e) => {
+    const tracks: HistoryTrack[] = (e.tracks ?? []).map((t) => ({
+      ...t,
+      status: t.status ?? 'done'
+    }))
+    return { ...e, tracks, outcome: e.outcome ?? deriveOutcome(tracks) }
+  })
+}
+
+/** Derive a job outcome from recorded track statuses (no cancellation context). */
+function deriveOutcome(tracks: HistoryTrack[]): JobOutcome {
+  const failed = tracks.filter((t) => t.status === 'failed').length
+  const done = tracks.filter((t) => t.status === 'done').length
+  if (failed === 0) return 'completed'
+  if (done === 0) return 'failed'
+  return 'partial'
+}
 
 /**
  * Record a completed job (most-recent-first), capped to HISTORY_CAP.
@@ -22,9 +49,13 @@ export function removeEntry(history: HistoryEntry[], id: string): HistoryEntry[]
   return history.filter((e) => e.id !== id)
 }
 
-/** Remove a single track (by file path) from an entry; drop the entry if it becomes empty. */
-export function removeTrack(history: HistoryEntry[], id: string, file: string): HistoryEntry[] {
+/**
+ * Remove a single track (by its index within the entry) and drop the entry if it
+ * becomes empty. Index-based rather than file-based so failed/cancelled tracks —
+ * which have no file — can still be removed individually.
+ */
+export function removeTrack(history: HistoryEntry[], id: string, index: number): HistoryEntry[] {
   return history
-    .map((e) => (e.id === id ? { ...e, tracks: e.tracks.filter((t) => t.file !== file) } : e))
+    .map((e) => (e.id === id ? { ...e, tracks: e.tracks.filter((_, i) => i !== index) } : e))
     .filter((e) => e.tracks.length > 0)
 }

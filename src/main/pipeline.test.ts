@@ -3,9 +3,60 @@ import {
   destFolderFor,
   parseEntries,
   finalizePendingTracks,
-  isRelevantStatusLine
+  isRelevantStatusLine,
+  markCancelledTracks,
+  toHistoryTracks,
+  jobOutcome
 } from './pipeline'
-import type { TrackProgress } from '../shared/types'
+import type { TrackProgress, HistoryTrack } from '../shared/types'
+
+const tp = (index: number, status: TrackProgress['status']): TrackProgress => ({
+  index,
+  title: `Track ${index}`,
+  status,
+  percent: 0,
+  transformPercent: 0
+})
+
+describe('markCancelledTracks', () => {
+  it('relabels unfinished tracks as cancelled, leaving done/skipped intact', () => {
+    const tracks = [tp(1, 'done'), tp(2, 'downloading'), tp(3, 'failed'), tp(4, 'skipped')]
+    markCancelledTracks(tracks)
+    expect(tracks.map((t) => t.status)).toEqual(['done', 'cancelled', 'cancelled', 'skipped'])
+  })
+})
+
+describe('toHistoryTracks', () => {
+  it('reuses the rich record for done tracks and records others minimally', () => {
+    const tracks = [tp(1, 'done'), tp(2, 'failed')]
+    tracks[1].reason = 'boom'
+    tracks[1].videoId = 'vid2'
+    const byIndex: (HistoryTrack | undefined)[] = [
+      { status: 'done', file: '/m/1.mp3', title: 'One', hash: 'h1' },
+      undefined
+    ]
+    expect(toHistoryTracks(tracks, byIndex)).toEqual([
+      { status: 'done', file: '/m/1.mp3', title: 'One', hash: 'h1' },
+      { title: 'Track 2', status: 'failed', reason: 'boom', videoId: 'vid2' }
+    ])
+  })
+})
+
+describe('jobOutcome', () => {
+  const ht = (status: HistoryTrack['status']): HistoryTrack => ({ title: 's', status })
+  it('is cancelled when aborted regardless of track states', () => {
+    expect(jobOutcome([ht('done'), ht('failed')], true)).toBe('cancelled')
+  })
+  it('is completed when nothing failed (done and/or skipped)', () => {
+    expect(jobOutcome([ht('done'), ht('skipped')], false)).toBe('completed')
+  })
+  it('is failed when nothing succeeded', () => {
+    expect(jobOutcome([ht('failed'), ht('failed')], false)).toBe('failed')
+  })
+  it('is partial when some succeeded and some failed', () => {
+    expect(jobOutcome([ht('done'), ht('failed')], false)).toBe('partial')
+  })
+})
 
 describe('isRelevantStatusLine', () => {
   it('keeps extraction/progress lines', () => {
