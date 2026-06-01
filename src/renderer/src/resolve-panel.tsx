@@ -1,14 +1,8 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
-import type { LogEntry, LogLevel } from '../../shared/types'
-
-const LEVEL_COLOR: Record<LogLevel, string> = {
-  debug: 'text-ink-faint',
-  info: 'text-ink',
-  warn: 'text-warn',
-  error: 'text-bad'
-}
+import type { LogEntry } from '../../shared/types'
+import { LogMessage } from './log-value-view'
 
 function formatTime(ms: number): string {
   const d = new Date(ms)
@@ -44,10 +38,12 @@ export function ResolvePanel({ entries }: { entries: LogEntry[] }): React.JSX.El
       ) : (
         <div className="min-h-0 flex-1 overflow-auto rounded-[7px] border border-line bg-[#0a0b0e] p-3 font-mono text-[11px] leading-relaxed">
           {entries.map((e, i) => (
-            <div key={i} className="flex gap-2 whitespace-pre-wrap break-all">
+            <div key={i} className="flex gap-2 break-all">
               <span className="shrink-0 text-ink-faint">{formatTime(e.time)}</span>
               <span className="shrink-0 text-ink-faint">[{e.scope}]</span>
-              <span className={LEVEL_COLOR[e.level]}>{e.message}</span>
+              <span className="min-w-0 whitespace-pre-wrap">
+                <LogMessage message={e.message} level={e.level} args={e.args} />
+              </span>
             </div>
           ))}
         </div>

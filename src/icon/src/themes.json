@@ -1,4 +1,1 @@
-[
-  { "id": "dark", "output": "icon.png", "bg": "#0d0e11", "fg": "#e7ebef", "accent": "#0a84ff" }
-]
-
+[{ "id": "dark", "output": "icon.png", "bg": "#0d0e11", "fg": "#e7ebef", "accent": "#0a84ff" }]

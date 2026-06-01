@@ -184,7 +184,9 @@ async function watch() {
   // Dev mode ignores the .icon-hash short-circuit: every save re-renders, even
   // if the hash happens to match what's on disk.
   await runBuild({ force: true }).catch((err) => console.error('icon: build failed —', err))
-  console.log(`icon: watching ${relative(ROOT, ICON_DIR)} — edit and save to re-render (Ctrl+C to stop)`)
+  console.log(
+    `icon: watching ${relative(ROOT, ICON_DIR)} — edit and save to re-render (Ctrl+C to stop)`
+  )
 
   let timer = null
   let building = false

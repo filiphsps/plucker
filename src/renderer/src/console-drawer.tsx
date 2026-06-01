@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X, Trash2, Copy, FolderOpen, ArrowDownToLine } from 'lucide-react'
 import type { LogEntry, LogLevel } from '../../shared/types'
 import { filterEntries, logScopes } from './console-filter'
+import { LogMessage } from './log-value-view'
 
 const LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error']
 
@@ -212,10 +213,12 @@ export function ConsoleDrawer({
           <div className="text-ink-faint">{t('console.empty')}</div>
         ) : (
           filtered.map((e, i) => (
-            <div key={i} className="flex gap-2 whitespace-pre-wrap break-all">
+            <div key={i} className="flex gap-2 break-all">
               <span className="shrink-0 text-ink-faint">{formatTime(e.time)}</span>
               <span className="shrink-0 text-ink-faint">[{e.scope}]</span>
-              <span className={LEVEL_COLOR[e.level]}>{e.message}</span>
+              <span className="min-w-0 whitespace-pre-wrap">
+                <LogMessage message={e.message} level={e.level} args={e.args} />
+              </span>
             </div>
           ))
         )}

@@ -28,8 +28,14 @@
   --color-bad: #ff5b52;
   --color-warn: #e8a23a;
 
-  --color-accent: #0a84ff;            /* default; replaced at runtime */
+  --color-accent: #0a84ff; /* default; replaced at runtime */
   --color-accent-dim: rgba(10, 132, 255, 0.16);
+
+  /* Developer-console syntax tokens (devtools-style type highlighting). */
+  --color-tok-num: #d19a66; /* numbers + bigints */
+  --color-tok-str: #98c379; /* nested string values */
+  --color-tok-key: #7dcfff; /* object property keys */
+  --color-tok-kw: #c678dd; /* boolean / null / undefined */
 }
 
 :root {

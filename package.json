@@ -23,7 +23,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev --watch",
     "test": "vitest run",
     "build:icon": "node scripts/build-icon.mjs",
     "dev:icon": "node scripts/build-icon.mjs --watch",

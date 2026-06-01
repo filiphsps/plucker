@@ -112,7 +112,7 @@ export function isRelevantStatusLine(line: string): boolean {
 **Files:** Modify `src/main/pipeline.ts`.
 
 - [ ] **Step 1:** Change the signature and spawn args, and stream lines. Replace
-the current `resolvePlaylist` body's spawn + stderr handling. New version:
+      the current `resolvePlaylist` body's spawn + stderr handling. New version:
 
 ```ts
 export async function resolvePlaylist(
@@ -157,8 +157,8 @@ export async function resolvePlaylist(
 ```
 
 - [ ] **Step 2:** Typecheck: `pnpm typecheck` → no errors. (Process-level
-streaming is verified in the manual run at the end; the pure filter is already
-unit-tested in Task 2.)
+      streaming is verified in the manual run at the end; the pure filter is already
+      unit-tested in Task 2.)
 
 ---
 
@@ -181,15 +181,15 @@ import type { Settings, JobProgress, JobStatus, TrackProgress, HistoryTrack } fr
 ```
 
 - [ ] **Step 3:** In `runJob`, destructure and emit around `resolvePlaylist`.
-Replace the line `const job = await timed('resolve-playlist', ... )` with:
+      Replace the line `const job = await timed('resolve-playlist', ... )` with:
 
 ```ts
-  const { onStatus } = deps
-  onStatus?.({ phase: 'resolving', key: 'launching' })
-  const job = await timed('resolve-playlist', 'pipeline', () =>
-    resolvePlaylist(bin.ytdlp, url, (line) => onStatus?.({ phase: 'resolving', line }))
-  )
-  onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
+const { onStatus } = deps
+onStatus?.({ phase: 'resolving', key: 'launching' })
+const job = await timed('resolve-playlist', 'pipeline', () =>
+  resolvePlaylist(bin.ytdlp, url, (line) => onStatus?.({ phase: 'resolving', line }))
+)
+onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
 ```
 
 (`const { bin, settings, homeBase, onProgress, signal } = deps` stays as-is.)
@@ -203,53 +203,53 @@ Replace the line `const job = await timed('resolve-playlist', ... )` with:
 **Files:** Modify `src/main/index.ts` (`job:start` handler, ~lines 131-164).
 
 - [ ] **Step 1:** Pass `onStatus` into `runJob` deps and wrap in try/catch.
-Replace the handler body so it reads:
+      Replace the handler body so it reads:
 
 ```ts
-  ipcMain.handle('job:start', async (_e, url: string, folderOverride?: string) => {
-    const settings = loadSettings()
-    abort = new AbortController()
-    try {
-      const result = await runJob(url, {
-        bin: currentBin(),
-        settings,
-        homeBase: expandHome(settings.downloads.baseFolder),
-        cache: getMetaCache(),
-        onProgress: (p) => {
-          const win = getWindow()
-          win?.webContents.send('job:progress', p)
-          win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
-        },
-        onStatus: (s) => getWindow()?.webContents.send('job:status', s),
-        signal: abort.signal,
-        folderOverride
-      })
-      getWindow()?.setProgressBar(-1)
+ipcMain.handle('job:start', async (_e, url: string, folderOverride?: string) => {
+  const settings = loadSettings()
+  abort = new AbortController()
+  try {
+    const result = await runJob(url, {
+      bin: currentBin(),
+      settings,
+      homeBase: expandHome(settings.downloads.baseFolder),
+      cache: getMetaCache(),
+      onProgress: (p) => {
+        const win = getWindow()
+        win?.webContents.send('job:progress', p)
+        win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
+      },
+      onStatus: (s) => getWindow()?.webContents.send('job:status', s),
+      signal: abort.signal,
+      folderOverride
+    })
+    getWindow()?.setProgressBar(-1)
 
-      // Record to history (re-load fresh so we don't clobber edits made during the run).
-      if (result.tracks.length > 0) {
-        const entry: HistoryEntry = {
-          id: randomUUID(),
-          url: result.url,
-          title: result.title,
-          folder: result.folder,
-          kind: result.kind,
-          completedAt: new Date().toISOString(),
-          tracks: result.tracks
-        }
-        const fresh = loadSettings()
-        saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-        getWindow()?.webContents.send('history:changed')
+    // Record to history (re-load fresh so we don't clobber edits made during the run).
+    if (result.tracks.length > 0) {
+      const entry: HistoryEntry = {
+        id: randomUUID(),
+        url: result.url,
+        title: result.title,
+        folder: result.folder,
+        kind: result.kind,
+        completedAt: new Date().toISOString(),
+        tracks: result.tracks
       }
-    } catch (err) {
-      getWindow()?.setProgressBar(-1)
-      getWindow()?.webContents.send('job:status', {
-        phase: 'error',
-        error: err instanceof Error ? err.message : String(err)
-      })
-      throw err
+      const fresh = loadSettings()
+      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+      getWindow()?.webContents.send('history:changed')
     }
-  })
+  } catch (err) {
+    getWindow()?.setProgressBar(-1)
+    getWindow()?.webContents.send('job:status', {
+      phase: 'error',
+      error: err instanceof Error ? err.message : String(err)
+    })
+    throw err
+  }
+})
 ```
 
 - [ ] **Step 2:** Typecheck: `pnpm typecheck` → no errors.
@@ -286,7 +286,7 @@ import type {
 ```
 
 - [ ] **Step 3:** Typecheck: `pnpm typecheck` → no errors. (`window.plucker`
-picks up `onStatus` automatically via `PluckerApi = typeof api`.)
+      picks up `onStatus` automatically via `PluckerApi = typeof api`.)
 
 ---
 
@@ -321,7 +321,7 @@ picks up `onStatus` automatically via `PluckerApi = typeof api`.)
 ```
 
 - [ ] **Step 3:** Typecheck: `pnpm typecheck` → no errors (the i18n resource
-type is inferred from `en.ts`; keep key parity in `de.ts`).
+      type is inferred from `en.ts`; keep key parity in `de.ts`).
 
 ---
 
@@ -413,9 +413,7 @@ export function ResolvePanel({ events }: { events: JobStatus[] }): React.JSX.Ele
           {events.map((e, i) => (
             <div
               key={i}
-              className={
-                e.phase === 'error' ? 'text-bad' : e.key ? 'text-ink' : 'text-ink-faint'
-              }
+              className={e.phase === 'error' ? 'text-bad' : e.key ? 'text-ink' : 'text-ink-faint'}
             >
               {e.phase === 'error' ? e.error : e.key ? t(`resolve.${e.key}`, e.params) : e.line}
             </div>
@@ -436,10 +434,10 @@ export function ResolvePanel({ events }: { events: JobStatus[] }): React.JSX.Ele
 **Files:** Modify `src/renderer/src/app.tsx`, `src/renderer/src/download-view.tsx`.
 
 - [ ] **Step 1:** `app.tsx` — import the type and add state. After
-`const [progress, setProgress] = useState<JobProgress | null>(null)` add:
+      `const [progress, setProgress] = useState<JobProgress | null>(null)` add:
 
 ```ts
-  const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
+const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
 ```
 
 Extend the import on line 10:
@@ -449,41 +447,39 @@ import type { JobProgress, JobStatus } from '../../shared/types'
 ```
 
 - [ ] **Step 2:** `app.tsx` — replace the progress subscription
-(`useEffect(() => window.plucker.onProgress(setProgress), [])`) with one that
-also clears the status log, and add the status subscription:
+      (`useEffect(() => window.plucker.onProgress(setProgress), [])`) with one that
+      also clears the status log, and add the status subscription:
 
 ```ts
-  useEffect(
-    () =>
-      window.plucker.onProgress((p) => {
-        setProgress(p)
-        setStatusLog(null) // real track list takes over
-      }),
-    []
-  )
+useEffect(
+  () =>
+    window.plucker.onProgress((p) => {
+      setProgress(p)
+      setStatusLog(null) // real track list takes over
+    }),
+  []
+)
 
-  useEffect(
-    () =>
-      window.plucker.onStatus((s) =>
-        setStatusLog((prev) => (prev ? [...prev, s].slice(-60) : [s]))
-      ),
-    []
-  )
+useEffect(
+  () =>
+    window.plucker.onStatus((s) => setStatusLog((prev) => (prev ? [...prev, s].slice(-60) : [s]))),
+  []
+)
 ```
 
 - [ ] **Step 3:** `app.tsx` — pass `statusLog` and an `onStart` that resets
-state synchronously to `DownloadView`. Replace the `<DownloadView … />` line:
+      state synchronously to `DownloadView`. Replace the `<DownloadView … />` line:
 
 ```tsx
-          <DownloadView
-            progress={progress}
-            statusLog={statusLog}
-            onRunningChange={setRunning}
-            onStart={() => {
-              setProgress(null)
-              setStatusLog([])
-            }}
-          />
+<DownloadView
+  progress={progress}
+  statusLog={statusLog}
+  onRunningChange={setRunning}
+  onStart={() => {
+    setProgress(null)
+    setStatusLog([])
+  }}
+/>
 ```
 
 - [ ] **Step 4:** `download-view.tsx` — update imports and props:
@@ -509,60 +505,62 @@ export function DownloadView({
 ```
 
 - [ ] **Step 5:** `download-view.tsx` — call `onStart()` and guard against
-unhandled rejection in `start()`:
+      unhandled rejection in `start()`:
 
 ```ts
-  async function start(): Promise<void> {
-    if (!url.trim()) return
-    setBusy(true)
-    onRunningChange(true)
-    onStart()
-    try {
-      await window.plucker.startDownload(url.trim())
-    } catch {
-      // Resolve/start errors are surfaced in the ResolvePanel via job:status.
-    } finally {
-      setBusy(false)
-      onRunningChange(false)
-    }
+async function start(): Promise<void> {
+  if (!url.trim()) return
+  setBusy(true)
+  onRunningChange(true)
+  onStart()
+  try {
+    await window.plucker.startDownload(url.trim())
+  } catch {
+    // Resolve/start errors are surfaced in the ResolvePanel via job:status.
+  } finally {
+    setBusy(false)
+    onRunningChange(false)
   }
+}
 ```
 
 - [ ] **Step 6:** `download-view.tsx` — update the display priority. Replace the
-`{progress && ( … )}` / `{!progress && ( … )}` block at the bottom with:
+      `{progress && ( … )}` / `{!progress && ( … )}` block at the bottom with:
 
 ```tsx
-      {progress ? (
-        <>
-          {/* column header */}
-          <div className="flex items-center gap-3 border-b border-line py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
-            <span className="w-[22px]">#</span>
-            <span className="flex-1">{t('download.colTrack')}</span>
-            <span className="w-[64px]" />
-            <span className="w-[188px]">{t('download.colProgress')}</span>
-            <span className="w-16 text-right">{t('download.colStatus')}</span>
-          </div>
+{
+  progress ? (
+    <>
+      {/* column header */}
+      <div className="flex items-center gap-3 border-b border-line py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
+        <span className="w-[22px]">#</span>
+        <span className="flex-1">{t('download.colTrack')}</span>
+        <span className="w-[64px]" />
+        <span className="w-[188px]">{t('download.colProgress')}</span>
+        <span className="w-16 text-right">{t('download.colStatus')}</span>
+      </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
-            {progress.tracks.map((tr) => (
-              <TrackRow
-                key={tr.index}
-                variant="download"
-                index={tr.index}
-                track={tr}
-                active={tr.index === activeIndex}
-                source={{ videoId: tr.videoId }}
-              />
-            ))}
-          </div>
-        </>
-      ) : statusLog !== null ? (
-        <ResolvePanel events={statusLog} />
-      ) : (
-        <div className="flex flex-1 items-center justify-center text-ink-faint">
-          {t('download.emptyHint')}
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-auto">
+        {progress.tracks.map((tr) => (
+          <TrackRow
+            key={tr.index}
+            variant="download"
+            index={tr.index}
+            track={tr}
+            active={tr.index === activeIndex}
+            source={{ videoId: tr.videoId }}
+          />
+        ))}
+      </div>
+    </>
+  ) : statusLog !== null ? (
+    <ResolvePanel events={statusLog} />
+  ) : (
+    <div className="flex flex-1 items-center justify-center text-ink-faint">
+      {t('download.emptyHint')}
+    </div>
+  )
+}
 ```
 
 - [ ] **Step 7:** Typecheck: `pnpm typecheck` → no errors.
@@ -576,12 +574,12 @@ unhandled rejection in `start()`:
 - [ ] **Step 3:** `pnpm test` → all pass.
 - [ ] **Step 4:** `pnpm build` → succeeds.
 - [ ] **Step 5: Manual run** (`pnpm dev`): paste a playlist URL, press Pluck.
-  Verify: skeleton appears instantly → "Launched yt-dlp" → live `[youtube…]` /
-  `[download]` lines → "Found N tracks" → track list replaces the panel. Paste a
-  bogus URL → error title + yt-dlp message render in red. Switch tabs mid-resolve
-  and back → panel state preserved (Activity freeze).
+      Verify: skeleton appears instantly → "Launched yt-dlp" → live `[youtube…]` /
+      `[download]` lines → "Found N tracks" → track list replaces the panel. Paste a
+      bogus URL → error title + yt-dlp message render in red. Switch tabs mid-resolve
+      and back → panel state preserved (Activity freeze).
 - [ ] **Step 6:** Commit (only after explicit go-ahead) — single conventional
-  commit, e.g. `feat(download): add resolve-phase loading state with live yt-dlp output`.
+      commit, e.g. `feat(download): add resolve-phase loading state with live yt-dlp output`.
 
 ## Self-review notes
 

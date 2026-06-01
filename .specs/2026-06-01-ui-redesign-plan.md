@@ -22,6 +22,7 @@ component PascalCase.
 ## File Structure
 
 **Create:**
+
 - `src/main/accent.ts` — platform accent-color util (macOS now; win/nix stubs)
 - `src/main/accent.test.ts` — tests for hex normalization/fallback
 - `src/renderer/src/theme.ts` — applies `--color-accent` from the bridge at startup
@@ -35,6 +36,7 @@ component PascalCase.
 - `src/renderer/src/transport-deck.test.tsx`
 
 **Modify:**
+
 - `package.json` — add deps
 - `src/renderer/src/index.css` — fonts + `@theme` tokens + base/custom CSS
 - `src/main/index.ts` — register `accent:get` IPC, push `accent:changed`
@@ -58,15 +60,18 @@ component PascalCase.
 ### Task 1: Dependencies, fonts, and theme tokens
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `src/renderer/src/index.css`
 
 - [ ] **Step 1: Add dependencies**
 
 Run:
+
 ```bash
 pnpm add lucide-react @fontsource/geist @fontsource/geist-mono
 ```
+
 Expected: the three packages appear under `dependencies` in `package.json`.
 
 - [ ] **Step 2: Replace `index.css` with fonts, tokens, and base styles**
@@ -104,7 +109,7 @@ Overwrite `src/renderer/src/index.css` with:
   --color-bad: #ff5b52;
   --color-warn: #e8a23a;
 
-  --color-accent: #0a84ff;            /* default; replaced at runtime */
+  --color-accent: #0a84ff; /* default; replaced at runtime */
   --color-accent-dim: rgba(10, 132, 255, 0.16);
 }
 
@@ -112,7 +117,9 @@ Overwrite `src/renderer/src/index.css` with:
   color-scheme: dark;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
 }
@@ -135,7 +142,9 @@ body {
 }
 
 /* Tabular numerics for meters/counters */
-.tnum { font-variant-numeric: tabular-nums; }
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
 ```
 
 - [ ] **Step 3: Verify the app still builds and fonts load**
@@ -156,6 +165,7 @@ git commit -m "build: add lucide, geist fonts, and DAW theme tokens"
 ### Task 2: OS accent color (main → preload → renderer)
 
 **Files:**
+
 - Create: `src/main/accent.ts`
 - Test: `src/main/accent.test.ts`
 - Create: `src/renderer/src/theme.ts`
@@ -242,27 +252,31 @@ Expected: PASS (4 tests).
 - [ ] **Step 5: Register the IPC handler and change event in `src/main/index.ts`**
 
 Add the import near the other `./` imports (line ~9):
+
 ```ts
 import { getAccentColor } from './accent'
 ```
 
 Inside `registerIpc(...)`, next to the other `ipcMain.handle` calls (after the
 `app:locale` handler ~line 27), add:
+
 ```ts
-  ipcMain.handle('accent:get', () => getAccentColor())
+ipcMain.handle('accent:get', () => getAccentColor())
 ```
 
 After `app.whenReady()` has created the window (where other one-time main setup lives,
 near the menu/updater wiring), add a subscription that forwards accent changes to the
 renderer:
+
 ```ts
-  // Push OS accent-color changes to the renderer so --color-accent updates live.
-  systemPreferences.subscribeNotification?.(
-    'AppleColorPreferencesChangedNotification',
-    () => getWindow()?.webContents.send('accent:changed', getAccentColor())
-  )
+// Push OS accent-color changes to the renderer so --color-accent updates live.
+systemPreferences.subscribeNotification?.('AppleColorPreferencesChangedNotification', () =>
+  getWindow()?.webContents.send('accent:changed', getAccentColor())
+)
 ```
+
 Add `systemPreferences` to the existing `electron` import at the top of the file:
+
 ```ts
 import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences } from 'electron'
 ```
@@ -270,6 +284,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences } from 'e
 - [ ] **Step 6: Expose the bridge in `src/preload/index.ts`**
 
 Inside the `api` object add:
+
 ```ts
   getAccentColor: (): Promise<string> => ipcRenderer.invoke('accent:get'),
   onAccentChanged: (cb: (hex: string) => void): (() => void) => {
@@ -278,6 +293,7 @@ Inside the `api` object add:
     return () => ipcRenderer.removeListener('accent:changed', fn)
   },
 ```
+
 (`PluckerApi` is `typeof api`, so the renderer type updates automatically.)
 
 - [ ] **Step 7: Implement `src/renderer/src/theme.ts`**
@@ -332,6 +348,7 @@ git commit -m "feat: drive accent color from the OS accent color"
 ### Task 3: Themed UI primitives (Switch, Segmented, Stepper, Panel)
 
 **Files:**
+
 - Create: `src/renderer/src/ui/stepper-utils.ts`
 - Test: `src/renderer/src/ui/stepper-utils.test.ts`
 - Create: `src/renderer/src/ui/switch.tsx`, `segmented.tsx`, `stepper.tsx`, `panel.tsx`
@@ -561,6 +578,7 @@ git commit -m "feat: add themed UI primitives (switch, segmented, stepper, panel
 ### Task 4: Toolbar with labeled tabs + settings button
 
 **Files:**
+
 - Modify: `src/renderer/src/header.tsx`
 
 Match `.specs/redesign/mockups/download.html` `.top` region.
@@ -619,7 +637,9 @@ export function Header({
         aria-label={t('app.settings')}
         className={
           'flex h-8 w-8 items-center justify-center rounded-md transition-colors ' +
-          (settingsActive ? 'bg-accent-dim text-accent' : 'text-ink-faint hover:bg-raise hover:text-ink')
+          (settingsActive
+            ? 'bg-accent-dim text-accent'
+            : 'text-ink-faint hover:bg-raise hover:text-ink')
         }
       >
         <SlidersHorizontal size={18} />
@@ -647,6 +667,7 @@ git commit -m "feat: toolbar with labeled tabs and settings button"
 ### Task 5: Transport deck (active-job status bar)
 
 **Files:**
+
 - Create: `src/renderer/src/transport-deck.tsx`
 - Test: `src/renderer/src/transport-deck.test.tsx`
 
@@ -810,6 +831,7 @@ git commit -m "feat: transport deck status bar for the active job"
 ### Task 6: App shell (tabs + deck + settings-as-view)
 
 **Files:**
+
 - Modify: `src/renderer/src/app.tsx`
 
 The shell owns the active view (`download` | `history`), a `settingsOpen` flag (Settings
@@ -870,11 +892,7 @@ export default function App(): React.JSX.Element {
         {settingsOpen ? (
           <SettingsPanel onClose={() => setSettingsOpen(false)} />
         ) : view === 'download' ? (
-          <DownloadView
-            progress={progress}
-            onProgress={setProgress}
-            onRunningChange={setRunning}
-          />
+          <DownloadView progress={progress} onProgress={setProgress} onRunningChange={setRunning} />
         ) : (
           <HistoryView
             onNavigateDownload={() => {
@@ -915,6 +933,7 @@ git commit -m "feat: app shell with persistent deck and settings view"
 ### Task 7: `TrackRow` — shared, expandable, variant-aware
 
 **Files:**
+
 - Modify: `src/renderer/src/track-row.tsx`
 - Test: `src/renderer/src/track-row.test.tsx`
 
@@ -1044,7 +1063,7 @@ export function TrackRow({
   const coverUrl = cover && cover.file === track.file ? cover.url : null
   const subtitle =
     track.status === 'failed'
-      ? track.reason ?? t('status.failed')
+      ? (track.reason ?? t('status.failed'))
       : [track.artist, track.album, track.year].filter(Boolean).join(' · ')
   const failed = track.status === 'failed'
 
@@ -1079,7 +1098,8 @@ export function TrackRow({
     <div
       className={
         'border-b border-line2 ' +
-        (variant === 'download' && (track.status === 'downloading' || track.status === 'transforming')
+        (variant === 'download' &&
+        (track.status === 'downloading' || track.status === 'transforming')
           ? 'bg-accent-dim shadow-[inset_2px_0_0_var(--color-accent)]'
           : 'hover:bg-white/[0.018]')
       }
@@ -1115,7 +1135,9 @@ export function TrackRow({
           onClick={() => track.file && window.plucker.revealFile(track.file)}
           className="min-w-0 flex-1 text-left disabled:cursor-default"
         >
-          <div className={'truncate text-[13px] font-medium ' + (failed ? 'text-ink-dim' : 'text-ink')}>
+          <div
+            className={'truncate text-[13px] font-medium ' + (failed ? 'text-ink-dim' : 'text-ink')}
+          >
             {track.title}
           </div>
           {subtitle && (
@@ -1127,7 +1149,10 @@ export function TrackRow({
 
         {variant === 'download' ? (
           <>
-            <Meter value={track.percent ?? (track.status === 'done' ? 100 : 0)} done={track.status === 'done'} />
+            <Meter
+              value={track.percent ?? (track.status === 'done' ? 100 : 0)}
+              done={track.status === 'done'}
+            />
             {statusEl()}
           </>
         ) : (
@@ -1180,6 +1205,7 @@ git commit -m "feat: shared expandable track row with download/history variants"
 ### Task 8: Download view (command bar + browser + deck wiring)
 
 **Files:**
+
 - Modify: `src/renderer/src/download-view.tsx`
 
 The view becomes controlled by `App` (progress + running). Match `download.html`: command
@@ -1261,9 +1287,7 @@ export function DownloadView({
                 index={tr.index}
                 track={tr}
                 detail={{
-                  [t('download.colSource')]: tr.videoId
-                    ? `youtube.com/watch?v=${tr.videoId}`
-                    : '—',
+                  [t('download.colSource')]: tr.videoId ? `youtube.com/watch?v=${tr.videoId}` : '—',
                   [t('download.colDest')]: tr.file ?? '—'
                 }}
               />
@@ -1308,6 +1332,7 @@ git commit -m "feat: redesigned download view with browser and deck wiring"
 ### Task 9: History view (search + job cards reusing `TrackRow`)
 
 **Files:**
+
 - Modify: `src/renderer/src/history-view.tsx`
 
 Match `history.html`: optional search, job cards with header (cover, title, meta, status
@@ -1366,7 +1391,8 @@ export function HistoryView({
     )
   }
 
-  const ra = 'flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink'
+  const ra =
+    'flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink'
   const jbtn =
     'flex h-[30px] items-center gap-1.5 rounded-md border border-line bg-raise px-2.5 text-[12px] text-ink-dim hover:text-ink'
 
@@ -1383,9 +1409,14 @@ export function HistoryView({
       </div>
 
       {filtered.map((entry) => {
-        const failed = entry.tracks.filter((tk) => (tk as { status?: string }).status === 'failed').length
+        const failed = entry.tracks.filter(
+          (tk) => (tk as { status?: string }).status === 'failed'
+        ).length
         return (
-          <div key={entry.id} className="mb-3.5 overflow-hidden rounded-[10px] border border-line bg-panel2">
+          <div
+            key={entry.id}
+            className="mb-3.5 overflow-hidden rounded-[10px] border border-line bg-panel2"
+          >
             <div className="flex items-center gap-3 border-b border-line bg-panel px-3.5 py-[11px]">
               <button
                 onClick={() => window.plucker.openFolder(entry.folder)}
@@ -1395,7 +1426,9 @@ export function HistoryView({
                 <Music size={20} />
               </button>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold text-[#e7ebef]">{entry.title}</div>
+                <div className="truncate text-[14px] font-semibold text-[#e7ebef]">
+                  {entry.title}
+                </div>
                 <div className="mt-[3px] font-mono text-[10.5px] tracking-[0.3px] text-ink-faint">
                   {new Date(entry.completedAt).toLocaleString()} ·{' '}
                   {t('download.tracks', { count: entry.tracks.length })}
@@ -1421,7 +1454,9 @@ export function HistoryView({
                   {t('actions.redownload')}
                 </button>
                 <button
-                  className={jbtn + ' w-[30px] justify-center px-0 hover:border-bad/40 hover:text-bad'}
+                  className={
+                    jbtn + ' w-[30px] justify-center px-0 hover:border-bad/40 hover:text-bad'
+                  }
                   title={t('actions.delete')}
                   onClick={() => deleteEntry(entry.id)}
                 >
@@ -1442,15 +1477,27 @@ export function HistoryView({
                 }}
                 actions={
                   <>
-                    <button className={ra} title={t('actions.reveal')} onClick={() => tk.file && window.plucker.revealFile(tk.file)}>
+                    <button
+                      className={ra}
+                      title={t('actions.reveal')}
+                      onClick={() => tk.file && window.plucker.revealFile(tk.file)}
+                    >
                       <Folder size={15} />
                     </button>
                     {tk.videoId && (
-                      <button className={ra} title={t('actions.redownload')} onClick={() => redownload(watchUrl(tk.videoId!), entry.folder)}>
+                      <button
+                        className={ra}
+                        title={t('actions.redownload')}
+                        onClick={() => redownload(watchUrl(tk.videoId!), entry.folder)}
+                      >
                         <RotateCw size={15} />
                       </button>
                     )}
-                    <button className={ra + ' hover:text-bad'} title={t('actions.delete')} onClick={() => deleteTrack(entry.id, tk.file)}>
+                    <button
+                      className={ra + ' hover:text-bad'}
+                      title={t('actions.delete')}
+                      onClick={() => deleteTrack(entry.id, tk.file)}
+                    >
                       <Trash2 size={15} />
                     </button>
                   </>
@@ -1494,6 +1541,7 @@ git commit -m "feat: redesigned history view reusing the track row component"
 ### Task 10: Themed schema-form fields
 
 **Files:**
+
 - Modify: `src/renderer/src/schema-form.tsx`
 
 Keep the existing field-type logic (boolean/number/enum/text); restyle to the token system
@@ -1602,6 +1650,7 @@ git commit -m "refactor: theme schema-form fields with design tokens"
 ### Task 11: Transform chain as an insert rack
 
 **Files:**
+
 - Modify: `src/renderer/src/transforms-section.tsx`
 
 Preserve all behavior (enable, reorder via `move`, add via `addInstance`/`canAdd`, remove,
@@ -1631,12 +1680,14 @@ export function TransformsSection({
   t: (key: string) => string
 }): React.JSX.Element {
   const [open, setOpen] = useState<string | null>(null)
-  const byType = (type: string): TransformManifest | undefined => catalog.find((m) => m.type === type)
+  const byType = (type: string): TransformManifest | undefined =>
+    catalog.find((m) => m.type === type)
   const newId = (): string => crypto.randomUUID()
   const update = (id: string, patch: Partial<TransformInstance>): void =>
     onChange(instances.map((i) => (i.instanceId === id ? { ...i, ...patch } : i)))
 
-  const tool = 'flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink'
+  const tool =
+    'flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink'
 
   return (
     <div>
@@ -1656,14 +1707,26 @@ export function TransformsSection({
                 onChange={(v) => update(inst.instanceId, { enabled: v })}
                 label={label}
               />
-              <span className={'flex-1 text-[13px] font-medium ' + (inst.enabled ? 'text-ink' : 'text-ink-faint')}>
+              <span
+                className={
+                  'flex-1 text-[13px] font-medium ' + (inst.enabled ? 'text-ink' : 'text-ink-faint')
+                }
+              >
                 {label}
               </span>
               <div className="flex gap-0.5">
-                <button aria-label="up" className={tool} onClick={() => onChange(move(instances, idx, idx - 1))}>
+                <button
+                  aria-label="up"
+                  className={tool}
+                  onClick={() => onChange(move(instances, idx, idx - 1))}
+                >
                   <ChevronUp size={14} />
                 </button>
-                <button aria-label="down" className={tool} onClick={() => onChange(move(instances, idx, idx + 1))}>
+                <button
+                  aria-label="down"
+                  className={tool}
+                  onClick={() => onChange(move(instances, idx, idx + 1))}
+                >
                   <ChevronDown size={14} />
                 </button>
                 <button
@@ -1676,7 +1739,9 @@ export function TransformsSection({
                 <button
                   aria-label="remove"
                   className={tool + ' hover:text-bad'}
-                  onClick={() => onChange(instances.filter((i) => i.instanceId !== inst.instanceId))}
+                  onClick={() =>
+                    onChange(instances.filter((i) => i.instanceId !== inst.instanceId))
+                  }
                 >
                   <X size={14} />
                 </button>
@@ -1737,6 +1802,7 @@ git commit -m "feat: render transform chain as a DAW insert rack"
 ### Task 12: Settings as a full-page preferences rack
 
 **Files:**
+
 - Modify: `src/renderer/src/settings-panel.tsx`
 
 Convert the right-side slide-over into a full-page rack using `Panel`/`PanelRow`,
@@ -1798,7 +1864,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
     src === 'auto' ? t('settings.cookies.auto') : src === 'none' ? t('settings.cookies.none') : src
   const languageLabel = (lang: Language): string =>
     lang === 'system' ? t('settings.language.system') : lang === 'de' ? 'Deutsch' : 'English'
-  const sel = 'pl-select h-8 rounded-md border border-line bg-[#0a0b0e] pl-[11px] text-[12.5px] text-ink outline-none'
+  const sel =
+    'pl-select h-8 rounded-md border border-line bg-[#0a0b0e] pl-[11px] text-[12.5px] text-ink outline-none'
 
   return (
     <div className="relative h-full">
@@ -1807,9 +1874,15 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
         <Panel icon={Globe} title={t('settings.sections.language')}>
           <PanelRow name={t('settings.language.label')} desc={t('settings.language.desc')}>
-            <select className={sel} value={s.language} onChange={(e) => set({ language: e.target.value as Language })}>
+            <select
+              className={sel}
+              value={s.language}
+              onChange={(e) => set({ language: e.target.value as Language })}
+            >
               {LANGUAGES.map((l) => (
-                <option key={l} value={l}>{languageLabel(l)}</option>
+                <option key={l} value={l}>
+                  {languageLabel(l)}
+                </option>
               ))}
             </select>
           </PanelRow>
@@ -1821,12 +1894,18 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
               <div className="flex h-8 flex-1 items-center truncate rounded-md border border-line bg-[#0a0b0e] px-[11px] font-mono text-[11.5px] text-ink-dim">
                 {s.downloads.baseFolder}
               </div>
-              <button onClick={chooseFolder} className="h-8 rounded-md border border-line bg-raise px-[13px] text-[12px] text-ink-dim hover:text-ink">
+              <button
+                onClick={chooseFolder}
+                className="h-8 rounded-md border border-line bg-raise px-[13px] text-[12px] text-ink-dim hover:text-ink"
+              >
                 {t('settings.downloads.choose')}
               </button>
             </div>
           </PanelRow>
-          <PanelRow name={t('settings.downloads.perPlaylistSubfolder')} desc={t('settings.downloads.subfolderDesc')}>
+          <PanelRow
+            name={t('settings.downloads.perPlaylistSubfolder')}
+            desc={t('settings.downloads.subfolderDesc')}
+          >
             <Switch
               checked={s.downloads.perPlaylistSubfolder}
               onChange={(v) => set({ downloads: { ...s.downloads, perPlaylistSubfolder: v } })}
@@ -1835,7 +1914,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
         </Panel>
 
         <Panel icon={AudioLines} title={t('settings.sections.audio')}>
-          <PanelRow name={t('settings.audio.preferredBitrate')} desc={t('settings.audio.preferredDesc')}>
+          <PanelRow
+            name={t('settings.audio.preferredBitrate')}
+            desc={t('settings.audio.preferredDesc')}
+          >
             <Segmented
               options={BITRATES.map((b) => ({ value: b, label: String(b) }))}
               value={s.audio.preferredBitrate}
@@ -1847,12 +1929,19 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
               className={sel}
               value={s.audio.minBitrate ?? ''}
               onChange={(e) =>
-                set({ audio: { ...s.audio, minBitrate: e.target.value ? (Number(e.target.value) as MinBitrate) : null } })
+                set({
+                  audio: {
+                    ...s.audio,
+                    minBitrate: e.target.value ? (Number(e.target.value) as MinBitrate) : null
+                  }
+                })
               }
             >
               <option value="">{t('settings.audio.off')}</option>
               {MIN_BITRATES.map((b) => (
-                <option key={b} value={b}>{b}K</option>
+                <option key={b} value={b}>
+                  {b}K
+                </option>
               ))}
             </select>
           </PanelRow>
@@ -1860,15 +1949,25 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
         <Panel icon={Cookie} title={t('settings.sections.cookies')}>
           <PanelRow name={t('settings.cookies.label')} desc={t('settings.cookies.desc')}>
-            <select className={sel} value={s.cookies.source} onChange={(e) => set({ cookies: { source: e.target.value as CookieSource } })}>
+            <select
+              className={sel}
+              value={s.cookies.source}
+              onChange={(e) => set({ cookies: { source: e.target.value as CookieSource } })}
+            >
               {SOURCES.map((src) => (
-                <option key={src} value={src}>{cookieLabel(src)}</option>
+                <option key={src} value={src}>
+                  {cookieLabel(src)}
+                </option>
               ))}
             </select>
           </PanelRow>
         </Panel>
 
-        <Panel icon={Blocks} title={t('settings.sections.transforms')} aside={t('settings.transforms.runsNote')}>
+        <Panel
+          icon={Blocks}
+          title={t('settings.sections.transforms')}
+          aside={t('settings.transforms.runsNote')}
+        >
           <TransformsSection
             instances={s.transforms}
             catalog={catalog}
@@ -1878,8 +1977,16 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
         </Panel>
 
         <Panel icon={Gauge} title={t('settings.sections.performance')}>
-          <PanelRow name={t('settings.performance.parallel')} desc={t('settings.performance.parallelDesc')}>
-            <Stepper value={s.performance.parallel} min={1} max={16} onChange={(n) => set({ performance: { parallel: n } })} />
+          <PanelRow
+            name={t('settings.performance.parallel')}
+            desc={t('settings.performance.parallelDesc')}
+          >
+            <Stepper
+              value={s.performance.parallel}
+              min={1}
+              max={16}
+              onChange={(n) => set({ performance: { parallel: n } })}
+            />
           </PanelRow>
         </Panel>
 
@@ -1888,16 +1995,25 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
             name={t('settings.updates.checkOnLaunch')}
             desc={t('settings.updates.desc', { version: appVersion })}
           >
-            <Switch checked={s.updates.checkOnLaunch} onChange={(v) => set({ updates: { ...s.updates, checkOnLaunch: v } })} />
+            <Switch
+              checked={s.updates.checkOnLaunch}
+              onChange={(v) => set({ updates: { ...s.updates, checkOnLaunch: v } })}
+            />
           </PanelRow>
         </Panel>
       </div>
 
       <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2.5 border-t border-line bg-panel px-5 py-3">
-        <button onClick={onClose} className="h-[34px] rounded-md border border-line px-4 text-[13px] text-ink-dim">
+        <button
+          onClick={onClose}
+          className="h-[34px] rounded-md border border-line px-4 text-[13px] text-ink-dim"
+        >
           {t('settings.cancel')}
         </button>
-        <button onClick={save} className="h-[34px] rounded-md bg-accent px-5 text-[13px] font-semibold text-white">
+        <button
+          onClick={save}
+          className="h-[34px] rounded-md bg-accent px-5 text-[13px] font-semibold text-white"
+        >
           {t('settings.save')}
         </button>
       </div>
@@ -1933,6 +2049,7 @@ git commit -m "feat: full-page settings rack with themed controls"
 ### Task 13: i18n labels (en + de)
 
 **Files:**
+
 - Modify: `src/renderer/src/i18n/locales/en.ts`, `src/renderer/src/i18n/locales/de.ts`
 
 - [ ] **Step 1: Add the new keys to `en.ts`**
@@ -1961,6 +2078,7 @@ Merge these into the existing default-export object (preserving structure):
 
 Add each as a real key/value (no comments) under the correct nested block. Example for the
 new `download` keys:
+
 ```ts
   download: {
     urlLabel: 'Paste a YouTube playlist or video URL',
@@ -2008,9 +2126,11 @@ git commit -m "feat(i18n): labels for redesigned views, deck, and settings"
 - [ ] **Step 1: Grep for leftover emojis in the renderer**
 
 Run:
+
 ```bash
 grep -RnP "[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{2190}-\x{21FF}\x{2300}-\x{23FF}]" src/renderer/src || echo "no emojis found"
 ```
+
 Expected: `no emojis found`. Replace any stragglers with Lucide icons.
 
 - [ ] **Step 2: Full typecheck**
@@ -2031,6 +2151,7 @@ Expected: PASS (existing + new tests).
 - [ ] **Step 5: Manual run-through against all three mockups**
 
 Run: `pnpm dev`. Verify against `.specs/redesign/mockups/`:
+
 - Download: toolbar tabs, command bar, browser rows + segmented meters, expandable detail, bottom deck appears/cancels.
 - History: search, job cards + badges, hover actions, expandable rows, failed-track styling.
 - Settings: full-page rack, segmented bitrate, switches, stepper, transform insert rack (reorder/add/remove/config), save bar.
@@ -2052,7 +2173,7 @@ git commit -m "chore: redesign cleanup and verification fixes"
   (Task 4), persistent contextual deck without playback (Tasks 5–6), shared expandable
   TrackRow with download/history variants and segmented meter — no waveform (Task 7),
   command bar/browser (Task 8), history job cards reusing TrackRow (Task 9), settings rack
-  + transform insert rack covering the full settings surface (Tasks 10–12), i18n (Task 13).
+  - transform insert rack covering the full settings surface (Tasks 10–12), i18n (Task 13).
 - **THRUPUT meter** from the mockups is intentionally deferred/optional (design spec marks
   it droppable); not wired in this plan to avoid inventing an aggregate-activity signal.
   Add later if desired.

@@ -99,7 +99,10 @@ export async function resolveAutoTag(
       return { tags: cached.mb, cover: services.cache.readCover(hash) ?? undefined }
     }
   }
-  log.debug('transform', `MusicBrainz lookup for "${ytNorm.artist ?? '?'} – ${ytNorm.title ?? '?'}"`)
+  log.debug(
+    'transform',
+    `MusicBrainz lookup for "${ytNorm.artist ?? '?'} – ${ytNorm.title ?? '?'}"`
+  )
   const result = await timed('auto-tag-enrich', 'transform', () => enrich(ytNorm, config, services))
   if (hash && services.cache) services.cache.writeAutoTag(hash, result.tags, result.cover)
   return result

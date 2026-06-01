@@ -5,14 +5,33 @@
  * buffer, mirrored to the console (as `[level] [scope] message`), and fanned out to
  * any registered transports — the file transport and the IPC bridge that drives the
  * developer console overlay both attach this way.
+ *
+ * Each level accepts a variadic argument list of any type and formats it exactly the
+ * way `console.log` does — printf-style specifiers (`%s`, `%d`, `%o`…), objects
+ * inspected, `Error`s rendered with their stack — via {@link formatWithOptions}. So
+ * `log.error('app', 'update failed:', err)` Just Works without callers hand-rolling
+ * `err instanceof Error ? err.message : String(err)` at every site.
  */
+import { formatWithOptions } from 'node:util'
 import type { LogEntry, LogLevel } from '../shared/types'
+import { serializeArgs } from './log-serialize'
 
 export type LogTransport = (entry: LogEntry) => void
 
 const RING_CAP = 1000
 const ring: LogEntry[] = []
 const transports = new Set<LogTransport>()
+
+/**
+ * `console.log`-equivalent formatting for the variadic args. `breakLength: Infinity`
+ * keeps inspected objects on a single line so each {@link LogEntry} stays one logical
+ * line for the file transport and console overlay (Errors still span their stack).
+ */
+const INSPECT_OPTIONS = { colors: false, depth: 4, breakLength: Infinity } as const
+
+function format(args: unknown[]): string {
+  return formatWithOptions(INSPECT_OPTIONS, ...args)
+}
 
 /** Mirror to the matching console method so existing log-capture keeps working. */
 function toConsole({ level, scope, message }: LogEntry): void {
@@ -23,8 +42,10 @@ function toConsole({ level, scope, message }: LogEntry): void {
   else console.debug(line)
 }
 
-function emit(level: LogLevel, scope: string, message: string): void {
-  const entry: LogEntry = { time: Date.now(), level, scope, message }
+function emit(level: LogLevel, scope: string, args: unknown[]): void {
+  const entry: LogEntry = { time: Date.now(), level, scope, message: format(args) }
+  const structured = serializeArgs(args)
+  if (structured) entry.args = structured
   ring.push(entry)
   if (ring.length > RING_CAP) ring.shift()
   toConsole(entry)
@@ -39,10 +60,30 @@ function emit(level: LogLevel, scope: string, message: string): void {
 }
 
 export const log = {
-  debug: (scope: string, message: string): void => emit('debug', scope, message),
-  info: (scope: string, message: string): void => emit('info', scope, message),
-  warn: (scope: string, message: string): void => emit('warn', scope, message),
-  error: (scope: string, message: string): void => emit('error', scope, message)
+  debug: (scope: string, ...args: unknown[]): void => emit('debug', scope, args),
+  info: (scope: string, ...args: unknown[]): void => emit('info', scope, args),
+  warn: (scope: string, ...args: unknown[]): void => emit('warn', scope, args),
+  error: (scope: string, ...args: unknown[]): void => emit('error', scope, args)
+}
+
+/**
+ * Route otherwise-fatal process events into the logger so an `uncaughtException` or
+ * `unhandledRejection` lands in the log file and developer console instead of being
+ * lost to a silent crash. Returns a disposer that detaches both handlers.
+ *
+ * Note: we deliberately do *not* call `process.exit` — Electron keeps the app alive,
+ * and the surfaced log entry is what makes the failure diagnosable after the fact.
+ */
+export function installProcessErrorHandlers(): () => void {
+  const onException = (err: unknown): void => log.error('process', 'uncaught exception:', err)
+  const onRejection = (reason: unknown): void =>
+    log.error('process', 'unhandled rejection:', reason)
+  process.on('uncaughtException', onException)
+  process.on('unhandledRejection', onRejection)
+  return () => {
+    process.off('uncaughtException', onException)
+    process.off('unhandledRejection', onRejection)
+  }
 }
 
 /** Register an additional sink; returns an unregister function. */

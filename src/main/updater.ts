@@ -47,7 +47,7 @@ function ensureWired(): void {
     log.info('app', `update download ${Math.round(p.percent)}%`)
   })
   autoUpdater.on('error', (err) => {
-    log.error('app', `updater error: ${err instanceof Error ? err.message : String(err)}`)
+    log.error('app', 'updater error:', err)
   })
 }
 
@@ -101,7 +101,7 @@ async function checkForUpdatesUi(): Promise<UpdateState> {
       canSelfInstall: self
     }
   } catch (err) {
-    log.error('app', `update check failed: ${errMsg(err)}`)
+    log.error('app', 'update check failed:', err)
     return { phase: 'error', currentVersion, error: errMsg(err), canSelfInstall: self }
   }
 }
@@ -117,7 +117,7 @@ async function downloadUpdateForUi(): Promise<UpdateState> {
     log.info('app', 'update downloaded, ready to install')
     return { phase: 'ready', currentVersion, canSelfInstall: true }
   } catch (err) {
-    log.error('app', `update download failed: ${errMsg(err)}`)
+    log.error('app', 'update download failed:', err)
     return { phase: 'error', currentVersion, error: errMsg(err), canSelfInstall: true }
   }
 }
@@ -170,7 +170,7 @@ async function downloadAndOfferInstall(
   try {
     zipPath = await downloadUpdateZip()
   } catch (err) {
-    log.error('app', `update download failed: ${err instanceof Error ? err.message : String(err)}`)
+    log.error('app', 'update download failed:', err)
     if (!silent) {
       await notify(getWindow, {
         type: 'error',
@@ -265,7 +265,7 @@ export async function checkForUpdates(
     }
   } catch (err) {
     if (silent) {
-      log.error('app', `update check failed: ${err instanceof Error ? err.message : String(err)}`)
+      log.error('app', 'update check failed:', err)
       return
     }
     await notify(getWindow, {

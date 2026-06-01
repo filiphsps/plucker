@@ -17,6 +17,7 @@ Silicon (arm64).
 ## 2. Goals & Non-Goals
 
 ### Goals
+
 - One-window, good-looking, simple desktop app.
 - Zero external runtime dependencies — `yt-dlp` and `ffmpeg` ship inside the app.
 - Download a playlist or single video as MP3 at a configurable bitrate.
@@ -26,6 +27,7 @@ Silicon (arm64).
 - Persistent, human-readable settings in `~/.plucker.json`.
 
 ### Non-Goals
+
 - Non-MP3 output formats (M4A/FLAC/Opus) — MP3 only for now.
 - Multi-URL batch queue — single URL per run for v1.
 - Code-signing / notarization — distributed unsigned (right-click → Open).
@@ -33,20 +35,20 @@ Silicon (arm64).
 
 ## 3. Product Decisions (resolved during brainstorming)
 
-| Decision | Choice |
-|---|---|
-| App name | **Plucker** (settings file `~/.plucker.json`) |
-| Input | One URL box; auto-detects playlist vs single video |
-| Output format | MP3 only, configurable bitrate + optional minimum-quality floor |
-| Tag priority | Prefer YouTube metadata, enrich with MusicBrainz |
-| Output location | Configurable base folder + per-playlist subfolder |
-| Tagging engine | Pure JS (`node-id3`) — no kid3-cli binary |
-| Rename step | User-configurable toggle, default on |
-| Cookie source | Auto-detected + user-configurable (Edge was hardcoded in script) |
-| Build tooling | electron-vite + electron-builder |
-| Binary bundling | At build time via `extraResources` |
-| Packaging | Two arch-specific DMGs (arm64, x64) |
-| Distribution | Unsigned (recipients right-click → Open) |
+| Decision        | Choice                                                           |
+| --------------- | ---------------------------------------------------------------- |
+| App name        | **Plucker** (settings file `~/.plucker.json`)                    |
+| Input           | One URL box; auto-detects playlist vs single video               |
+| Output format   | MP3 only, configurable bitrate + optional minimum-quality floor  |
+| Tag priority    | Prefer YouTube metadata, enrich with MusicBrainz                 |
+| Output location | Configurable base folder + per-playlist subfolder                |
+| Tagging engine  | Pure JS (`node-id3`) — no kid3-cli binary                        |
+| Rename step     | User-configurable toggle, default on                             |
+| Cookie source   | Auto-detected + user-configurable (Edge was hardcoded in script) |
+| Build tooling   | electron-vite + electron-builder                                 |
+| Binary bundling | At build time via `extraResources`                               |
+| Packaging       | Two arch-specific DMGs (arm64, x64)                              |
+| Distribution    | Unsigned (recipients right-click → Open)                         |
 | yt-dlp strategy | Bundle prebuilt universal `yt-dlp_macos` (supports macOS 10.15+) |
 
 ## 4. Architecture
@@ -116,7 +118,7 @@ the matching arch's `bin/<arch>` into each DMG via `extraResources`. At runtime
    stdout into per-track progress events. **Minimum quality floor
    (source-based):** `preferredBitrate` is only the MP3 re-encode target —
    YouTube serves Opus/AAC source audio that tops out around 160 kbps. When
-   `minBitrate` is set, enforce a *source* floor via format selection
+   `minBitrate` is set, enforce a _source_ floor via format selection
    `-f "ba[abr>=<min>]"` with no fallback; videos whose best source audio is
    below the floor produce no matching format and are skipped (under
    `--ignore-errors`) and reported in the UI as `skipped`. Floor scale is
@@ -145,15 +147,15 @@ tagging / done / failed+reason) to the renderer over IPC.
   },
   "audio": {
     "format": "mp3",
-    "preferredBitrate": 320,        // MP3 re-encode target: 320 | 256 | 192 | 128
-    "minBitrate": null              // SOURCE floor: null=off | 64 | 96 | 128 | 160
+    "preferredBitrate": 320, // MP3 re-encode target: 320 | 256 | 192 | 128
+    "minBitrate": null // SOURCE floor: null=off | 64 | 96 | 128 | 160
   },
   "cookies": {
-    "source": "auto"                // auto | none | chrome | edge | safari | firefox | brave
+    "source": "auto" // auto | none | chrome | edge | safari | firefox | brave
   },
   "tagging": {
     "enabled": true,
-    "primarySource": "youtube",     // youtube | musicbrainz
+    "primarySource": "youtube", // youtube | musicbrainz
     "enrichWithMusicBrainz": true,
     "fetchCoverArt": true,
     "fetchGenre": true,

@@ -14,7 +14,7 @@ import {
   logPath,
   migrateLegacyConfig
 } from './settings'
-import { log, addLogTransport, getLogTail } from './log'
+import { log, addLogTransport, getLogTail, installProcessErrorHandlers } from './log'
 import { createFileTransport } from './log-file'
 import { binaryPaths, type BinaryPaths } from './binaries'
 import { runJob } from './pipeline'
@@ -32,6 +32,10 @@ import type { Settings, HistoryEntry, CachedTrack, TrackTags } from '../shared/t
 // Set the app name as early as possible so the macOS app menu + About panel
 // (built when the app becomes ready) read "Plucker" instead of "Electron".
 app.setName('Plucker')
+
+// Surface otherwise-fatal errors into the unified log (file + dev console) instead of
+// letting them vanish into a silent crash. Installed before any async work runs.
+installProcessErrorHandlers()
 
 let mainWindow: BrowserWindow | null = null
 let abort: AbortController | null = null
@@ -233,7 +237,7 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
 
       // Don't flash a red error panel for a deliberate cancellation.
       if (!cancelled) {
-        log.error('app', message)
+        log.error('app', 'job failed:', err)
         getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
       } else {
         log.info('app', 'job cancelled')
@@ -266,7 +270,11 @@ function createWindow(): void {
   mainWindow = win
 
   win.on('ready-to-show', () => {
-    win.show()
+    // The screenshot tooling (scripts/build-screenshots.mjs) shows the window
+    // without activating it, so generating images never steals focus or pops a
+    // window to the foreground. Everywhere else, show + focus as usual.
+    if (process.env.PLUCKER_SCREENSHOT) win.showInactive()
+    else win.show()
   })
 
   win.webContents.setWindowOpenHandler((details) => {

@@ -59,9 +59,10 @@ export interface JobStatus {
 ### 2. Backend
 
 **`src/main/pipeline.ts`**
+
 - `RunJobDeps` gains `onStatus?: (s: JobStatus) => void`.
 - `resolvePlaylist(ytdlpPath, url, onLine?)` gains an optional `onLine:
-  (line: string) => void`. The spawn args gain `--verbose` so yt-dlp emits its
+(line: string) => void`. The spawn args gain `--verbose` so yt-dlp emits its
   extraction progress (e.g. `[youtube:tab] Downloading page 1`,
   `[download] Downloading playlist: …`). stderr is buffered and split on
   newlines; each complete line is forwarded to `onLine`. stdout JSON parsing is
@@ -79,18 +80,21 @@ export interface JobStatus {
     after resolution, before the first `emit()`.
 
 **`src/main/index.ts`** (`job:start` handler)
+
 - Pass `onStatus: (s) => getWindow()?.webContents.send('job:status', s)`.
 - Wrap `runJob` in try/catch; on throw, send
   `{ phase: 'error', error: String(err.message ?? err) }` then rethrow (so the
   IPC invoke still rejects).
 
 **`src/preload/index.ts`**
+
 - Add `onStatus(cb: (s: JobStatus) => void): () => void` subscribing to
   `job:status` (mirrors the existing `onProgress`).
 
 ### 3. Renderer
 
 **`src/renderer/src/app.tsx`**
+
 - New state `statusLog: JobStatus[] | null`.
   - `null` → idle (no panel).
   - `[]` → just started, nothing streamed yet (skeleton).
@@ -105,6 +109,7 @@ export interface JobStatus {
 - Pass `statusLog` down to `DownloadView`.
 
 **`src/renderer/src/download-view.tsx`**
+
 - Accept `statusLog: JobStatus[] | null` and `onStart: () => void` props.
 - `start()` calls `onStart()` before `await window.plucker.startDownload(...)`,
   and wraps the await in try/catch so the (already-surfaced) error doesn't become
@@ -116,6 +121,7 @@ export interface JobStatus {
 
 **`src/renderer/src/resolve-panel.tsx`** (new, kebab-case file, `ResolvePanel`
 export)
+
 - Props: `events: JobStatus[]`.
 - Derive `errored = events.some(e => e.phase === 'error')`.
 - Header: spinner (`Loader2` + `animate-spin`) + `t('resolve.title')` while

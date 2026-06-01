@@ -58,7 +58,9 @@ async function downloadTo(url, dest) {
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${url}`)
   mkdirSync(dirname(dest), { recursive: true })
   const body = Readable.fromWeb(res.body)
-  const stream = url.endsWith('.gz') ? pipeline(body, createGunzip(), createWriteStream(dest)) : pipeline(body, createWriteStream(dest))
+  const stream = url.endsWith('.gz')
+    ? pipeline(body, createGunzip(), createWriteStream(dest))
+    : pipeline(body, createWriteStream(dest))
   await stream
   chmodSync(dest, 0o755)
 }

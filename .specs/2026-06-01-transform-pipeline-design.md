@@ -52,13 +52,13 @@ Lives main-side (the `run` function never crosses to the renderer).
 
 ```ts
 export interface TransformDefinition<C = Record<string, unknown>> {
-  type: string                       // stable id: 'auto-tag', 'rename'
-  apiVersion: 1                      // contract version for future custom transforms
-  labelKey: string                   // i18n key
-  descriptionKey: string             // i18n key
-  allowMultiple: boolean             // may this type appear >1× in a chain?
+  type: string // stable id: 'auto-tag', 'rename'
+  apiVersion: 1 // contract version for future custom transforms
+  labelKey: string // i18n key
+  descriptionKey: string // i18n key
+  allowMultiple: boolean // may this type appear >1× in a chain?
   failureMode: 'fatal' | 'skip'
-  configSchema: ConfigField[]        // drives the generic settings form
+  configSchema: ConfigField[] // drives the generic settings form
   defaultConfig: C
   run(ctx: TrackContext, config: C, services: TransformServices): Promise<void>
 }
@@ -71,30 +71,36 @@ Only the types auto-tag/rename need now (extensible later):
 ```ts
 type ConfigField =
   | { key: string; labelKey: string; type: 'boolean'; default: boolean }
-  | { key: string; labelKey: string; type: 'number';  default: number; min?: number; max?: number }
-  | { key: string; labelKey: string; type: 'string';  default: string }
-  | { key: string; labelKey: string; type: 'enum';    default: string; options: { value: string; labelKey: string }[] }
+  | { key: string; labelKey: string; type: 'number'; default: number; min?: number; max?: number }
+  | { key: string; labelKey: string; type: 'string'; default: string }
+  | {
+      key: string
+      labelKey: string
+      type: 'enum'
+      default: string
+      options: { value: string; labelKey: string }[]
+    }
 ```
 
-*Escape hatch (future, not built):* a definition may later carry an optional renderer
+_Escape hatch (future, not built):_ a definition may later carry an optional renderer
 component id for configs a schema cannot express.
 
 ## 4. What flows through — `TrackContext` and `TransformServices`
 
 ```ts
 interface TrackContext {
-  workingFile: string        // temp copy path; audio-rewriting transforms mutate it & may reassign it
-  tags: TrackTags            // in-memory, last-wins; tag transforms write to workingFile AND update this
+  workingFile: string // temp copy path; audio-rewriting transforms mutate it & may reassign it
+  tags: TrackTags // in-memory, last-wins; tag transforms write to workingFile AND update this
   info: { videoId?: string; rawTitle: string; sourceFile: string; index: number }
-  outputName?: string        // rename sets desired final basename (no extension); used at commit
+  outputName?: string // rename sets desired final basename (no extension); used at commit
 }
 
 interface TransformServices {
-  bin: BinaryPaths                       // e.g. ffmpeg path for trim
-  fetch: typeof fetch                    // injectable for tests
+  bin: BinaryPaths // e.g. ffmpeg path for trim
+  fetch: typeof fetch // injectable for tests
   signal?: AbortSignal
   log: (msg: string) => void
-  reportProgress: (fraction: number) => void   // 0..1 within this transform's step (optional to call)
+  reportProgress: (fraction: number) => void // 0..1 within this transform's step (optional to call)
 }
 ```
 
@@ -136,16 +142,16 @@ Absorbs today's inline tagging logic (including `mergeTags`, which leaves `pipel
 
 ```ts
 interface TransformInstance {
-  instanceId: string                 // unique per instance
-  type: string                       // references a registered definition
+  instanceId: string // unique per instance
+  type: string // references a registered definition
   enabled: boolean
   config: Record<string, unknown>
 }
 
 interface Settings {
-  version: 2                         // bumped
+  version: 2 // bumped
   // ... unchanged groups: language, history, downloads, audio, cookies, performance
-  transforms: TransformInstance[]    // ordered
+  transforms: TransformInstance[] // ordered
   // REMOVED: tagging, rename
 }
 ```
@@ -161,9 +167,20 @@ version is `< 2`; old `tagging`/`rename` blocks are dropped. `performance.parall
 ### Resolve all entries upfront
 
 `resolveJob` becomes `resolvePlaylist`, returning:
+
 ```ts
-{ kind: 'playlist' | 'video'; title: string; entries: { videoId: string; title: string; index: number }[] }
+{
+  kind: 'playlist' | 'video'
+  title: string
+  entries: {
+    videoId: string
+    title: string
+    index: number
+  }
+  ;[]
+}
 ```
+
 `runJob` pre-populates `tracks[]` with **every** entry as `status: 'queued'` and emits once
 immediately, so the UI lists the whole playlist before any byte is downloaded.
 
