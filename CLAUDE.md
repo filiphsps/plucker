@@ -8,6 +8,12 @@ Use **pnpm** for every command (install, scripts, adding deps). Never use `npm` 
 
 Write all specs, plans, and design docs to the **`.specs/`** folder. This overrides any skill's default location (e.g. `docs/superpowers/specs`, `docs/superpowers/plans`) — always use `.specs/` instead.
 
+## Branching
+
+Work directly on the current branch (usually `master`). **Do not create new
+branches** — not for features, specs, or experiments — unless the user explicitly
+asks for one. This overrides any skill's default "branch first" behavior.
+
 ## Commit messages
 
 Every commit **must** follow [Conventional Commits](https://www.conventionalcommits.org/).
