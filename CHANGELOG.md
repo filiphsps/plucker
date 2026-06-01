@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/filiphsps/plucker/compare/plucker-v0.2.0...plucker-v0.3.0) (2026-06-01)
+
+
+### Features
+
+* custom window frame with native traffic lights ([5652400](https://github.com/filiphsps/plucker/commit/56524004a1df8108f3246371207b5bdc470b658b))
+* redesign UI with DAW-inspired studio theme ([89146fa](https://github.com/filiphsps/plucker/commit/89146fa53acfa1e9d818395a644c1cf0f3f0eec0))
+
+
+### Bug Fixes
+
+* align traffic lights to toolbar and highlight only the active row ([fb7aba5](https://github.com/filiphsps/plucker/commit/fb7aba5a239270de9dbdab2310eb41b75af6ec3b))
+* **history:** update original entry on redownload instead of duplicating ([dcaf8a6](https://github.com/filiphsps/plucker/commit/dcaf8a640c516bbf27720098b5995c77f2ff6a80))
+* tidy toolbar alignment and remove command-bar background band ([0349a01](https://github.com/filiphsps/plucker/commit/0349a01697f3c4789bd762707aa7f7cf9885fa1e))
+* **transforms:** render config and distinguish reorder/expand icons ([0659223](https://github.com/filiphsps/plucker/commit/0659223984ad83f1ccaf4c200c52bf5eeded77dc))
+
 ## [0.2.0](https://github.com/filiphsps/plucker/compare/plucker-v0.1.0...plucker-v0.2.0) (2026-06-01)
 
 
