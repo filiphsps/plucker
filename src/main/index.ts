@@ -12,6 +12,7 @@ let mainWindow: BrowserWindow | null = null
 let abort: AbortController | null = null
 
 function registerIpc(getWindow: () => BrowserWindow | null): void {
+  ipcMain.handle('app:locale', () => app.getLocale())
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:save', (_e, s: Settings) => saveSettings(settingsPath(), s))
   ipcMain.handle('dialog:chooseFolder', async () => {

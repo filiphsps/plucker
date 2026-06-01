@@ -18,6 +18,7 @@ function mergeDefaults(partial: unknown): Settings {
   const d = DEFAULT_SETTINGS
   return {
     version: d.version,
+    language: p.language ?? d.language,
     downloads: { ...d.downloads, ...(p.downloads ?? {}) },
     audio: { ...d.audio, ...(p.audio ?? {}) },
     cookies: { ...d.cookies, ...(p.cookies ?? {}) },

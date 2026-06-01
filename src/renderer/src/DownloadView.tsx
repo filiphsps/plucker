@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import type { JobProgress } from '../../shared/types'
+import { useTranslation } from 'react-i18next'
+import type { JobProgress, TrackStatus } from '../../shared/types'
 
-const ICON: Record<string, string> = {
+const ICON: Record<TrackStatus, string> = {
   queued: '○',
   downloading: '⬇',
   tagging: '🏷',
@@ -15,13 +16,23 @@ export function DownloadView({
 }: {
   onOpenSettings: () => void
 }): React.JSX.Element {
+  const { t } = useTranslation()
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<JobProgress | null>(null)
 
   useEffect(() => window.plucker.onProgress(setProgress), [])
 
-  const done = progress?.tracks.filter((t) => t.status === 'done').length ?? 0
+  const done = progress?.tracks.filter((x) => x.status === 'done').length ?? 0
+
+  const statusLabel: Record<TrackStatus, string> = {
+    queued: t('status.queued'),
+    downloading: t('status.downloading'),
+    tagging: t('status.tagging'),
+    done: t('status.done'),
+    failed: t('status.failed'),
+    skipped: t('status.skipped')
+  }
 
   async function start(): Promise<void> {
     if (!url.trim()) return
@@ -40,19 +51,19 @@ export function DownloadView({
         <button
           onClick={onOpenSettings}
           className="text-neutral-400 hover:text-neutral-100 text-xl"
-          aria-label="Settings"
+          aria-label={t('app.settings')}
         >
           ⚙︎
         </button>
       </header>
 
       <div>
-        <label className="text-sm text-neutral-400">Paste a YouTube playlist or video URL</label>
+        <label className="text-sm text-neutral-400">{t('download.urlLabel')}</label>
         <div className="mt-2 flex gap-2">
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://youtube.com/playlist…"
+            placeholder={t('download.urlPlaceholder')}
             className="flex-1 rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 outline-none focus:border-neutral-600"
           />
           <button
@@ -60,7 +71,7 @@ export function DownloadView({
             disabled={busy}
             className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-5 py-2 font-medium"
           >
-            {busy ? 'Plucking…' : 'Pluck'}
+            {busy ? t('download.plucking') : t('download.pluck')}
           </button>
         </div>
       </div>
@@ -68,15 +79,17 @@ export function DownloadView({
       {progress && (
         <div className="flex-1 overflow-auto rounded-lg border border-neutral-800">
           <div className="px-4 py-2 text-sm text-neutral-400 border-b border-neutral-800">
-            {progress.jobTitle} · {progress.total} tracks
+            {progress.jobTitle} · {t('download.tracks', { count: progress.total })}
           </div>
           <ul className="divide-y divide-neutral-900">
-            {progress.tracks.map((t) => (
-              <li key={t.index} className="px-4 py-2 flex items-center gap-3 text-sm">
-                <span className="w-5 text-center">{ICON[t.status]}</span>
-                <span className="flex-1 truncate">{t.title}</span>
+            {progress.tracks.map((track) => (
+              <li key={track.index} className="px-4 py-2 flex items-center gap-3 text-sm">
+                <span className="w-5 text-center">{ICON[track.status]}</span>
+                <span className="flex-1 truncate">{track.title}</span>
                 <span className="text-neutral-500 w-24 text-right">
-                  {t.status === 'downloading' ? `${Math.round(t.percent ?? 0)}%` : t.status}
+                  {track.status === 'downloading'
+                    ? `${Math.round(track.percent ?? 0)}%`
+                    : statusLabel[track.status]}
                 </span>
               </li>
             ))}
@@ -90,7 +103,7 @@ export function DownloadView({
                 onClick={() => window.plucker.cancel()}
                 className="text-red-400 hover:text-red-300"
               >
-                Cancel
+                {t('download.cancel')}
               </button>
             )}
           </div>

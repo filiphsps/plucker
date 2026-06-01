@@ -1,11 +1,23 @@
 import React, { useEffect, useState } from 'react'
-import type { Settings, Bitrate, MinBitrate, CookieSource } from '../../shared/types'
+import { useTranslation } from 'react-i18next'
+import type { Settings, Bitrate, MinBitrate, CookieSource, Language } from '../../shared/types'
+import { applyLanguage } from './i18n'
 
 const BITRATES: Bitrate[] = [320, 256, 192, 128]
 const MIN_BITRATES: MinBitrate[] = [64, 96, 128, 160]
 const SOURCES: CookieSource[] = ['auto', 'none', 'chrome', 'edge', 'safari', 'firefox', 'brave']
+const LANGUAGES: Language[] = ['system', 'en', 'de']
+
+const TAGGING_TOGGLES = [
+  ['enabled', 'settings.tagging.enabled'],
+  ['enrichWithMusicBrainz', 'settings.tagging.enrich'],
+  ['fetchCoverArt', 'settings.tagging.fetchCover'],
+  ['fetchGenre', 'settings.tagging.fetchGenre'],
+  ['fetchTrackNumber', 'settings.tagging.fetchTrackNumber']
+] as const
 
 export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
+  const { t } = useTranslation()
   const [s, setS] = useState<Settings | null>(null)
   useEffect(() => {
     window.plucker.getSettings().then(setS)
@@ -17,6 +29,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
   async function save(): Promise<void> {
     if (s) {
       await window.plucker.saveSettings(s)
+      await applyLanguage(s.language)
       onClose()
     }
   }
@@ -25,20 +38,42 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
     if (f) set({ downloads: { ...s!.downloads, baseFolder: f } })
   }
 
+  const cookieLabel = (src: CookieSource): string =>
+    src === 'auto' ? t('settings.cookies.auto') : src === 'none' ? t('settings.cookies.none') : src
+
+  const languageLabel = (lang: Language): string =>
+    lang === 'system' ? t('settings.language.system') : lang === 'de' ? 'Deutsch' : 'English'
+
   const field = 'w-full rounded bg-neutral-900 border border-neutral-800 px-2 py-1 text-sm'
+  const heading = 'text-sm uppercase tracking-wide text-neutral-500 mb-2'
 
   return (
     <div className="fixed inset-0 bg-black/60 flex justify-end">
       <div className="w-[420px] h-full bg-neutral-950 text-neutral-100 p-5 overflow-auto border-l border-neutral-800">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Settings</h2>
+          <h2 className="text-lg font-semibold">{t('settings.title')}</h2>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-100">
             ✕
           </button>
         </div>
 
         <section className="mb-5">
-          <h3 className="text-sm uppercase tracking-wide text-neutral-500 mb-2">Downloads</h3>
+          <h3 className={heading}>{t('settings.sections.language')}</h3>
+          <select
+            className={field}
+            value={s.language}
+            onChange={(e) => set({ language: e.target.value as Language })}
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>
+                {languageLabel(lang)}
+              </option>
+            ))}
+          </select>
+        </section>
+
+        <section className="mb-5">
+          <h3 className={heading}>{t('settings.sections.downloads')}</h3>
           <div className="flex gap-2 items-center">
             <input
               className={field}
@@ -49,7 +84,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
               onClick={chooseFolder}
               className="text-sm px-2 py-1 border border-neutral-800 rounded"
             >
-              Choose
+              {t('settings.downloads.choose')}
             </button>
           </div>
           <label className="flex gap-2 items-center mt-2 text-sm">
@@ -60,14 +95,14 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
                 set({ downloads: { ...s.downloads, perPlaylistSubfolder: e.target.checked } })
               }
             />
-            Per-playlist subfolder
+            {t('settings.downloads.perPlaylistSubfolder')}
           </label>
         </section>
 
         <section className="mb-5">
-          <h3 className="text-sm uppercase tracking-wide text-neutral-500 mb-2">Audio</h3>
+          <h3 className={heading}>{t('settings.sections.audio')}</h3>
           <label className="text-sm">
-            Preferred bitrate
+            {t('settings.audio.preferredBitrate')}
             <select
               className={field}
               value={s.audio.preferredBitrate}
@@ -83,7 +118,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
             </select>
           </label>
           <label className="text-sm mt-2 block">
-            Minimum source quality (skip below)
+            {t('settings.audio.minQuality')}
             <select
               className={field}
               value={s.audio.minBitrate ?? ''}
@@ -96,7 +131,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
                 })
               }
             >
-              <option value="">Off</option>
+              <option value="">{t('settings.audio.off')}</option>
               {MIN_BITRATES.map((b) => (
                 <option key={b} value={b}>
                   {b}K
@@ -107,7 +142,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
         </section>
 
         <section className="mb-5">
-          <h3 className="text-sm uppercase tracking-wide text-neutral-500 mb-2">Cookies</h3>
+          <h3 className={heading}>{t('settings.sections.cookies')}</h3>
           <select
             className={field}
             value={s.cookies.source}
@@ -115,34 +150,26 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
           >
             {SOURCES.map((src) => (
               <option key={src} value={src}>
-                {src}
+                {cookieLabel(src)}
               </option>
             ))}
           </select>
         </section>
 
         <section className="mb-5">
-          <h3 className="text-sm uppercase tracking-wide text-neutral-500 mb-2">Tagging</h3>
-          {(
-            [
-              ['enabled', 'Enable tagging'],
-              ['enrichWithMusicBrainz', 'Enrich with MusicBrainz'],
-              ['fetchCoverArt', 'Fetch album cover'],
-              ['fetchGenre', 'Fetch genre'],
-              ['fetchTrackNumber', 'Fetch track number']
-            ] as const
-          ).map(([k, label]) => (
+          <h3 className={heading}>{t('settings.sections.tagging')}</h3>
+          {TAGGING_TOGGLES.map(([k, labelKey]) => (
             <label key={k} className="flex gap-2 items-center text-sm">
               <input
                 type="checkbox"
                 checked={s.tagging[k] as boolean}
                 onChange={(e) => set({ tagging: { ...s.tagging, [k]: e.target.checked } })}
               />
-              {label}
+              {t(labelKey)}
             </label>
           ))}
           <label className="text-sm mt-2 block">
-            Primary source
+            {t('settings.tagging.primarySource')}
             <select
               className={field}
               value={s.tagging.primarySource}
@@ -160,7 +187,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
             </select>
           </label>
           <label className="text-sm mt-2 block">
-            Min match score
+            {t('settings.tagging.minMatchScore')}
             <input
               type="number"
               className={field}
@@ -171,7 +198,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
             />
           </label>
           <label className="text-sm mt-2 block">
-            MusicBrainz contact email
+            {t('settings.tagging.contactEmail')}
             <input
               className={field}
               value={s.tagging.userAgentEmail}
@@ -181,29 +208,27 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
         </section>
 
         <section className="mb-5">
-          <h3 className="text-sm uppercase tracking-wide text-neutral-500 mb-2">Naming</h3>
+          <h3 className={heading}>{t('settings.sections.naming')}</h3>
           <label className="flex gap-2 items-center text-sm">
             <input
               type="checkbox"
               checked={s.rename.enabled}
               onChange={(e) => set({ rename: { ...s.rename, enabled: e.target.checked } })}
             />
-            Rename files after tagging
+            {t('settings.naming.renameAfter')}
           </label>
           <input
             className={`${field} mt-2`}
             value={s.rename.template}
             onChange={(e) => set({ rename: { ...s.rename, template: e.target.value } })}
           />
-          <p className="text-xs text-neutral-500 mt-1">
-            Tokens: {'{artist} {track} {title} {album} {year}'}
-          </p>
+          <p className="text-xs text-neutral-500 mt-1">{t('settings.naming.tokensHelp')}</p>
         </section>
 
         <section className="mb-6">
-          <h3 className="text-sm uppercase tracking-wide text-neutral-500 mb-2">Performance</h3>
+          <h3 className={heading}>{t('settings.sections.performance')}</h3>
           <label className="text-sm">
-            Parallel downloads
+            {t('settings.performance.parallel')}
             <input
               type="number"
               min={1}
@@ -219,7 +244,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
           onClick={save}
           className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 font-medium"
         >
-          Done
+          {t('settings.done')}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@ import type { Settings } from './types'
 
 export const DEFAULT_SETTINGS: Settings = {
   version: 1,
+  language: 'system',
   downloads: { baseFolder: '~/Music/Plucker', perPlaylistSubfolder: true },
   audio: { format: 'mp3', preferredBitrate: 320, minBitrate: null },
   cookies: { source: 'auto' },

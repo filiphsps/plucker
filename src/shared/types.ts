@@ -3,8 +3,12 @@ export type CookieSource = 'auto' | 'none' | 'chrome' | 'edge' | 'safari' | 'fir
 export type Bitrate = 320 | 256 | 192 | 128 // MP3 re-encode target
 export type MinBitrate = 64 | 96 | 128 | 160 // source-audio floor
 
+/** UI language: 'system' follows the OS locale, otherwise an explicit override. */
+export type Language = 'system' | 'en' | 'de'
+
 export interface Settings {
   version: number
+  language: Language
   downloads: { baseFolder: string; perPlaylistSubfolder: boolean }
   audio: { format: 'mp3'; preferredBitrate: Bitrate; minBitrate: MinBitrate | null }
   cookies: { source: CookieSource }
