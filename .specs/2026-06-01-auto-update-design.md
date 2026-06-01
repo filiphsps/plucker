@@ -1,7 +1,7 @@
 # Auto-update (notify-only) Design
 
 Date: 2026-06-01
-Status: Approved — build/CI portion implemented; app-code portion deferred
+Status: Implemented — build/CI portion (commit 67da565) + app-code portion (commit b58e084)
 
 ## Goal
 
@@ -31,12 +31,9 @@ macOS auto-update requires a `zip` target so electron-builder emits `latest-mac.
   `dist/latest-mac.yml` alongside the DMGs, via a `nullglob` array so a missing metadata
   file can never fail the release.
 
-## Deferred (app-code wiring)
+## App-code wiring — implemented (commit b58e084)
 
-Deferred to avoid colliding with the concurrent transform-pipeline refactor, which is
-mid-flight in `index.ts`, `settings.ts`, `defaults.ts`, `types.ts`, `preload/index.ts`,
-`SettingsPanel.tsx`, and the i18n locales. Implement once that work lands (or in an
-isolated worktree):
+Implemented after the concurrent transform-pipeline refactor landed:
 
 1. **`src/main/updater.ts`** — wrap electron-updater:
    - `autoUpdater.autoDownload = false`, `autoUpdater.autoInstallOnAppQuit = false`.
