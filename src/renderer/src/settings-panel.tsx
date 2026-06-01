@@ -234,12 +234,11 @@ export function SettingsPanel({
         </Panel>
       </div>
 
-      {/* Footer is inert until there are unsaved edits — nothing to cancel or save. */}
+      {/* Cancel always closes; Save is inert until there are unsaved edits. */}
       <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2.5 border-t border-line bg-panel px-5 py-3">
         <button
           onClick={onClose}
-          disabled={!dirty}
-          className="h-[34px] rounded-md border border-line px-4 text-[13px] text-ink-dim disabled:opacity-50"
+          className="h-[34px] rounded-md border border-line px-4 text-[13px] text-ink-dim"
         >
           {t('settings.cancel')}
         </button>
