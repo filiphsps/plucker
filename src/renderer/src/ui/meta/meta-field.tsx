@@ -16,7 +16,7 @@ export function MetaField({
   className?: string
 }): React.JSX.Element {
   return (
-    <div className={className}>
+    <div className={'min-w-0 ' + (className ?? '')}>
       <div className={LABEL}>{label}</div>
       <div className={VALUE}>{value || '—'}</div>
     </div>
@@ -38,7 +38,7 @@ export function MetaLink({
   className?: string
 }): React.JSX.Element {
   return (
-    <div className={className}>
+    <div className={'min-w-0 ' + (className ?? '')}>
       <div className={LABEL}>{label}</div>
       <a
         href={href}
@@ -49,7 +49,7 @@ export function MetaLink({
         }}
         className="flex h-4 max-w-full cursor-pointer items-center gap-1 font-mono text-[12px] leading-4 text-accent no-underline"
       >
-        <span className="truncate select-text hover:underline">{display ?? href}</span>
+        <span className="min-w-0 truncate select-text hover:underline">{display ?? href}</span>
         <ExternalLink size={11} className="shrink-0 opacity-70" />
       </a>
     </div>
