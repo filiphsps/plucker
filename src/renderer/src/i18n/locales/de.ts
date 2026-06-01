@@ -1,6 +1,8 @@
 import type en from './en'
+import { menu } from '../../../../shared/menu-strings'
 
 const de: typeof en = {
+  menu: menu.de,
   app: {
     settings: 'Einstellungen'
   },

@@ -11,6 +11,14 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     window.plucker.getSettings().then((s) => applyLanguage(s.language))
   }, [])
+  useEffect(
+    () =>
+      window.plucker.onMenuNavigate((target) => {
+        if (target === 'settings') setShowSettings(true)
+        else setView(target)
+      }),
+    []
+  )
   return (
     <div className="h-screen flex flex-col bg-neutral-950 text-neutral-100">
       <Header view={view} onNavigate={setView} onOpenSettings={() => setShowSettings(true)} />

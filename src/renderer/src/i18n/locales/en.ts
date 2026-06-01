@@ -1,4 +1,7 @@
+import { menu } from '../../../../shared/menu-strings'
+
 export default {
+  menu: menu.en,
   app: {
     settings: 'Settings'
   },

@@ -12,7 +12,8 @@ import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl } from './tagger'
 import { addEntry, removeEntry, removeTrack } from './history'
-import { checkForUpdates, buildAppMenu } from './updater'
+import { checkForUpdates } from './updater'
+import { buildAppMenu } from './menu'
 import type { Settings, HistoryEntry } from '../shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel

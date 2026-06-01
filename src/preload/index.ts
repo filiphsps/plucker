@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Settings, JobProgress, HistoryEntry } from '../shared/types'
+import type { Settings, JobProgress, HistoryEntry, MenuNavTarget } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
 
 // Custom APIs for renderer
@@ -32,6 +32,12 @@ const api = {
     const fn = (): void => cb()
     ipcRenderer.on('history:changed', fn)
     return () => ipcRenderer.removeListener('history:changed', fn)
+  },
+  // Application-menu navigation (Settings / Download / History).
+  onMenuNavigate: (cb: (target: MenuNavTarget) => void): (() => void) => {
+    const fn = (_: unknown, target: MenuNavTarget): void => cb(target)
+    ipcRenderer.on('menu:navigate', fn)
+    return () => ipcRenderer.removeListener('menu:navigate', fn)
   }
 }
 

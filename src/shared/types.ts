@@ -8,6 +8,9 @@ export type MinBitrate = 64 | 96 | 128 | 160 // source-audio floor
 /** UI language: 'system' follows the OS locale, otherwise an explicit override. */
 export type Language = 'system' | 'en' | 'de'
 
+/** Targets the application menu can navigate the renderer to. */
+export type MenuNavTarget = 'download' | 'history' | 'settings'
+
 export interface Settings {
   version: number
   language: Language
