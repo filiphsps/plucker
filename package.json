@@ -19,7 +19,8 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "fetch-binaries": "tsx scripts/fetch-binaries.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -47,6 +48,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
     "vitest": "^4.1.7"
