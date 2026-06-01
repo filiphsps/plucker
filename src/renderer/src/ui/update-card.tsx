@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { LoaderCircle, CircleCheck, CircleAlert, RefreshCw, Download, RotateCw } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { UpdateState } from '../../../shared/types'
+import { updateActions, type UpdateActionKind } from './update-card-utils'
 
 /**
  * Chrome-style updater widget for the About panel: auto-checks when shown, downloads
@@ -112,37 +113,41 @@ export function UpdateCard({
       ? state.error
       : t('settings.about.update.current', { version: state.currentVersion })
 
-  // Right-aligned action button, varies by phase.
-  const action = ((): React.JSX.Element | null => {
-    switch (state.phase) {
-      case 'ready':
-        return (
-          <ActionButton icon={RotateCw} primary onClick={relaunch}>
-            {t('settings.about.update.relaunch')}
-          </ActionButton>
-        )
-      case 'available': // can't self-install → manual download
-        return (
-          <ActionButton icon={Download} onClick={openReleases}>
-            {t('settings.about.update.download')}
-          </ActionButton>
-        )
-      case 'error':
-        return (
-          <ActionButton icon={RefreshCw} onClick={() => void check()}>
-            {t('settings.about.update.retry')}
-          </ActionButton>
-        )
-      case 'upToDate':
-        return (
-          <ActionButton icon={RefreshCw} onClick={() => void check()}>
-            {t('settings.about.update.checkAgain')}
-          </ActionButton>
-        )
-      default:
-        return null
+  // How each action kind renders. `manual` is the always-available escape hatch
+  // (opens the releases page) so a failed self-install never strands the user.
+  const actionProps: Record<
+    UpdateActionKind,
+    { icon: LucideIcon; label: string; onClick: () => void }
+  > = {
+    relaunch: { icon: RotateCw, label: t('settings.about.update.relaunch'), onClick: relaunch },
+    manual: { icon: Download, label: t('settings.about.update.download'), onClick: openReleases },
+    retry: {
+      icon: RefreshCw,
+      label: t('settings.about.update.retry'),
+      onClick: () => void check()
+    },
+    check: {
+      icon: RefreshCw,
+      label: t('settings.about.update.checkAgain'),
+      onClick: () => void check()
     }
-  })()
+  }
+
+  // Right-aligned action buttons, ordered primary-first by phase.
+  const specs = updateActions(state)
+  const action =
+    specs.length === 0 ? null : (
+      <div className="flex shrink-0 items-center gap-2">
+        {specs.map(({ kind, primary }) => {
+          const { icon, label, onClick } = actionProps[kind]
+          return (
+            <ActionButton key={kind} icon={icon} primary={primary} onClick={onClick}>
+              {label}
+            </ActionButton>
+          )
+        })}
+      </div>
+    )
 
   return (
     <div className="flex items-center gap-3 px-3.5 py-3.5">

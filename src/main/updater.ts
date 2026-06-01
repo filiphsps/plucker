@@ -169,12 +169,17 @@ async function downloadAndOfferInstall(
   } catch (err) {
     log.error('app', 'update download failed:', err)
     if (!silent) {
-      await notify(getWindow, {
+      // Always leave a working escape hatch: a failed self-install should still let
+      // the user grab the build manually rather than dead-end on an OK button.
+      const { response } = await notify(getWindow, {
         type: 'error',
-        buttons: ['OK'],
+        buttons: ['View Release', 'OK'],
+        defaultId: 0,
+        cancelId: 1,
         message: 'Update download failed',
         detail: err instanceof Error ? err.message : String(err)
       })
+      if (response === 0) await shell.openExternal(RELEASES_URL)
     }
     return
   }
