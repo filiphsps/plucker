@@ -64,3 +64,11 @@ body {
 .tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* Custom-frame drag regions (toolbar is draggable; interactive bits opt out) */
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}

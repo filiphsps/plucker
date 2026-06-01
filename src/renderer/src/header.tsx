@@ -34,12 +34,12 @@ export function Header({
   }
 
   return (
-    <header className="flex h-12 items-center gap-4 border-b border-line bg-panel px-3.5">
+    <header className="drag flex h-12 items-center gap-4 border-b border-line bg-panel pl-[80px] pr-3.5">
       <span className="font-mono text-xs font-semibold tracking-[3px] text-[#e7ebef]">
         PL<span className="text-accent">U</span>CKER
       </span>
       <span className="h-[22px] w-px bg-line" />
-      <nav className="flex gap-0.5">
+      <nav className="no-drag flex gap-0.5">
         {tab('download', t('nav.download'), Download)}
         {tab('history', t('nav.history'), HistoryIcon)}
       </nav>
@@ -48,7 +48,7 @@ export function Header({
         onClick={onOpenSettings}
         aria-label={t('app.settings')}
         className={
-          'flex h-8 w-8 items-center justify-center rounded-md transition-colors ' +
+          'no-drag flex h-8 w-8 items-center justify-center rounded-md transition-colors ' +
           (settingsActive
             ? 'bg-accent-dim text-accent'
             : 'text-ink-faint hover:bg-raise hover:text-ink')

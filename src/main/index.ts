@@ -12,7 +12,7 @@ import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl } from './tagger'
 import { addEntry, removeEntry, removeTrack } from './history'
-import { checkForUpdates } from './updater'
+import { checkForUpdates, smokeCheckUpdater } from './updater'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
 import type { Settings, HistoryEntry } from '../shared/types'
@@ -111,6 +111,9 @@ function createWindow(): void {
     height: 670,
     show: false,
     autoHideMenuBar: true,
+    // Custom frame: hide the OS title bar but keep the real macOS traffic lights
+    // inset top-left. Our toolbar fills the title area and is the drag region.
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -174,6 +177,15 @@ app.whenReady().then(() => {
   buildAppMenu(() => mainWindow)
 
   createWindow()
+
+  // CI smoke test: boot the packaged app, exercise the updater's HTTP layer to prove all
+  // transitive deps are present (see smokeCheckUpdater), then exit with the verdict. The
+  // safety timeout guards against a hung request — booting this far already passed.
+  if (process.env.PLUCKER_SMOKE_TEST === '1') {
+    void smokeCheckUpdater().then((code) => app.exit(code))
+    setTimeout(() => app.exit(0), 20000)
+    return
+  }
 
   // Notify-only update check shortly after launch (opt-out via settings).
   if (loadSettings().updates.checkOnLaunch) {
