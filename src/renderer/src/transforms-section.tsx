@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { GripVertical, ChevronUp, ChevronDown, X, Plus } from 'lucide-react'
+import { GripVertical, ArrowUp, ArrowDown, ChevronDown, X, Plus } from 'lucide-react'
 import type { TransformInstance, TransformManifest } from '../../shared/transforms'
 import { SchemaForm } from './schema-form'
 import { Switch } from './ui/switch'
-import { move, addInstance, canAdd } from './transform-list-utils'
+import { move, addInstance, canAdd, hasConfig } from './transform-list-utils'
+import { transformConfigComponents } from './transform-config-registry'
 
 export function TransformsSection({
   instances,
@@ -31,7 +32,10 @@ export function TransformsSection({
       {instances.map((inst, idx) => {
         const manifest = byType(inst.type)
         const label = manifest ? t(manifest.labelKey) : inst.type
-        const isOpen = open === inst.instanceId
+        const expandable = hasConfig(manifest)
+        const isOpen = expandable && open === inst.instanceId
+        const Custom = transformConfigComponents[inst.type]
+        const toggle = (): void => setOpen(isOpen ? null : inst.instanceId)
         return (
           <div key={inst.instanceId} className="border-b border-line2">
             <div className="flex items-center gap-[11px] px-3.5 py-[11px]">
@@ -44,35 +48,55 @@ export function TransformsSection({
                 onChange={(v) => update(inst.instanceId, { enabled: v })}
                 label={label}
               />
-              <span
-                className={
-                  'flex-1 text-[13px] font-medium ' + (inst.enabled ? 'text-ink' : 'text-ink-faint')
-                }
-              >
-                {label}
-              </span>
+              {expandable ? (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-expanded={isOpen}
+                  className={
+                    'flex-1 text-left text-[13px] font-medium ' +
+                    (inst.enabled ? 'text-ink' : 'text-ink-faint')
+                  }
+                >
+                  {label}
+                </button>
+              ) : (
+                <span
+                  className={
+                    'flex-1 text-[13px] font-medium ' +
+                    (inst.enabled ? 'text-ink' : 'text-ink-faint')
+                  }
+                >
+                  {label}
+                </span>
+              )}
               <div className="flex gap-0.5">
                 <button
                   aria-label="up"
                   className={tool}
                   onClick={() => onChange(move(instances, idx, idx - 1))}
                 >
-                  <ChevronUp size={14} />
+                  <ArrowUp size={14} />
                 </button>
                 <button
                   aria-label="down"
                   className={tool}
                   onClick={() => onChange(move(instances, idx, idx + 1))}
                 >
-                  <ChevronDown size={14} />
+                  <ArrowDown size={14} />
                 </button>
-                <button
-                  aria-label="configure"
-                  className={tool + (isOpen ? ' text-accent' : '')}
-                  onClick={() => setOpen(isOpen ? null : inst.instanceId)}
-                >
-                  <ChevronDown size={15} />
-                </button>
+                {expandable && (
+                  <button
+                    aria-label={isOpen ? 'collapse' : 'expand'}
+                    className={tool + (isOpen ? ' text-accent' : '')}
+                    onClick={toggle}
+                  >
+                    <ChevronDown
+                      size={15}
+                      className={'transition-transform' + (isOpen ? ' rotate-180' : '')}
+                    />
+                  </button>
+                )}
                 <button
                   aria-label="remove"
                   className={tool + ' hover:text-bad'}
@@ -84,14 +108,24 @@ export function TransformsSection({
                 </button>
               </div>
             </div>
-            {isOpen && manifest && (
-              <SchemaForm
-                fields={manifest.configSchema}
-                config={inst.config}
-                onChange={(config) => update(inst.instanceId, { config })}
-                t={t}
-              />
-            )}
+            {isOpen &&
+              manifest &&
+              (Custom ? (
+                <div className="px-3.5 pb-3.5 pl-[41px]">
+                  <Custom
+                    config={inst.config}
+                    onChange={(config) => update(inst.instanceId, { config })}
+                    t={t}
+                  />
+                </div>
+              ) : (
+                <SchemaForm
+                  fields={manifest.configSchema}
+                  config={inst.config}
+                  onChange={(config) => update(inst.instanceId, { config })}
+                  t={t}
+                />
+              ))}
           </div>
         )
       })}

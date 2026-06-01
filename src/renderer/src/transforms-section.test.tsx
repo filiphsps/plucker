@@ -1,6 +1,6 @@
 // src/renderer/src/TransformsSection.test.tsx
 import { describe, it, expect } from 'vitest'
-import { move, addInstance, canAdd } from './transform-list-utils'
+import { move, addInstance, canAdd, hasConfig } from './transform-list-utils'
 import type { TransformInstance, TransformManifest } from '../../shared/transforms'
 
 const insts: TransformInstance[] = [
@@ -43,5 +43,21 @@ describe('list helpers', () => {
   it('canAdd is false for a single-instance type already present', () => {
     expect(canAdd(insts, catalog[0])).toBe(false)
     expect(canAdd(insts, catalog[1])).toBe(true)
+  })
+})
+
+describe('hasConfig', () => {
+  it('is false for an unknown manifest', () => {
+    expect(hasConfig(undefined)).toBe(false)
+  })
+  it('is false when the schema is empty and no custom UI is registered', () => {
+    expect(hasConfig(catalog[0])).toBe(false)
+  })
+  it('is true when the schema has fields', () => {
+    const withFields: TransformManifest = {
+      ...catalog[1],
+      configSchema: [{ key: 'enrich', labelKey: 'f.enrich', type: 'boolean', default: true }]
+    }
+    expect(hasConfig(withFields)).toBe(true)
   })
 })

@@ -1,5 +1,13 @@
 // src/renderer/src/transform-list-utils.ts
 import type { TransformInstance, TransformManifest } from '../../shared/transforms'
+import { transformConfigComponents } from './transform-config-registry'
+
+/** Whether a transform has any configuration UI to expand into. */
+export function hasConfig(manifest: TransformManifest | undefined): boolean {
+  if (!manifest) return false
+  if (transformConfigComponents[manifest.type]) return true
+  return manifest.configSchema.length > 0
+}
 
 export function move(list: TransformInstance[], from: number, to: number): TransformInstance[] {
   if (to < 0 || to >= list.length || from < 0 || from >= list.length) return list
