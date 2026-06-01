@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.0](https://github.com/filiphsps/plucker/compare/plucker-v0.4.0...plucker-v0.5.0) (2026-06-01)
+
+
+### Features
+
+* **audio:** add configurable output sample rate ([19a8bd6](https://github.com/filiphsps/plucker/commit/19a8bd623a2f5978931b769c5bf59ee6063f300f))
+* **download:** add resolve-phase loading state with live yt-dlp output ([5faf19b](https://github.com/filiphsps/plucker/commit/5faf19b648d485fa8c1a6685ad2a7c3a140cee58))
+* **history:** record failed and cancelled downloads with clear status ([52c2578](https://github.com/filiphsps/plucker/commit/52c257889bcc210a3470bf9cc5cecf1e8c829fad))
+* **meta:** show full file path on hover over size cell ([b004988](https://github.com/filiphsps/plucker/commit/b004988b222edc914039974e5e28aa902945ef67))
+* **pipeline:** mark track downloading before yt-dlp spawns ([b8041dc](https://github.com/filiphsps/plucker/commit/b8041dcdbfa46be0df41834e204c3cbe40b7d712))
+* **ui:** add Page wrapper freezing all routes via React Activity ([6fab2a5](https://github.com/filiphsps/plucker/commit/6fab2a5151b4f078e7db99896cbc4e677ca6caf0))
+* **ui:** size download status column to widest localized label ([e426c67](https://github.com/filiphsps/plucker/commit/e426c67588e96cdafeeae83eb89ce18e4aba25d8))
+
+
+### Bug Fixes
+
+* **pipeline:** force-kill yt-dlp/ffmpeg process tree on cancel and quit ([84896a8](https://github.com/filiphsps/plucker/commit/84896a8e8a5133c072b07269e0cc4e784242cf7b))
+* **pipeline:** settle job to idle when a track fails mid-transform ([703f0f7](https://github.com/filiphsps/plucker/commit/703f0f7ae10e29d724f236d8bac34feb0086315a))
+* **settings:** disable footer until there are unsaved changes ([e4bf3af](https://github.com/filiphsps/plucker/commit/e4bf3afe600ef3c2a1b23a1b40afd23513795271))
+* **settings:** keep Cancel always clickable, only gate Save on changes ([c2e4526](https://github.com/filiphsps/plucker/commit/c2e4526bded9ca865b0f89715d2ef142eb22019b))
+* **ui:** clamp tooltip into window and enforce one visible at a time ([f13e038](https://github.com/filiphsps/plucker/commit/f13e038bfa80692c40aa48c9cfa8b96bf8bbf824))
+
 ## [0.4.0](https://github.com/filiphsps/plucker/compare/plucker-v0.3.0...plucker-v0.4.0) (2026-06-01)
 
 
