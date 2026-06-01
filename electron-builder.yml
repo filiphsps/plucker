@@ -1,5 +1,6 @@
 appId: com.plucker.app
 productName: Plucker
+compression: maximum
 directories:
   buildResources: build
 files:
@@ -48,6 +49,9 @@ extraResources:
     filter: ['**/*']
 dmg:
   artifactName: ${name}-${version}-${arch}.${ext}
+  # bzip2-compressed disk image — best compression electron-builder offers,
+  # at the cost of slightly slower build/mount than the default UDZO.
+  format: UDBZ
 linux:
   target:
     - AppImage
