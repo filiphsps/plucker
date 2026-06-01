@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Music, ChevronRight, ChevronDown, Check, X, AlertTriangle } from 'lucide-react'
-import type { TrackStatus, TrackMetadata } from '../../shared/types'
+import type { TrackStatus, TrackMetadata, TrackTags } from '../../shared/types'
 import { TrackDetail, type TrackSource } from './ui/meta/track-detail'
+import { formatDuration } from './ui/meta/format'
 
 export interface TrackRowData {
   title: string
@@ -40,57 +41,77 @@ function Meter({ value, done }: { value: number; done?: boolean }): React.JSX.El
   )
 }
 
-/** Shared, expandable track line used by both Download and History. */
+/** Shared, expandable track line used by Download, History and the Cache manager. */
 export function TrackRow({
   variant,
   index,
   track,
   source,
+  meta,
   actions,
   active = false,
-  missing = false
+  missing = false,
+  editing = false,
+  onSaveTags,
+  onCancelEdit
 }: {
-  variant: 'download' | 'history'
+  variant: 'download' | 'history' | 'cache'
   index: number
   track: TrackRowData
   /** Source info (video id, url, download date) for the expanded detail panel. */
   source?: TrackSource
-  /** Trailing hover actions (history variant). */
+  /** Pre-resolved metadata (cache variant); when absent it is fetched on expand. */
+  meta?: TrackMetadata
+  /** Trailing hover actions (history / cache variants). */
   actions?: React.ReactNode
   /** Highlight this as the single active ("now plucking") row (download variant). */
   active?: boolean
-  /** The track's file is no longer on disk (history variant). */
+  /** The track's file is no longer on disk (history / cache variants). */
   missing?: boolean
+  /** Render the expanded panel in tag-edit mode (cache variant). */
+  editing?: boolean
+  onSaveTags?: (tags: TrackTags) => void
+  onCancelEdit?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const [cover, setCover] = useState<{ file: string; url: string | null } | null>(null)
-  const [meta, setMeta] = useState<{ file: string; data: TrackMetadata } | null>(null)
+  const [cover, setCover] = useState<{ key: string; url: string | null } | null>(null)
+  const [fetched, setFetched] = useState<{ file: string; data: TrackMetadata } | null>(null)
 
+  const isOpen = open || editing
+
+  // Cover: from the file when present, falling back to the cached cover by hash.
   useEffect(() => {
     const file = track.file
-    if (!file || missing) return
+    const hash = track.hash
     let live = true
-    window.plucker.getCover(file).then((url) => live && setCover({ file, url }))
+    if (file && !missing) {
+      window.plucker.getCover(file).then((url) => live && setCover({ key: file, url }))
+    } else if (variant === 'cache' && hash) {
+      window.plucker.getCacheCover(hash).then((url) => live && setCover({ key: hash, url }))
+    }
     return () => {
       live = false
     }
-  }, [track.file, missing])
+  }, [track.file, track.hash, missing, variant])
 
-  // Lazily read metadata the first time the row is expanded (per file).
+  // Lazily read metadata the first time the row is expanded (per file), unless
+  // metadata was supplied directly (cache variant).
   useEffect(() => {
     const file = track.file
-    if (!open || missing || !file || meta?.file === file) return
+    if (meta || !isOpen || missing || !file || fetched?.file === file) return
     let live = true
     window.plucker.getTrackMetadata(file, track.hash).then((data) => {
-      if (live) setMeta({ file, data })
+      if (live) setFetched({ file, data })
     })
     return () => {
       live = false
     }
-  }, [open, track.file, track.hash, missing, meta?.file])
+  }, [isOpen, track.file, track.hash, missing, fetched?.file, meta])
 
-  const coverUrl = cover && cover.file === track.file ? cover.url : null
+  const coverKey = track.file && !missing ? track.file : track.hash
+  const coverUrl = cover && cover.key === coverKey ? cover.url : null
+  const resolvedMeta = meta ?? (fetched && fetched.file === track.file ? fetched.data : null)
   const failed = track.status === 'failed'
   const subtitle = missing
     ? t('history.missing')
@@ -125,20 +146,31 @@ export function TrackRow({
     )
   }
 
-  const activeRow = variant === 'download' && active
-  // No file yet (download in progress) → show source + dashes; file present but
-  // metadata not loaded for it yet → loading; otherwise ready.
+  const missingBadge = (
+    <span className="rounded-md border border-warn/30 bg-warn/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-warn">
+      {t('history.missingBadge')}
+    </span>
+  )
+
+  const highlight = (variant === 'download' && active) || (variant === 'cache' && editing)
+  const qualityText = resolvedMeta?.audio.bitrateKbps
+    ? `${resolvedMeta.audio.bitrateKbps} · ${(resolvedMeta.audio.codec ?? 'mp3').toUpperCase()}`
+    : '—'
+  const durationText =
+    variant === 'cache' ? formatDuration(resolvedMeta?.audio.durationSec) : (track.duration ?? '—')
   const detailState = missing
     ? 'unavailable'
-    : track.file && meta?.file !== track.file
-      ? 'loading'
-      : 'ready'
+    : meta
+      ? 'ready'
+      : !resolvedMeta && track.file && isOpen
+        ? 'loading'
+        : 'ready'
 
   return (
     <div
       className={
         'border-b border-line2 ' +
-        (activeRow
+        (highlight
           ? 'bg-accent-dim shadow-[inset_2px_0_0_var(--color-accent)]'
           : 'hover:bg-white/[0.018]')
       }
@@ -149,7 +181,7 @@ export function TrackRow({
           onClick={() => setOpen((v) => !v)}
           className="flex h-12 w-[30px] items-center justify-center text-ink-faint hover:text-ink"
         >
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
         <span className="w-[22px] text-center font-mono text-[11px] text-ink-faint">
           {String(index).padStart(2, '0')}
@@ -206,16 +238,23 @@ export function TrackRow({
           </>
         ) : (
           <>
-            {missing && (
-              <span className="rounded-md border border-warn/30 bg-warn/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-warn">
-                {t('history.missingBadge')}
+            {missing && missingBadge}
+            {variant === 'cache' && (
+              <span className="w-[84px] text-right font-mono text-[11px] text-ink-dim">
+                {qualityText}
               </span>
             )}
             <span className="w-12 text-right font-mono text-[11px] text-ink-faint">
-              {track.duration ?? '—'}
+              {durationText}
             </span>
             {actions && (
-              <div className="flex w-[84px] justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <div
+                className={
+                  'flex justify-end gap-1 transition-opacity ' +
+                  (variant === 'cache' ? 'w-[64px]' : 'w-[84px]') +
+                  (editing ? ' opacity-100' : ' opacity-0 group-hover:opacity-100')
+                }
+              >
                 {actions}
               </div>
             )}
@@ -223,11 +262,15 @@ export function TrackRow({
         )}
       </div>
 
-      {open && (
+      {isOpen && (
         <TrackDetail
-          meta={meta && meta.file === track.file ? meta.data : null}
+          key={editing ? 'edit' : 'view'}
+          meta={resolvedMeta}
           source={source}
           state={detailState}
+          editing={editing}
+          onSave={onSaveTags}
+          onCancel={onCancelEdit}
         />
       )}
     </div>

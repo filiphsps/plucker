@@ -48,4 +48,14 @@ describe('TrackDetail', () => {
     expect(html).toContain('Reading metadata')
     expect(html).not.toContain('kbps')
   })
+
+  it('renders editable tag inputs and Save/Cancel in edit mode', () => {
+    const html = renderToStaticMarkup(<TrackDetail meta={META} editing />)
+    expect(html).toContain('<input')
+    expect(html).toContain('value="M83"') // tag prefilled as an input value
+    expect(html).toContain('Save')
+    expect(html).toContain('Audio read-only')
+    // audio specs are still shown (read-only) in edit mode
+    expect(html).toContain('320 kbps')
+  })
 })
