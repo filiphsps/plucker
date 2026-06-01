@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { JobProgress, TrackStatus } from '../../shared/types'
-import { TrackRow } from './TrackRow'
+import { TrackRow } from './track-row'
 
 const ICON: Record<TrackStatus, string> = {
   queued: '○',

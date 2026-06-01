@@ -1,7 +1,7 @@
 // src/renderer/src/TransformsSection.tsx
 import React, { useState } from 'react'
 import type { TransformInstance, TransformManifest } from '../../shared/transforms'
-import { SchemaForm } from './SchemaForm'
+import { SchemaForm } from './schema-form'
 import { move, addInstance, canAdd } from './transform-list-utils'
 
 export function TransformsSection({

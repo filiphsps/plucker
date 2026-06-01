@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { HistoryEntry } from '../../shared/types'
-import { TrackRow } from './TrackRow'
+import { TrackRow } from './track-row'
 
 function watchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`

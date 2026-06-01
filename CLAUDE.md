@@ -57,3 +57,10 @@ Releases are automated with **release-please** (`.github/workflows/release.yml`)
 ## Conventions
 
 Infer toolchain details (Node version, dependencies, scripts) from `package.json` rather than assuming.
+
+### File naming
+
+Component files (and their tests) use **kebab-case**: `download-view.tsx`,
+`settings-panel.tsx`, `track-row.test.tsx`. The exported React component keeps
+**PascalCase** (`export function DownloadView`). Non-component modules are already
+kebab-case (`transform-list-utils.ts`) — keep them that way.

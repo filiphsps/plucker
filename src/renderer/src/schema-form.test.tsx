@@ -1,7 +1,7 @@
 // src/renderer/src/SchemaForm.test.tsx
 import { describe, it, expect } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { SchemaForm } from './SchemaForm'
+import { SchemaForm } from './schema-form'
 import type { ConfigField } from '../../shared/transforms'
 
 const fields: ConfigField[] = [

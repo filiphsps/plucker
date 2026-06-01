@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Settings, Bitrate, MinBitrate, CookieSource, Language } from '../../shared/types'
 import type { TransformManifest } from '../../shared/transforms'
-import { TransformsSection } from './TransformsSection'
+import { TransformsSection } from './transforms-section'
 import { applyLanguage } from './i18n'
 
 const BITRATES: Bitrate[] = [320, 256, 192, 128]

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { DownloadView } from './DownloadView'
-import { HistoryView } from './HistoryView'
-import { SettingsPanel } from './SettingsPanel'
-import { Header, type View } from './Header'
+import { DownloadView } from './download-view'
+import { HistoryView } from './history-view'
+import { SettingsPanel } from './settings-panel'
+import { Header, type View } from './header'
 import { applyLanguage } from './i18n'
 
 export default function App(): React.JSX.Element {
