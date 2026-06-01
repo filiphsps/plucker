@@ -33,6 +33,12 @@ mac:
       arch:
         - arm64
         - x64
+    # zip is required for electron-updater on macOS: it is what generates
+    # latest-mac.yml. Disabling it breaks auto-update detection for dmg builds.
+    - target: zip
+      arch:
+        - arm64
+        - x64
 extraResources:
   - from: resources/bin/universal
     to: bin/universal
@@ -53,5 +59,6 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: filiphsps
+  repo: plucker

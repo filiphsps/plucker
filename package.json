@@ -20,13 +20,14 @@
     "postinstall": "electron-builder install-app-deps && node scripts/fetch-binaries.mjs",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "node scripts/fetch-binaries.mjs --all && npm run build && electron-builder --mac --arm64 --x64 --config electron-builder.yml",
+    "build:mac": "node scripts/fetch-binaries.mjs --all && npm run build && electron-builder --mac --arm64 --x64 --config electron-builder.yml --publish never",
     "build:linux": "npm run build && electron-builder --linux",
     "fetch-binaries": "node scripts/fetch-binaries.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "electron-updater": "^6.8.3",
     "ffmpeg-static": "^5.3.0",
     "i18next": "^26.3.0",
     "node-id3": "^0.2.9",

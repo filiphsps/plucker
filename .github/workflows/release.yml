@@ -40,10 +40,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Fetches yt-dlp + both ffmpeg arches and packages the unsigned arm64 + x64 DMGs.
+      # Fetches yt-dlp + both ffmpeg arches and packages the unsigned arm64 + x64 DMGs
+      # (plus zip + latest-mac.yml for electron-updater). --publish never: the release
+      # already exists (release-please made it); we upload the assets ourselves below.
       - run: pnpm build:mac
 
-      - name: Upload DMGs to release
+      # Upload the DMGs plus the electron-updater metadata (zip + latest-mac.yml).
+      # nullglob keeps this resilient: if the update metadata isn't present, only the
+      # DMGs upload rather than failing the release.
+      - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ needs.release-please.outputs.tag_name }}" dist/*.dmg --clobber
+        run: |
+          shopt -s nullglob
+          assets=(dist/*.dmg dist/*.zip dist/latest-mac.yml)
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
