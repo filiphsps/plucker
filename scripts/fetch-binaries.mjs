@@ -26,23 +26,33 @@ const HOST_ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
 // what makes yt-dlp brutally slow on older Intel Macs, where we launch it once
 // per track.
 //
-// Per-arch version pin:
-//   arm64 → latest.
-//   x64   → pinned to a recent build that still runs on Ventura. yt-dlp_macos is
-//           universal2 (x86_64 + arm64); its Ventura floor comes from the bundled
-//           libcurl-impersonate dylib, which is built with minos 13.0 — so the
-//           binary runs on macOS 13+ but not 12. We pin (rather than track latest)
-//           so a future yt-dlp that raises that floor above 13.0 can't silently
-//           break Intel Ventura users; bump this after verifying a newer release's
-//           x86_64 slice still targets macOS ≤ 13 (`vtool -show-build`). 2026.03.17
-//           is current enough for YouTube extraction and verified Ventura-compatible.
-const YTDLP_VERSION = { arm64: 'latest', x64: '2026.03.17' }
+// Per-arch yt-dlp source (GitHub repo + version). All ship the onedir
+// `yt-dlp_macos.zip` — the executable beside an `_internal/` runtime that we unzip
+// to resources/bin/<arch>/yt-dlp/yt-dlp_macos.
+//   arm64 → latest stable.
+//   x64   → a pinned NIGHTLY build. The stable channel hasn't shipped since
+//           2026.03.17, whose extractor stopped resolving some YouTube videos on the
+//           x86_64 slice (every track failing as "format not available"). The nightly
+//           channel rebuilds daily with current extractor fixes. We pin a specific
+//           nightly (rather than track latest-nightly) so a future build can't
+//           silently change behavior or raise the macOS floor.
+//
+//           Ventura floor: yt-dlp_macos is universal2; the real floor is the highest
+//           `minos` across its bundled native libs (curl_cffi etc.). This nightly's
+//           x86_64 slice + every bundled lib target macOS 11, comfortably below our
+//           Ventura (13) support floor. Re-verify before bumping:
+//             vtool -show-build <unzipped>/yt-dlp_macos
+//             find <unzipped>/_internal -name '*.so' -o -name '*.dylib'  # check each minos
+const YTDLP_SOURCE = {
+  arm64: { repo: 'yt-dlp/yt-dlp', version: 'latest' },
+  x64: { repo: 'yt-dlp/yt-dlp-nightly-builds', version: '2026.05.25.234532' }
+}
 const ytdlpUrl = (arch) => {
-  const v = YTDLP_VERSION[arch]
+  const { repo, version } = YTDLP_SOURCE[arch]
   const base =
-    v === 'latest'
-      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
-      : `https://github.com/yt-dlp/yt-dlp/releases/download/${v}`
+    version === 'latest'
+      ? `https://github.com/${repo}/releases/latest/download`
+      : `https://github.com/${repo}/releases/download/${version}`
   return `${base}/yt-dlp_macos.zip`
 }
 
@@ -72,7 +82,7 @@ async function ensureYtDlp(arch) {
     console.log(`✓ yt-dlp (${arch}) already present`)
     return
   }
-  console.log(`↓ downloading yt-dlp (${arch}, ${YTDLP_VERSION[arch]}) …`)
+  console.log(`↓ downloading yt-dlp (${arch}, ${YTDLP_SOURCE[arch].version}) …`)
   const zip = join(BIN, arch, 'yt-dlp_macos.zip')
   await downloadTo(ytdlpUrl(arch), zip)
   mkdirSync(dir, { recursive: true })
