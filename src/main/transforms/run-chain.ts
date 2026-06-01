@@ -21,7 +21,9 @@ export async function runTransformChain(
   instances: TransformInstance[],
   registry: Map<string, TransformDefinition>,
   services: Omit<TransformServices, 'reportProgress'>,
-  onProgress: (fraction: number) => void
+  onProgress: (fraction: number) => void,
+  /** Report the current activity (transform type, then 'saving') for the ticker. */
+  onStage?: (stage: string) => void
 ): Promise<ChainResult> {
   const working = join(destFolder, `.plucker-tmp-${info.index}-${basename(sourceFile)}`)
   copyFileSync(sourceFile, working)
@@ -42,6 +44,7 @@ export async function runTransformChain(
       onProgress((i + 1) / total)
       continue
     }
+    onStage?.(inst.type)
     const stepServices: TransformServices = {
       ...services,
       reportProgress: (f) => onProgress((i + Math.min(Math.max(f, 0), 1)) / total)
@@ -59,6 +62,7 @@ export async function runTransformChain(
   }
 
   // Commit: flush tags, then move the working copy to its final name.
+  onStage?.('saving')
   tryFlushTags(working, ctx)
   const finalBase = ctx.outputName || basename(sourceFile).replace(/\.mp3$/i, '')
   const target = join(destFolder, `${finalBase}.mp3`)

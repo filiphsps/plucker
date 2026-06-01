@@ -31,6 +31,13 @@ export interface Settings {
 
 export type TrackStatus = 'queued' | 'downloading' | 'transforming' | 'done' | 'failed' | 'skipped'
 
+/**
+ * Fine-grained "what is this track doing right now" pushed by the pipeline ticker.
+ * Built-ins map to localized labels under the `stage.*` i18n namespace; transform
+ * steps use the transform's `type` (e.g. `auto-tag`, `rename`).
+ */
+export type TrackStage = 'downloading' | 'hashing' | 'probing' | 'saving' | (string & {})
+
 export interface TrackProgress {
   index: number
   title: string
@@ -38,6 +45,12 @@ export interface TrackProgress {
   percent?: number
   /** 0..100 progress within the transform phase. */
   transformPercent?: number
+  /** Current activity for the live status tooltip (the ticker). */
+  stage?: TrackStage
+  /** Live download speed in bytes/sec while downloading. */
+  speedBytesPerSec?: number
+  /** Total processing time in ms, set once the track reaches a terminal state. */
+  elapsedMs?: number
   reason?: string
   /** Absolute path to the final mp3 once downloaded/tagged (enables reveal-in-folder). */
   file?: string

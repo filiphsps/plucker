@@ -205,8 +205,11 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     const sidecar = readSidecar(sidecarPath)
     // Hash the audio frames once (tag-independent), so auto-tag + probe can reuse
     // cached results and history can point straight at the cache entry.
+    t.speedBytesPerSec = undefined
     let hash: string | undefined
     try {
+      t.stage = 'hashing'
+      emit()
       hash = await timed('hash', 'pipeline', () => hashAudioFile(filePath))
       t.hash = hash
     } catch {
@@ -234,12 +237,17 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       (f) => {
         t.transformPercent = Math.round(f * 100)
         emit()
+      },
+      (stage) => {
+        t.stage = stage
+        emit()
       }
     )
     transformSpan.end(t.title)
     if (existsSync(sidecarPath)) rmSync(sidecarPath, { force: true })
     if (res.failed) {
       t.status = 'failed'
+      t.stage = undefined
       t.reason = res.reason
       log.warn('pipeline', `transform failed for "${t.title}": ${res.reason}`)
       emit()
@@ -257,6 +265,8 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
         } catch {
           /* stat failed — leave size undefined */
         }
+        t.stage = 'probing'
+        emit()
         deps.cache.writeAudio(hash, {
           ...(await timed('probe', 'pipeline', () => probeAudio(bin.ffmpeg, res.outputFile))),
           sizeBytes
@@ -269,6 +279,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       })
     }
     t.status = 'done'
+    t.stage = undefined
     t.file = res.outputFile
     t.artist = res.tags.artist
     t.album = res.tags.album
@@ -295,7 +306,9 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     const onProgress = (e: ProgressEvent): void => {
       if (t.status === 'queued' || t.status === 'downloading') {
         t.status = 'downloading'
+        t.stage = 'downloading'
         t.percent = e.percent
+        t.speedBytesPerSec = e.speedBytesPerSec
         if (e.title) t.title = e.title
       }
       emit()
@@ -317,11 +330,13 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       signal
     )
 
+    t.stage = undefined
+    t.speedBytesPerSec = undefined
     // Below-floor skip: yt-dlp reported "format not available" for this video.
     if (!downloaded && dl.skipped.length > 0) {
       t.status = 'skipped'
       t.reason = 'below minimum quality'
-      trackSpan.end(`${t.title} (skipped)`)
+      t.elapsedMs = Math.round(trackSpan.end(`${t.title} (skipped)`))
       emit()
       return
     }
@@ -329,12 +344,13 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       t.status = 'failed'
       t.reason = dl.errors[dl.errors.length - 1]?.message ?? 'Download failed'
       log.warn('pipeline', `download failed for "${t.title}": ${t.reason}`)
-      trackSpan.end(`${t.title} (failed)`)
+      t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
       emit()
       return
     }
     await finishTrack(t, downloaded)
-    trackSpan.end(t.title)
+    t.elapsedMs = Math.round(trackSpan.end(t.title))
+    emit()
   }
 
   job.entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))

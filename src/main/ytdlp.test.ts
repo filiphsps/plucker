@@ -121,10 +121,11 @@ describe('buildDownloadArgs completion sentinel', () => {
 })
 
 describe('parseProgressLine', () => {
-  it('parses index, percent, video id and (space-containing) title', () => {
-    expect(parseProgressLine('PLUCKER 3 42.5 dQw4w9WgXcQ Song Title')).toEqual({
+  it('parses index, percent, speed, video id and (space-containing) title', () => {
+    expect(parseProgressLine('PLUCKER 3 42.5 1048576 dQw4w9WgXcQ Song Title')).toEqual({
       index: 3,
       percent: 42.5,
+      speedBytesPerSec: 1048576,
       videoId: 'dQw4w9WgXcQ',
       title: 'Song Title'
     })
@@ -133,9 +134,19 @@ describe('parseProgressLine', () => {
     expect(parseProgressLine('[download] Destination: x')).toBeNull()
   })
   it('coerces a non-numeric (single-video NA) index to 1', () => {
-    expect(parseProgressLine('PLUCKER NA 100 dQw4w9WgXcQ Song Title')).toEqual({
+    expect(parseProgressLine('PLUCKER NA 100 524288 dQw4w9WgXcQ Song Title')).toEqual({
       index: 1,
       percent: 100,
+      speedBytesPerSec: 524288,
+      videoId: 'dQw4w9WgXcQ',
+      title: 'Song Title'
+    })
+  })
+  it('leaves speed undefined when yt-dlp reports NA', () => {
+    expect(parseProgressLine('PLUCKER 1 0 NA dQw4w9WgXcQ Song Title')).toEqual({
+      index: 1,
+      percent: 0,
+      speedBytesPerSec: undefined,
       videoId: 'dQw4w9WgXcQ',
       title: 'Song Title'
     })

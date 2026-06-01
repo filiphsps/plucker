@@ -17,10 +17,11 @@ export interface DownloadArgsInput {
 }
 
 // Custom progress line we can parse deterministically:
-//   "PLUCKER <playlist_index> <percent> <video_id> <title>"
-// video_id is a no-space token, so the trailing title can contain spaces.
+//   "PLUCKER <playlist_index> <percent> <speed_bytes_per_sec> <video_id> <title>"
+// All leading fields are no-space tokens, so the trailing title can contain spaces.
+// progress.speed is bytes/sec (or "NA" when yt-dlp can't estimate it yet).
 const PROGRESS_TEMPLATE =
-  'PLUCKER %(info.playlist_index|1)s %(progress._percent)d %(info.id)s %(info.title)s'
+  'PLUCKER %(info.playlist_index|1)s %(progress._percent)d %(progress.speed)s %(info.id)s %(info.title)s'
 
 export function buildDownloadArgs(input: DownloadArgsInput): string[] {
   const { url, destFolder, settings, ffmpegPath, singleVideo } = input
@@ -31,12 +32,12 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
     'mp3',
     '--audio-quality',
     `${settings.audio.preferredBitrate}K`,
-    '--embed-thumbnail',
     // libmp3lame algorithm effort: higher = faster encode (big help on slow CPUs),
     // inaudible at our bitrates. Use -compression_level (not -q:a, which would
     // switch the CBR encode to VBR and change the target bitrate).
     '--postprocessor-args',
     `ExtractAudio:-compression_level ${settings.performance.compressionLevel}`,
+    '--embed-thumbnail',
     '--embed-metadata',
     '--ffmpeg-location',
     ffmpegPath,
@@ -67,13 +68,22 @@ export interface ProgressEvent {
   percent: number
   videoId: string
   title: string
+  /** Download speed in bytes/sec, or undefined when yt-dlp reports "NA". */
+  speedBytesPerSec?: number
 }
 
 export function parseProgressLine(line: string): ProgressEvent | null {
-  const m = line.match(/^PLUCKER\s+(\S+)\s+([\d.]+)\s+(\S+)\s+(.+)$/)
+  const m = line.match(/^PLUCKER\s+(\S+)\s+([\d.]+)\s+(\S+)\s+(\S+)\s+(.+)$/)
   if (!m) return null
   const index = /^\d+$/.test(m[1]) ? Number(m[1]) : 1
-  return { index, percent: Number(m[2]), videoId: m[3], title: m[4].trim() }
+  const speed = Number(m[3])
+  return {
+    index,
+    percent: Number(m[2]),
+    speedBytesPerSec: Number.isFinite(speed) ? speed : undefined,
+    videoId: m[4],
+    title: m[5].trim()
+  }
 }
 
 /** Parse our after_move completion sentinel into the final file path. */
