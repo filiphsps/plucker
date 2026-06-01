@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "gitIgnoredAuthors": ["github-actions[bot]@users.noreply.github.com"],
+  "semanticCommits": "enabled",
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "enabledManagers": ["npm", "github-actions"],
+  "ignoreScripts": true,
+  "prConcurrentLimit": 10,
+  "postUpdateOptions": []
+}
