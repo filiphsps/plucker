@@ -80,10 +80,33 @@ export function parseSkipLine(line: string): SkipEvent | null {
   return m ? { videoId: m[1] } : null
 }
 
+export interface ErrorEvent {
+  /** The video the error pertains to, when yt-dlp names one. */
+  videoId?: string
+  /** Human-readable failure reason, surfaced in the UI. */
+  message: string
+}
+
+/**
+ * Parse a yt-dlp `ERROR:` line into a video id (when present) + message.
+ * Below-floor skips ("Requested format is not available") are excluded — those
+ * are handled as skips, not download failures.
+ */
+export function parseErrorLine(line: string): ErrorEvent | null {
+  const m = line.match(/^ERROR:\s+(.+)$/)
+  if (!m) return null
+  const rest = m[1].trim()
+  if (/Requested format is not available/.test(rest)) return null
+  const vm = rest.match(/^\[\w+\]\s+([\w-]{6,}):\s+(.+)$/)
+  if (vm) return { videoId: vm[1], message: vm[2].trim() }
+  return { message: rest }
+}
+
 export interface SpawnResult {
   code: number
   stderrTail: string
   skipped: SkipEvent[]
+  errors: ErrorEvent[]
 }
 
 /** Spawn yt-dlp, stream progress + skips, resolve with exit code + tail of stderr. */
@@ -100,12 +123,18 @@ export function runYtDlp(
     let outBuf = ''
     let errBuf = ''
     const skipped: SkipEvent[] = []
-    const scanSkips = (buf: string): string => {
+    const errors: ErrorEvent[] = []
+    const scanStderr = (buf: string): string => {
       const lines = buf.split('\n')
       const rest = lines.pop() ?? ''
       for (const line of lines) {
         const s = parseSkipLine(line)
-        if (s) skipped.push(s)
+        if (s) {
+          skipped.push(s)
+          continue
+        }
+        const e = parseErrorLine(line)
+        if (e) errors.push(e)
       }
       return rest
     }
@@ -125,9 +154,9 @@ export function runYtDlp(
     })
     child.stderr.on('data', (d: Buffer) => {
       stderrTail = (stderrTail + d.toString()).slice(-2000)
-      errBuf = scanSkips(errBuf + d.toString())
+      errBuf = scanStderr(errBuf + d.toString())
     })
     child.on('error', reject)
-    child.on('close', (code) => resolve({ code: code ?? -1, stderrTail, skipped }))
+    child.on('close', (code) => resolve({ code: code ?? -1, stderrTail, skipped, errors }))
   })
 }

@@ -306,9 +306,21 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
   // Wait for all in-flight transform tasks before finalizing.
   await pool.drain()
 
-  // Any track that never completed downloading is a failure.
+  // Map yt-dlp error reasons to their videos; keep the last as a job-level fallback.
+  const errByVideo = new Map<string, string>()
+  let lastError: string | undefined
+  for (const e of dl.errors) {
+    if (e.videoId) errByVideo.set(e.videoId, e.message)
+    lastError = e.message
+  }
+
+  // Any track that never completed downloading is a failure — surface why.
   tracks.forEach((t) => {
-    if (t.status === 'queued' || t.status === 'downloading') t.status = 'failed'
+    if (t.status === 'queued' || t.status === 'downloading') {
+      t.status = 'failed'
+      t.reason =
+        (t.videoId ? errByVideo.get(t.videoId) : undefined) ?? lastError ?? 'Download failed'
+    }
   })
   emit()
 

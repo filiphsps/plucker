@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildDownloadArgs, parseProgressLine, parseSkipLine, parseCompleteLine } from './ytdlp'
+import {
+  buildDownloadArgs,
+  parseProgressLine,
+  parseSkipLine,
+  parseCompleteLine,
+  parseErrorLine
+} from './ytdlp'
 import { DEFAULT_SETTINGS } from '../shared/defaults'
 
 describe('buildDownloadArgs', () => {
@@ -115,5 +121,29 @@ describe('parseSkipLine', () => {
   })
   it('returns null for non-skip lines', () => {
     expect(parseSkipLine('[download] 100% of 3.00MiB')).toBeNull()
+  })
+})
+
+describe('parseErrorLine', () => {
+  it('extracts the video id and message from a per-video error', () => {
+    expect(
+      parseErrorLine('ERROR: [youtube] dQw4w9WgXcQ: Video unavailable. This video is private')
+    ).toEqual({ videoId: 'dQw4w9WgXcQ', message: 'Video unavailable. This video is private' })
+  })
+
+  it('handles a generic error without a video id', () => {
+    expect(parseErrorLine('ERROR: unable to download video data: HTTP Error 403')).toEqual({
+      message: 'unable to download video data: HTTP Error 403'
+    })
+  })
+
+  it('ignores below-floor skips (handled as skips, not failures)', () => {
+    expect(
+      parseErrorLine('ERROR: [youtube] abc123def: Requested format is not available')
+    ).toBeNull()
+  })
+
+  it('returns null for non-error lines', () => {
+    expect(parseErrorLine('[download] 100% of 3.00MiB')).toBeNull()
   })
 })
