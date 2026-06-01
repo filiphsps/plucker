@@ -3,6 +3,7 @@
   "productName": "Plucker",
   "version": "0.1.0",
   "description": "Download YouTube playlists as tagged MP3s",
+  "packageManager": "pnpm@11.5.0",
   "main": "./out/main/index.js",
   "author": "Filiph Sandström",
   "homepage": "",
