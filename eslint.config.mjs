@@ -6,7 +6,9 @@ import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig(
-  { ignores: ['**/node_modules', '**/dist', '**/out', 'scripts/**'] },
+  // `resources/**` holds vendored binaries (yt-dlp/ffmpeg and yt-dlp's bundled
+  // python/JS, incl. minified solver files) — never lint those.
+  { ignores: ['**/node_modules', '**/dist', '**/out', 'scripts/**', 'resources/**'] },
   tseslint.configs.recommended,
   eslintPluginReact.configs.flat.recommended,
   eslintPluginReact.configs.flat['jsx-runtime'],
