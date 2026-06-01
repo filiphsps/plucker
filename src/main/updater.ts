@@ -1,19 +1,22 @@
 // Self-update for an unsigned macOS app.
 //
-// electron-updater does the *check* and *download* (reading the bundled app-update.yml /
-// latest-mac.yml and fetching the per-arch `.zip` from GitHub releases), but its install
-// path hands the zip to native Squirrel.Mac — which hard-requires a valid Developer ID
-// signature. Plucker ships unsigned, so on macOS we install the downloaded zip ourselves
-// (see mac-installer.ts): swap the running `.app` bundle in place and relaunch. No signature
-// is verified because Squirrel never touches the update.
+// electron-updater does the *check* only (reading the bundled app-update.yml /
+// latest-mac.yml to detect a newer release). We deliberately do NOT use its
+// download path: electron-updater's MacUpdater hands the download to native
+// Squirrel.Mac, which validates the *running* app's Developer ID signature and
+// throws "Could not get code signature for running application" on an unsigned
+// build. Instead we fetch the per-arch `.zip` straight from the GitHub release
+// (see github-download.ts) and install it ourselves (see mac-installer.ts): swap
+// the running `.app` bundle in place and relaunch. No signature is ever verified.
 //
 // On other platforms we stay notify-only: point the user at the releases page to download
 // manually. Nothing is auto-installed there.
 import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron'
-import { autoUpdater, type UpdateDownloadedEvent } from 'electron-updater'
+import { autoUpdater } from 'electron-updater'
 import { log } from './log'
 import { logPath } from './settings'
 import { appBundlePath, installMacUpdate } from './mac-installer'
+import { downloadLatestMacZip } from './github-download'
 import type { UpdateState } from '../shared/types'
 
 export const RELEASES_URL = 'https://github.com/filiphsps/plucker/releases/latest'
@@ -38,14 +41,11 @@ function ensureWired(): void {
   if (wired) return
   wired = true
 
-  // We drive download + install manually, so disable every automatic behaviour.
+  // We only use electron-updater for the check, never its download/install path.
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.logger = null
 
-  autoUpdater.on('download-progress', (p) => {
-    log.info('app', `update download ${Math.round(p.percent)}%`)
-  })
   autoUpdater.on('error', (err) => {
     log.error('app', 'updater error:', err)
   })
@@ -59,20 +59,16 @@ function notify(
   return win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts)
 }
 
-/** Download the per-arch update zip via electron-updater and resolve its on-disk path. */
-function downloadUpdateZip(): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const onDownloaded = (e: UpdateDownloadedEvent): void => {
-      autoUpdater.removeListener('error', onError)
-      resolve(e.downloadedFile)
-    }
-    const onError = (err: Error): void => {
-      autoUpdater.removeListener('update-downloaded', onDownloaded)
-      reject(err)
-    }
-    autoUpdater.once('update-downloaded', onDownloaded)
-    autoUpdater.once('error', onError)
-    autoUpdater.downloadUpdate().catch(onError)
+/**
+ * Download the per-arch update zip straight from the GitHub release and resolve its
+ * on-disk path. Bypasses electron-updater's download path (which would invoke
+ * Squirrel.Mac and fail the unsigned-app signature check).
+ */
+function downloadUpdateZip(onProgress?: (percent: number) => void): Promise<string> {
+  return downloadLatestMacZip({
+    destDir: app.getPath('temp'),
+    arch: process.arch,
+    onProgress
   })
 }
 
@@ -107,13 +103,13 @@ async function checkForUpdatesUi(): Promise<UpdateState> {
 }
 
 /** Download the update zip (macOS) and stash its path for `installUpdateUi()`. */
-async function downloadUpdateForUi(): Promise<UpdateState> {
+async function downloadUpdateForUi(onProgress?: (percent: number) => void): Promise<UpdateState> {
   const currentVersion = app.getVersion()
   if (!canSelfInstall()) {
     return { phase: 'available', currentVersion, canSelfInstall: false }
   }
   try {
-    pendingZipPath = await downloadUpdateZip()
+    pendingZipPath = await downloadUpdateZip(onProgress)
     log.info('app', 'update downloaded, ready to install')
     return { phase: 'ready', currentVersion, canSelfInstall: true }
   } catch (err) {
@@ -141,11 +137,10 @@ function installUpdateUi(): boolean {
 /** Wire the renderer-facing update IPC: check / download / install + progress stream. */
 export function registerUpdaterIpc(getWindow: GetWindow): void {
   ensureWired()
-  autoUpdater.on('download-progress', (p) => {
-    getWindow()?.webContents.send('updates:progress', Math.round(p.percent))
-  })
   ipcMain.handle('updates:check', () => checkForUpdatesUi())
-  ipcMain.handle('updates:download', () => downloadUpdateForUi())
+  ipcMain.handle('updates:download', () =>
+    downloadUpdateForUi((percent) => getWindow()?.webContents.send('updates:progress', percent))
+  )
   ipcMain.handle('updates:install', () => installUpdateUi())
 }
 
@@ -168,7 +163,9 @@ async function downloadAndOfferInstall(
   log.info('app', `downloading Plucker ${version}…`)
   let zipPath: string
   try {
-    zipPath = await downloadUpdateZip()
+    zipPath = await downloadUpdateZip((percent) => {
+      log.info('app', `update download ${percent}%`)
+    })
   } catch (err) {
     log.error('app', 'update download failed:', err)
     if (!silent) {
