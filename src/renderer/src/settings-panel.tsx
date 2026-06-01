@@ -41,18 +41,25 @@ export function SettingsPanel({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [s, setS] = useState<Settings | null>(null)
+  // Snapshot of the last-persisted settings, used to detect unsaved edits.
+  const [saved, setSaved] = useState<Settings | null>(null)
   const [catalog, setCatalog] = useState<TransformManifest[]>([])
   useEffect(() => {
-    window.plucker.getSettings().then(setS)
+    window.plucker.getSettings().then((loaded) => {
+      setS(loaded)
+      setSaved(loaded)
+    })
     window.plucker.getTransformCatalog().then(setCatalog)
   }, [])
   if (!s) return <div />
 
+  const dirty = JSON.stringify(s) !== JSON.stringify(saved)
   const set = (patch: Partial<Settings>): void => setS({ ...s, ...patch })
   async function save(): Promise<void> {
     if (!s) return
     await window.plucker.saveSettings(s)
     await applyLanguage(s.language)
+    setSaved(s)
     onClose()
   }
   async function chooseFolder(): Promise<void> {
@@ -227,16 +234,19 @@ export function SettingsPanel({
         </Panel>
       </div>
 
+      {/* Footer is inert until there are unsaved edits — nothing to cancel or save. */}
       <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2.5 border-t border-line bg-panel px-5 py-3">
         <button
           onClick={onClose}
-          className="h-[34px] rounded-md border border-line px-4 text-[13px] text-ink-dim"
+          disabled={!dirty}
+          className="h-[34px] rounded-md border border-line px-4 text-[13px] text-ink-dim disabled:opacity-50"
         >
           {t('settings.cancel')}
         </button>
         <button
           onClick={save}
-          className="h-[34px] rounded-md bg-accent px-5 text-[13px] font-semibold text-white"
+          disabled={!dirty}
+          className="h-[34px] rounded-md bg-accent px-5 text-[13px] font-semibold text-white disabled:opacity-50"
         >
           {t('settings.save')}
         </button>
