@@ -1,3 +1,7 @@
+# Pin dependencies: `pnpm add` writes an exact version (no `^`/`~`) so every
+# dependency in package.json stays pinned. Renovate then owns version bumps.
+saveExact: true
+
 allowBuilds:
   electron: true
   electron-winstaller: true
