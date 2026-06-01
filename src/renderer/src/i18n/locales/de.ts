@@ -49,7 +49,8 @@ const de: typeof en = {
       audio: 'Audio',
       cookies: 'Cookies',
       transforms: 'Transformationen',
-      performance: 'Leistung'
+      performance: 'Leistung',
+      updates: 'Aktualisierungen'
     },
     language: {
       label: 'Sprache',
@@ -73,6 +74,9 @@ const de: typeof en = {
     },
     performance: {
       parallel: 'Parallele Downloads'
+    },
+    updates: {
+      checkOnLaunch: 'Beim Start nach Updates suchen'
     }
   },
   transforms: {

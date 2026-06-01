@@ -174,6 +174,18 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
           </label>
         </section>
 
+        <section className="mb-6">
+          <h3 className={heading}>{t('settings.sections.updates')}</h3>
+          <label className="flex gap-2 items-center text-sm">
+            <input
+              type="checkbox"
+              checked={s.updates.checkOnLaunch}
+              onChange={(e) => set({ updates: { ...s.updates, checkOnLaunch: e.target.checked } })}
+            />
+            {t('settings.updates.checkOnLaunch')}
+          </label>
+        </section>
+
         <button
           onClick={save}
           className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 font-medium"

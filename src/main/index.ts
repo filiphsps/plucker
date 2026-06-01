@@ -12,6 +12,7 @@ import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl } from './tagger'
 import { addEntry, removeEntry, removeTrack } from './history'
+import { checkForUpdates, buildAppMenu } from './updater'
 import type { Settings, HistoryEntry } from '../shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel
@@ -162,7 +163,14 @@ app.whenReady().then(() => {
 
   registerIpc(() => mainWindow)
 
+  buildAppMenu(() => mainWindow)
+
   createWindow()
+
+  // Notify-only update check shortly after launch (opt-out via settings).
+  if (loadSettings().updates.checkOnLaunch) {
+    setTimeout(() => void checkForUpdates(() => mainWindow, { silent: true }), 3000)
+  }
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

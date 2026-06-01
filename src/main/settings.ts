@@ -26,7 +26,8 @@ function mergeDefaults(partial: unknown): Settings {
     cookies: { ...d.cookies, ...(p.cookies ?? {}) },
     transforms:
       isV2 && Array.isArray(p.transforms) ? (p.transforms as Settings['transforms']) : d.transforms,
-    performance: { ...d.performance, ...(p.performance ?? {}) }
+    performance: { ...d.performance, ...(p.performance ?? {}) },
+    updates: { ...d.updates, ...(p.updates ?? {}) }
   }
 }
 

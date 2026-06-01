@@ -47,7 +47,8 @@ export default {
       audio: 'Audio',
       cookies: 'Cookies',
       transforms: 'Transforms',
-      performance: 'Performance'
+      performance: 'Performance',
+      updates: 'Updates'
     },
     language: {
       label: 'Language',
@@ -71,6 +72,9 @@ export default {
     },
     performance: {
       parallel: 'Parallel downloads'
+    },
+    updates: {
+      checkOnLaunch: 'Check for updates on launch'
     }
   },
   transforms: {

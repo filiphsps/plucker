@@ -17,6 +17,7 @@ export interface Settings {
   cookies: { source: CookieSource }
   transforms: TransformInstance[]
   performance: { parallel: number }
+  updates: { checkOnLaunch: boolean }
 }
 
 export type TrackStatus = 'queued' | 'downloading' | 'transforming' | 'done' | 'failed' | 'skipped'
