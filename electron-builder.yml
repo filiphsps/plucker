@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: scaffoldtmp
+appId: com.plucker.app
+productName: Plucker
 directories:
   buildResources: build
 files:
@@ -19,6 +19,7 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  category: public.app-category.music
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
@@ -26,6 +27,19 @@ mac:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+extraResources:
+  - from: resources/bin/universal
+    to: bin/universal
+    filter: ['**/*']
+  - from: resources/bin/${arch}
+    to: bin/${arch}
+    filter: ['**/*']
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
