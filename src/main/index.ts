@@ -13,6 +13,7 @@ import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { addEntry, removeEntry, removeTrack } from './history'
+import { killAllChildren } from './spawn'
 import { checkForUpdates } from './updater'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
@@ -294,6 +295,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// Force-kill any in-flight yt-dlp/ffmpeg subprocesses when the app exits, so a
+// download in progress can never leave orphaned processes running afterwards.
+app.on('before-quit', () => {
+  abort?.abort()
+  killAllChildren()
 })
 
 // In this file you can include the rest of your app's specific main process

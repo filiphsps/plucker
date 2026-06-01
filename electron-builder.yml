@@ -41,9 +41,7 @@ mac:
         - arm64
         - x64
 extraResources:
-  - from: resources/bin/universal
-    to: bin/universal
-    filter: ['**/*']
+  # Per-arch bin/: the yt-dlp onedir folder (yt-dlp/yt-dlp_macos + _internal/) and ffmpeg.
   - from: resources/bin/${arch}
     to: bin/${arch}
     filter: ['**/*']

@@ -1,5 +1,5 @@
-import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+import { spawnManaged } from './spawn'
 import type { Settings } from '../shared/types'
 
 export interface DownloadArgsInput {
@@ -146,7 +146,9 @@ export function runYtDlp(
   signal?: AbortSignal
 ): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(ytdlpPath, args, { signal })
+    // Managed spawn: own process group, force-killed (with its ffmpeg child) on
+    // abort, and tracked so app-quit can reap any orphan.
+    const child = spawnManaged(ytdlpPath, args, {}, signal)
     let stderrTail = ''
     let outBuf = ''
     let errBuf = ''

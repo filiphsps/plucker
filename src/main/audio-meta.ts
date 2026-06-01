@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawnManaged } from './spawn'
 import { readFile } from 'node:fs/promises'
 import { parseMp3Info } from './mp3-info'
 
@@ -69,14 +69,18 @@ export function parseFfmpegInfo(stderr: string): AudioInfo {
  * cold-start per track dominates the probe cost. ffmpeg is used only as a
  * fallback when the file isn't a parseable MP3.
  */
-export async function probeAudio(ffmpegPath: string, file: string): Promise<AudioInfo> {
+export async function probeAudio(
+  ffmpegPath: string,
+  file: string,
+  signal?: AbortSignal
+): Promise<AudioInfo> {
   try {
     const info = parseMp3Info(await readFile(file))
     if (info) return info
   } catch {
     /* unreadable or not an MP3 — fall through to ffmpeg */
   }
-  return probeViaFfmpeg(ffmpegPath, file)
+  return probeViaFfmpeg(ffmpegPath, file, signal)
 }
 
 /**
@@ -86,11 +90,15 @@ export async function probeAudio(ffmpegPath: string, file: string): Promise<Audi
  * main process — stays responsive while ffmpeg runs; a synchronous spawn here would
  * freeze the UI on slow machines.
  */
-function probeViaFfmpeg(ffmpegPath: string, file: string): Promise<AudioInfo> {
+function probeViaFfmpeg(
+  ffmpegPath: string,
+  file: string,
+  signal?: AbortSignal
+): Promise<AudioInfo> {
   // `ffmpeg -i <file>` with no output exits non-zero but prints the stream banner
   // to stderr — exactly what we parse. We ignore the exit status by design.
   return new Promise((resolve) => {
-    const child = spawn(ffmpegPath, ['-hide_banner', '-i', file])
+    const child = spawnManaged(ffmpegPath, ['-hide_banner', '-i', file], {}, signal)
     let stderr = ''
     child.stderr.on('data', (d: Buffer) => {
       stderr += d.toString()

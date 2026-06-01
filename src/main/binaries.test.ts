@@ -9,7 +9,7 @@ describe('binaryPaths', () => {
       resourcesPath: '/app/res',
       projectRoot: '/proj'
     })
-    expect(p.ytdlp).toBe('/proj/resources/bin/universal/yt-dlp')
+    expect(p.ytdlp).toBe('/proj/resources/bin/arm64/yt-dlp/yt-dlp_macos')
     expect(p.ffmpeg).toBe('/proj/resources/bin/arm64/ffmpeg')
   })
   it('uses resourcesPath when packaged', () => {
@@ -19,7 +19,7 @@ describe('binaryPaths', () => {
       resourcesPath: '/app/res',
       projectRoot: '/proj'
     })
-    expect(p.ytdlp).toBe('/app/res/bin/universal/yt-dlp')
+    expect(p.ytdlp).toBe('/app/res/bin/x64/yt-dlp/yt-dlp_macos')
     expect(p.ffmpeg).toBe('/app/res/bin/x64/ffmpeg')
   })
 })

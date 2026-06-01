@@ -17,7 +17,11 @@ export function binaryPaths(env: BinaryEnv): BinaryPaths {
     ? join(env.resourcesPath, 'bin')
     : join(env.projectRoot, 'resources', 'bin')
   return {
-    ytdlp: join(base, 'universal', 'yt-dlp'),
+    // yt-dlp ships per-arch as a PyInstaller *onedir* folder: the `yt-dlp_macos`
+    // executable beside an `_internal/` runtime. Running it in place avoids the
+    // self-extraction the onefile build performs on every launch — a big win on
+    // older Intel Macs, where we spawn yt-dlp once per track.
+    ytdlp: join(base, env.arch, 'yt-dlp', 'yt-dlp_macos'),
     ffmpeg: join(base, env.arch, 'ffmpeg')
   }
 }

@@ -10,6 +10,7 @@ import type {
 } from '../shared/types'
 import { sanitizeFileName } from './rename'
 import { buildDownloadArgs, runYtDlp, type ProgressEvent } from './ytdlp'
+import { spawnManaged } from './spawn'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
 import { createPool } from './pool'
@@ -91,9 +92,9 @@ export function isRelevantStatusLine(line: string): boolean {
 export async function resolvePlaylist(
   ytdlpPath: string,
   url: string,
-  onLine?: (line: string) => void
+  onLine?: (line: string) => void,
+  signal?: AbortSignal
 ): Promise<ResolvedJob> {
-  const { spawn } = await import('node:child_process')
   const { stdout, stderr, code, error } = await new Promise<{
     stdout: string
     stderr: string
@@ -102,7 +103,13 @@ export async function resolvePlaylist(
   }>((resolve) => {
     // `--verbose` makes yt-dlp emit extraction progress on stderr; stdout stays
     // pure JSON. Lines are forwarded (filtered) to `onLine` for the status panel.
-    const child = spawn(ytdlpPath, ['--verbose', '--flat-playlist', '--dump-single-json', url])
+    // Managed + signal-aware so cancelling during resolution force-kills it.
+    const child = spawnManaged(
+      ytdlpPath,
+      ['--verbose', '--flat-playlist', '--dump-single-json', url],
+      {},
+      signal
+    )
     let stdout = ''
     let stderr = ''
     let pending = ''
@@ -256,7 +263,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
   const jobSpan = startSpan('job', 'pipeline')
   onStatus?.({ phase: 'resolving', key: 'launching' })
   const job = await timed('resolve-playlist', 'pipeline', () =>
-    resolvePlaylist(bin.ytdlp, url, (line) => onStatus?.({ phase: 'resolving', line }))
+    resolvePlaylist(bin.ytdlp, url, (line) => onStatus?.({ phase: 'resolving', line }), signal)
   )
   onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
   log.info('pipeline', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
@@ -382,7 +389,9 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
         t.stage = 'probing'
         emit()
         deps.cache.writeAudio(hash, {
-          ...(await timed('probe', 'pipeline', () => probeAudio(bin.ffmpeg, res.outputFile))),
+          ...(await timed('probe', 'pipeline', () =>
+            probeAudio(bin.ffmpeg, res.outputFile, signal)
+          )),
           sizeBytes
         })
       }

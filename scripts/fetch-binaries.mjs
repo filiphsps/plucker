@@ -5,22 +5,42 @@
 //   pnpm fetch-binaries --all    # both arm64 + x64 (for packaging two DMGs)
 //
 // Layout produced (matches src/main/binaries.ts → binaryPaths):
-//   resources/bin/universal/yt-dlp     (universal2 macOS binary, macOS 10.15+)
-//   resources/bin/<arch>/ffmpeg        (static build per arch)
-import { mkdirSync, chmodSync, existsSync, copyFileSync, createWriteStream } from 'node:fs'
+//   resources/bin/<arch>/yt-dlp/yt-dlp_macos   (PyInstaller onedir: exe + _internal/)
+//   resources/bin/<arch>/ffmpeg                (static build per arch)
+import { mkdirSync, chmodSync, existsSync, copyFileSync, createWriteStream, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 import { createGunzip } from 'node:zlib'
 import { createRequire } from 'node:module'
+import { execFileSync } from 'node:child_process'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BIN = join(ROOT, 'resources', 'bin')
 const HOST_ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
 
-// Always-valid asset: GitHub's "latest" redirect resolves to the newest release.
-const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos'
+// We bundle the *onedir* macOS build (yt-dlp_macos.zip): the executable beside an
+// `_internal/` runtime, which runs in place instead of self-extracting a whole
+// Python runtime to a temp dir on every spawn (onefile). That self-extraction is
+// what makes yt-dlp brutally slow on older Intel Macs, where we launch it once
+// per track.
+//
+// Per-arch version pin:
+//   arm64 → latest (built on the macos-14 / Apple-Silicon runner).
+//   x64   → 2025.07.21, the last release built on the macos-13 (Ventura, x86_64)
+//           runner. From 2025.08.11 onward yt-dlp's macOS build moved to macos-14
+//           and dropped the Ventura/Intel toolchain, so newer builds aren't
+//           guaranteed to run on an Intel Ventura Mac.
+const YTDLP_VERSION = { arm64: 'latest', x64: '2025.07.21' }
+const ytdlpUrl = (arch) => {
+  const v = YTDLP_VERSION[arch]
+  const base =
+    v === 'latest'
+      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
+      : `https://github.com/yt-dlp/yt-dlp/releases/download/${v}`
+  return `${base}/yt-dlp_macos.zip`
+}
 
 // Static ffmpeg builds (gzipped), pinned to the ffmpeg-static release. Per-arch env
 // overrides win if set. These let us bundle ffmpeg for an arch other than the host.
@@ -39,15 +59,23 @@ async function downloadTo(url, dest) {
   chmodSync(dest, 0o755)
 }
 
-async function ensureYtDlp() {
-  const dest = join(BIN, 'universal', 'yt-dlp')
-  if (existsSync(dest)) {
-    console.log('✓ yt-dlp already present')
+async function ensureYtDlp(arch) {
+  const dir = join(BIN, arch, 'yt-dlp')
+  const exe = join(dir, 'yt-dlp_macos')
+  if (existsSync(exe)) {
+    console.log(`✓ yt-dlp (${arch}) already present`)
     return
   }
-  console.log('↓ downloading yt-dlp …')
-  await downloadTo(YTDLP_URL, dest)
-  console.log('✓ yt-dlp →', dest)
+  console.log(`↓ downloading yt-dlp (${arch}, ${YTDLP_VERSION[arch]}) …`)
+  const zip = join(BIN, arch, 'yt-dlp_macos.zip')
+  await downloadTo(ytdlpUrl(arch), zip)
+  mkdirSync(dir, { recursive: true })
+  // Onedir zip → resources/bin/<arch>/yt-dlp/{yt-dlp_macos,_internal/…}. Use the
+  // system unzip (always present on macOS, where these binaries are used).
+  execFileSync('unzip', ['-oq', zip, '-d', dir])
+  rmSync(zip)
+  chmodSync(exe, 0o755)
+  console.log(`✓ yt-dlp (${arch}) →`, exe)
 }
 
 async function ensureFfmpeg(arch) {
@@ -83,8 +111,10 @@ async function main() {
   const all = process.argv.includes('--all')
   const arches = all ? ['arm64', 'x64'] : [HOST_ARCH]
   console.log(`Setting up binaries (${arches.join(', ')}) …`)
-  await ensureYtDlp()
-  for (const arch of arches) await ensureFfmpeg(arch)
+  for (const arch of arches) {
+    await ensureYtDlp(arch)
+    await ensureFfmpeg(arch)
+  }
   console.log('Binary setup complete.')
 }
 
