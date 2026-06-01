@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0](https://github.com/filiphsps/plucker/compare/plucker-v0.5.0...plucker-v0.6.0) (2026-06-01)
+
+
+### Features
+
+* **console:** add gated developer console overlay with file logging ([41676b2](https://github.com/filiphsps/plucker/commit/41676b2d2d78d2370549ae921d735dcb423272f5))
+* generate app icon from React, add update-notification card ([953c91f](https://github.com/filiphsps/plucker/commit/953c91f6ae8067d1e68eb928129149458efb8fa7))
+* **header:** implement HeaderIconButton for console and settings controls ([0c84d4f](https://github.com/filiphsps/plucker/commit/0c84d4f5f758376e4ff85a641449d7890c1bf311))
+* **track:** surface error details on failed tracks ([a269519](https://github.com/filiphsps/plucker/commit/a2695196b2090e9b842a9e5b0113867c469786cc))
+* **updater:** self-install unsigned macOS updates via bundle swap ([6c94cf5](https://github.com/filiphsps/plucker/commit/6c94cf5f658e0b7c85a7103a9e60ef5b947ce53b))
+
+
+### Bug Fixes
+
+* **eslint:** add resources/** to ignored paths in ESLint configuration ([5be1bbc](https://github.com/filiphsps/plucker/commit/5be1bbcc0b14cd4d61463a37cf0e5b5aaffaefb6))
+* **logo:** correct accent color span in Logo component ([7ed302e](https://github.com/filiphsps/plucker/commit/7ed302e7a2a9f94eb444248d96ec6e6aa6195eef))
+* **logo:** update test assertions for accent "L" in Logo component ([0c84d4f](https://github.com/filiphsps/plucker/commit/0c84d4f5f758376e4ff85a641449d7890c1bf311))
+
 ## [0.5.0](https://github.com/filiphsps/plucker/compare/plucker-v0.4.0...plucker-v0.5.0) (2026-06-01)
 
 
