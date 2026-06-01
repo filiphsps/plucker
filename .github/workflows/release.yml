@@ -40,6 +40,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The app icon is generated (not committed) during the build via Playwright.
+      # macOS needs only the browser binary (no extra system libraries).
+      - run: pnpm exec playwright install chromium
+
       # Fetches yt-dlp + both ffmpeg arches and packages the unsigned arm64 + x64 DMGs
       # (plus zip + latest-mac.yml for electron-updater). --publish never: the release
       # already exists (release-please made it); we upload the assets ourselves below.

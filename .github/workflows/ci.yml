@@ -25,5 +25,9 @@ jobs:
 
       - run: pnpm test
 
-      # `pnpm build` runs typecheck (node + web) then electron-vite build.
+      # The app icon is generated (not committed) by `pnpm build` via Playwright,
+      # so the browser + its Linux system libraries must be present first.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # `pnpm build` renders the icon, runs typecheck (node + web), then electron-vite build.
       - run: pnpm build

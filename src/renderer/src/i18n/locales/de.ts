@@ -116,7 +116,8 @@ const de: typeof en = {
       performance: 'Leistung',
       updates: 'Aktualisierungen',
       cache: 'Cache',
-      developer: 'Entwickler'
+      developer: 'Entwickler',
+      about: 'Über'
     },
     cache: {
       manage: 'Metadaten-Cache',
@@ -177,6 +178,27 @@ const de: typeof en = {
     updates: {
       checkOnLaunch: 'Beim Start nach Updates suchen',
       desc: 'Benachrichtigen, wenn eine neue Version verfügbar ist'
+    },
+    about: {
+      repository: 'Repository',
+      repositoryDesc: 'Quellcode ansehen und Probleme melden',
+      viewRepo: 'Öffnen',
+      author: 'Autor',
+      contributors: 'Mitwirkende',
+      update: {
+        checking: 'Suche nach Updates …',
+        upToDate: 'Plucker ist aktuell',
+        available: 'Version {{version}} ist verfügbar',
+        downloading: 'Update wird geladen … {{percent}} %',
+        ready: 'Update geladen — zum Abschluss neu starten',
+        error: 'Suche nach Updates fehlgeschlagen',
+        devOnly: 'Updates sind nur in der installierten App verfügbar',
+        current: 'Du nutzt Version {{version}}',
+        checkAgain: 'Erneut suchen',
+        relaunch: 'Neu starten',
+        retry: 'Erneut versuchen',
+        download: 'Release ansehen'
+      }
     }
   },
   cache: {

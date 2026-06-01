@@ -7,6 +7,7 @@ import {
   Terminal,
   type LucideIcon
 } from 'lucide-react'
+import { Logo } from './logo'
 
 export type View = 'download' | 'history'
 
@@ -48,9 +49,7 @@ export function Header({
 
   return (
     <header className="drag flex h-12 items-center gap-4 border-b border-line bg-panel pl-[96px] pr-3.5">
-      <span className="flex items-center font-mono text-xs font-semibold leading-none tracking-[3px] text-[#e7ebef]">
-        PL<span className="text-accent">U</span>CKER
-      </span>
+      <Logo className="flex items-center" />
       <span className="h-[22px] w-px bg-line" />
       <nav className="no-drag flex gap-0.5">
         {tab('download', t('nav.download'), Download)}

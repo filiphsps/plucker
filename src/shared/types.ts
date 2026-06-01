@@ -229,3 +229,39 @@ export interface CachedTrack {
   /** Whether the underlying library file still exists on disk. */
   fileExists: boolean
 }
+
+/**
+ * Chrome-style updater state machine, surfaced to the About card.
+ * - `checking`     — a check is in flight
+ * - `upToDate`     — no newer version available
+ * - `available`    — a newer version exists (download not started / can't self-install)
+ * - `downloading`  — the update zip is downloading (`percent` populated)
+ * - `ready`        — downloaded and ready; relaunch to swap-and-install
+ * - `unsupported`  — running unpackaged (dev) where updates don't apply
+ * - `error`        — the check or download failed (`error` populated)
+ */
+export type UpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'upToDate'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'unsupported'
+  | 'error'
+
+export interface UpdateState {
+  phase: UpdatePhase
+  currentVersion: string
+  /** The available newer version, when one was found. */
+  newVersion?: string
+  /** Download progress 0–100 while `phase === 'downloading'`. */
+  percent?: number
+  /** Human-readable failure reason while `phase === 'error'`. */
+  error?: string
+  /**
+   * Whether this platform/build can install the update itself (macOS .app bundle).
+   * When false the UI offers a manual download link instead of a relaunch button.
+   */
+  canSelfInstall: boolean
+}

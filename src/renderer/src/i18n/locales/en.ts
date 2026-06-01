@@ -115,7 +115,8 @@ export default {
       performance: 'Performance',
       updates: 'Updates',
       cache: 'Cache',
-      developer: 'Developer'
+      developer: 'Developer',
+      about: 'About'
     },
     cache: {
       manage: 'Metadata cache',
@@ -176,6 +177,27 @@ export default {
     updates: {
       checkOnLaunch: 'Check for updates on launch',
       desc: 'Notify me when a new version is available'
+    },
+    about: {
+      repository: 'Repository',
+      repositoryDesc: 'View the source code and report issues',
+      viewRepo: 'Open',
+      author: 'Author',
+      contributors: 'Contributors',
+      update: {
+        checking: 'Checking for updates…',
+        upToDate: 'Plucker is up to date',
+        available: 'Version {{version}} is available',
+        downloading: 'Downloading update… {{percent}}%',
+        ready: 'Update downloaded — relaunch to finish',
+        error: 'Couldn’t check for updates',
+        devOnly: 'Updates are only available in the installed app',
+        current: 'You’re on version {{version}}',
+        checkAgain: 'Check again',
+        relaunch: 'Relaunch',
+        retry: 'Try again',
+        download: 'View release'
+      }
     }
   },
   cache: {

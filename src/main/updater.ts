@@ -9,17 +9,29 @@
 //
 // On other platforms we stay notify-only: point the user at the releases page to download
 // manually. Nothing is auto-installed there.
-import { app, dialog, shell, type BrowserWindow } from 'electron'
+import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron'
 import { autoUpdater, type UpdateDownloadedEvent } from 'electron-updater'
 import { log } from './log'
 import { logPath } from './settings'
 import { appBundlePath, installMacUpdate } from './mac-installer'
+import type { UpdateState } from '../shared/types'
 
 export const RELEASES_URL = 'https://github.com/filiphsps/plucker/releases/latest'
 
 export type GetWindow = () => BrowserWindow | null
 
 let wired = false
+/** Path of the downloaded update zip, set by a successful `downloadUpdateForUi()`. */
+let pendingZipPath: string | null = null
+
+const errMsg = (err: unknown): string => (err instanceof Error ? err.message : String(err))
+
+/** Whether this build can install an update itself (a packaged macOS .app bundle). */
+function canSelfInstall(): boolean {
+  return (
+    app.isPackaged && process.platform === 'darwin' && appBundlePath(app.getPath('exe')) != null
+  )
+}
 
 /** One-time updater configuration: never let electron-updater auto-install (we do it). */
 function ensureWired(): void {
@@ -62,6 +74,79 @@ function downloadUpdateZip(): Promise<string> {
     autoUpdater.once('error', onError)
     autoUpdater.downloadUpdate().catch(onError)
   })
+}
+
+// ---------------------------------------------------------------------------
+// Programmatic API for the Chrome-style About card (no dialogs — the renderer
+// drives the UI). The menu/launch dialog flow above is left untouched.
+// ---------------------------------------------------------------------------
+
+/** Run a check and report the result as an `UpdateState` (never throws). */
+async function checkForUpdatesUi(): Promise<UpdateState> {
+  const currentVersion = app.getVersion()
+  const self = canSelfInstall()
+  if (!app.isPackaged) {
+    return { phase: 'unsupported', currentVersion, canSelfInstall: false }
+  }
+  ensureWired()
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    if (!result || !result.isUpdateAvailable) {
+      return { phase: 'upToDate', currentVersion, canSelfInstall: self }
+    }
+    return {
+      phase: 'available',
+      currentVersion,
+      newVersion: result.updateInfo.version,
+      canSelfInstall: self
+    }
+  } catch (err) {
+    log.error('app', `update check failed: ${errMsg(err)}`)
+    return { phase: 'error', currentVersion, error: errMsg(err), canSelfInstall: self }
+  }
+}
+
+/** Download the update zip (macOS) and stash its path for `installUpdateUi()`. */
+async function downloadUpdateForUi(): Promise<UpdateState> {
+  const currentVersion = app.getVersion()
+  if (!canSelfInstall()) {
+    return { phase: 'available', currentVersion, canSelfInstall: false }
+  }
+  try {
+    pendingZipPath = await downloadUpdateZip()
+    log.info('app', 'update downloaded, ready to install')
+    return { phase: 'ready', currentVersion, canSelfInstall: true }
+  } catch (err) {
+    log.error('app', `update download failed: ${errMsg(err)}`)
+    return { phase: 'error', currentVersion, error: errMsg(err), canSelfInstall: true }
+  }
+}
+
+/** Swap in the downloaded update and relaunch. Returns false if nothing is staged. */
+function installUpdateUi(): boolean {
+  const bundlePath = appBundlePath(app.getPath('exe'))
+  if (!pendingZipPath || !bundlePath) return false
+  log.info('app', 'installing downloaded update and restarting')
+  installMacUpdate({
+    zipPath: pendingZipPath,
+    bundlePath,
+    pid: process.pid,
+    logPath: logPath(),
+    scriptDir: app.getPath('temp')
+  })
+  app.quit()
+  return true
+}
+
+/** Wire the renderer-facing update IPC: check / download / install + progress stream. */
+export function registerUpdaterIpc(getWindow: GetWindow): void {
+  ensureWired()
+  autoUpdater.on('download-progress', (p) => {
+    getWindow()?.webContents.send('updates:progress', Math.round(p.percent))
+  })
+  ipcMain.handle('updates:check', () => checkForUpdatesUi())
+  ipcMain.handle('updates:download', () => downloadUpdateForUi())
+  ipcMain.handle('updates:install', () => installUpdateUi())
 }
 
 /**

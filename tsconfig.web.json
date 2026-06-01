@@ -4,11 +4,13 @@
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.tsx",
+    "src/icon/src/**/*",
     "src/preload/*.d.ts"
   ],
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
       "@renderer/*": [

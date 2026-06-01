@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Database,
   Terminal,
-  ChevronRight
+  ChevronRight,
+  Info,
+  ExternalLink
 } from 'lucide-react'
 import type {
   Settings,
@@ -28,7 +30,20 @@ import { Panel, PanelRow } from './ui/panel'
 import { Switch } from './ui/switch'
 import { Segmented } from './ui/segmented'
 import { Stepper } from './ui/stepper'
+import { UpdateCard } from './ui/update-card'
 import { applyLanguage } from './i18n'
+import { version, repository, author, contributors } from '../../../package.json'
+
+// App metadata for the About panel, normalized from package.json (fields may be a
+// bare string or an object, per npm conventions).
+const REPO_URL = (typeof repository === 'string' ? repository : repository.url)
+  .replace(/^git\+/, '')
+  .replace(/\.git$/, '')
+const RELEASES_URL = `${REPO_URL}/releases/latest`
+const AUTHOR_NAME = typeof author === 'string' ? author : author.name
+const CONTRIBUTOR_NAMES = (contributors as Array<string | { name: string }>).map((c) =>
+  typeof c === 'string' ? c : c.name
+)
 
 const BITRATES: Bitrate[] = [320, 256, 192, 128]
 const MIN_BITRATES: MinBitrate[] = [64, 96, 128, 160]
@@ -296,6 +311,37 @@ export function SettingsPanel({
               onChange={(v) => set({ developer: { ...s.developer, console: v } })}
             />
           </PanelRow>
+        </Panel>
+
+        {/*
+          About — KEEP LAST.
+          This panel must always be the final section of the settings list. Add any new
+          settings Panels ABOVE this block, never below it. It shows the Chrome-style
+          update card plus repository/author/contributor metadata sourced from package.json.
+        */}
+        <Panel icon={Info} title={t('settings.sections.about')}>
+          <div className="border-b border-line2">
+            <UpdateCard version={version} releasesUrl={RELEASES_URL} />
+          </div>
+          <PanelRow name={t('settings.about.repository')} desc={t('settings.about.repositoryDesc')}>
+            <button
+              onClick={() => window.plucker.openExternal(REPO_URL)}
+              className="flex h-8 items-center gap-1.5 rounded-md border border-line bg-raise pl-[13px] pr-2.5 text-[12px] text-ink-dim hover:text-ink"
+            >
+              {t('settings.about.viewRepo')}
+              <ExternalLink size={14} />
+            </button>
+          </PanelRow>
+          <PanelRow name={t('settings.about.author')}>
+            <span className="text-[12.5px] text-ink-dim">{AUTHOR_NAME}</span>
+          </PanelRow>
+          {CONTRIBUTOR_NAMES.length > 0 && (
+            <PanelRow name={t('settings.about.contributors')}>
+              <span className="max-w-[320px] text-right text-[12.5px] text-ink-dim">
+                {CONTRIBUTOR_NAMES.join(', ')}
+              </span>
+            </PanelRow>
+          )}
         </Panel>
       </div>
 

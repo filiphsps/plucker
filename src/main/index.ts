@@ -23,7 +23,7 @@ import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { addEntry, removeEntry, removeTrack } from './history'
 import { killAllChildren } from './spawn'
-import { checkForUpdates } from './updater'
+import { checkForUpdates, registerUpdaterIpc } from './updater'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
 import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
@@ -313,6 +313,7 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   registerIpc(() => mainWindow)
+  registerUpdaterIpc(() => mainWindow)
 
   // Push OS accent-color changes to the renderer so --color-accent updates live.
   systemPreferences.subscribeNotification?.('AppleColorPreferencesChangedNotification', () =>

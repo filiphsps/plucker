@@ -9,7 +9,8 @@ import type {
   TrackMetadata,
   CachedTrack,
   TrackTags,
-  LogEntry
+  LogEntry,
+  UpdateState
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
 
@@ -80,6 +81,15 @@ const api = {
   },
   getLogTail: (): Promise<LogEntry[]> => ipcRenderer.invoke('log:tail'),
   revealLog: (): Promise<void> => ipcRenderer.invoke('log:reveal'),
+  // Chrome-style updater for the About card: check → download → relaunch-to-install.
+  checkForUpdates: (): Promise<UpdateState> => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: (): Promise<UpdateState> => ipcRenderer.invoke('updates:download'),
+  installUpdate: (): Promise<boolean> => ipcRenderer.invoke('updates:install'),
+  onUpdateProgress: (cb: (percent: number) => void): (() => void) => {
+    const fn = (_: unknown, percent: number): void => cb(percent)
+    ipcRenderer.on('updates:progress', fn)
+    return () => ipcRenderer.removeListener('updates:progress', fn)
+  },
   // Toggle the console drawer from the application menu (⌘J).
   onToggleConsole: (cb: () => void): (() => void) => {
     const fn = (): void => cb()

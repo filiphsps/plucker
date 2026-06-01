@@ -7,3 +7,8 @@ resources/bin
 .eslintcache
 *.log*
 .superpowers/
+
+# App icon — generated from src/icon/ by scripts/build-icon.mjs, never committed.
+build/icon.png
+build/.icon-hash
+resources/icon.png
