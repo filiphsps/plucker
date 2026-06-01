@@ -1,6 +1,26 @@
 import { describe, it, expect } from 'vitest'
-import { destFolderFor, parseEntries, finalizePendingTracks } from './pipeline'
+import {
+  destFolderFor,
+  parseEntries,
+  finalizePendingTracks,
+  isRelevantStatusLine
+} from './pipeline'
 import type { TrackProgress } from '../shared/types'
+
+describe('isRelevantStatusLine', () => {
+  it('keeps extraction/progress lines', () => {
+    expect(isRelevantStatusLine('[youtube:tab] Downloading page 1')).toBe(true)
+    expect(isRelevantStatusLine('[download] Downloading playlist: My Mix')).toBe(true)
+  })
+  it('drops the verbose [debug] environment dump', () => {
+    expect(isRelevantStatusLine('[debug] yt-dlp version 2025.01.01')).toBe(false)
+    expect(isRelevantStatusLine('[debug] Proxy map: {}')).toBe(false)
+  })
+  it('drops empty / whitespace-only lines', () => {
+    expect(isRelevantStatusLine('')).toBe(false)
+    expect(isRelevantStatusLine('   ')).toBe(false)
+  })
+})
 
 const track = (over: Partial<TrackProgress>): TrackProgress => ({
   index: 1,

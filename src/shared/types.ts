@@ -74,6 +74,22 @@ export interface JobProgress {
   overall: number
 }
 
+/**
+ * Lifecycle status emitted before the first JobProgress (and on a failed start),
+ * driving the download view's loading panel during playlist/video resolution.
+ */
+export interface JobStatus {
+  phase: 'resolving' | 'error'
+  /** Curated, translatable step. Renderer maps via i18n `resolve.<key>`. */
+  key?: 'launching' | 'resolving' | 'resolved'
+  /** Interpolation params for `key` (e.g. { count }). */
+  params?: Record<string, string | number>
+  /** Raw yt-dlp stderr line, shown verbatim (untranslated). */
+  line?: string
+  /** Human-readable error message when phase === 'error'. */
+  error?: string
+}
+
 /** A single tagged track recorded in history. */
 export interface HistoryTrack {
   file: string

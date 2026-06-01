@@ -7,20 +7,36 @@ import { TransportDeck } from './transport-deck'
 import { Header, type View } from './header'
 import { Page } from './ui/page'
 import { applyLanguage } from './i18n'
-import type { JobProgress } from '../../shared/types'
+import type { JobProgress, JobStatus } from '../../shared/types'
 
 export default function App(): React.JSX.Element {
   const [view, setView] = useState<View>('download')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cacheOpen, setCacheOpen] = useState(false)
   const [progress, setProgress] = useState<JobProgress | null>(null)
+  const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
   const [running, setRunning] = useState(false)
 
   useEffect(() => {
     window.plucker.getSettings().then((s) => applyLanguage(s.language))
   }, [])
 
-  useEffect(() => window.plucker.onProgress(setProgress), [])
+  useEffect(
+    () =>
+      window.plucker.onProgress((p) => {
+        setProgress(p)
+        setStatusLog(null) // real track list takes over
+      }),
+    []
+  )
+
+  useEffect(
+    () =>
+      window.plucker.onStatus((s) =>
+        setStatusLog((prev) => (prev ? [...prev, s].slice(-60) : [s]))
+      ),
+    []
+  )
 
   useEffect(
     () =>
@@ -68,7 +84,15 @@ export default function App(): React.JSX.Element {
             inactive ones (state + DOM preserved, Effects unmounted) and restores
             them on return. Exactly one page is active at a time. */}
         <Page active={!overlayOpen && view === 'download'}>
-          <DownloadView progress={progress} onRunningChange={setRunning} />
+          <DownloadView
+            progress={progress}
+            statusLog={statusLog}
+            onRunningChange={setRunning}
+            onStart={() => {
+              setProgress(null)
+              setStatusLog([])
+            }}
+          />
         </Page>
         <Page active={!overlayOpen && view === 'history'}>
           <HistoryView

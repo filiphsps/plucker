@@ -1,17 +1,24 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
-import type { JobProgress } from '../../shared/types'
+import type { JobProgress, JobStatus } from '../../shared/types'
 import { TrackRow } from './track-row'
+import { statusColumnWidth } from './status-column'
+import { ResolvePanel } from './resolve-panel'
 
 export function DownloadView({
   progress,
-  onRunningChange
+  statusLog,
+  onRunningChange,
+  onStart
 }: {
   progress: JobProgress | null
+  statusLog: JobStatus[] | null
   onRunningChange: (running: boolean) => void
+  onStart: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
+  const statusWidth = statusColumnWidth(t)
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -19,8 +26,11 @@ export function DownloadView({
     if (!url.trim()) return
     setBusy(true)
     onRunningChange(true)
+    onStart()
     try {
       await window.plucker.startDownload(url.trim())
+    } catch {
+      // Resolve/start errors are surfaced in the ResolvePanel via job:status.
     } finally {
       setBusy(false)
       onRunningChange(false)
@@ -57,7 +67,7 @@ export function DownloadView({
         </button>
       </div>
 
-      {progress && (
+      {progress ? (
         <>
           {/* column header */}
           <div className="flex items-center gap-3 border-b border-line py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
@@ -65,7 +75,9 @@ export function DownloadView({
             <span className="flex-1">{t('download.colTrack')}</span>
             <span className="w-[64px]" />
             <span className="w-[188px]">{t('download.colProgress')}</span>
-            <span className="w-16 text-right">{t('download.colStatus')}</span>
+            <span style={{ width: statusWidth }} className="whitespace-nowrap text-right">
+              {t('download.colStatus')}
+            </span>
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
@@ -81,9 +93,9 @@ export function DownloadView({
             ))}
           </div>
         </>
-      )}
-
-      {!progress && (
+      ) : statusLog !== null ? (
+        <ResolvePanel events={statusLog} />
+      ) : (
         <div className="flex flex-1 items-center justify-center text-ink-faint">
           {t('download.emptyHint')}
         </div>

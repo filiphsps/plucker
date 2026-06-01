@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type {
   Settings,
   JobProgress,
+  JobStatus,
   HistoryEntry,
   MenuNavTarget,
   TrackMetadata,
@@ -31,6 +32,11 @@ const api = {
     const fn = (_: unknown, p: JobProgress): void => cb(p)
     ipcRenderer.on('job:progress', fn)
     return () => ipcRenderer.removeListener('job:progress', fn)
+  },
+  onStatus: (cb: (s: JobStatus) => void): (() => void) => {
+    const fn = (_: unknown, s: JobStatus): void => cb(s)
+    ipcRenderer.on('job:status', fn)
+    return () => ipcRenderer.removeListener('job:status', fn)
   },
   // Filesystem navigation + cover art
   openFolder: (path: string): Promise<string> => ipcRenderer.invoke('shell:openFolder', path),

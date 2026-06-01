@@ -1,6 +1,6 @@
 import { mkdirSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Settings, JobProgress, TrackProgress, HistoryTrack } from '../shared/types'
+import type { Settings, JobProgress, JobStatus, TrackProgress, HistoryTrack } from '../shared/types'
 import { sanitizeFileName } from './rename'
 import { buildDownloadArgs, runYtDlp, type ProgressEvent } from './ytdlp'
 import { buildRegistry } from './transforms/registry'
@@ -72,7 +72,20 @@ export function parseEntries(json: {
  * yt-dlp resolves. A synchronous spawn here is what froze the whole UI at the
  * start of every job on slow machines.
  */
-export async function resolvePlaylist(ytdlpPath: string, url: string): Promise<ResolvedJob> {
+/** Verbose yt-dlp stderr is noisy: drop the `[debug]` env dump and blank lines,
+ *  keep extraction/progress/info/warning/error lines for the status panel. */
+export function isRelevantStatusLine(line: string): boolean {
+  const t = line.trim()
+  if (!t) return false
+  if (t.startsWith('[debug] ')) return false
+  return true
+}
+
+export async function resolvePlaylist(
+  ytdlpPath: string,
+  url: string,
+  onLine?: (line: string) => void
+): Promise<ResolvedJob> {
   const { spawn } = await import('node:child_process')
   const { stdout, stderr, code, error } = await new Promise<{
     stdout: string
@@ -80,17 +93,27 @@ export async function resolvePlaylist(ytdlpPath: string, url: string): Promise<R
     code: number
     error?: Error
   }>((resolve) => {
-    const child = spawn(ytdlpPath, ['--flat-playlist', '--dump-single-json', url])
+    // `--verbose` makes yt-dlp emit extraction progress on stderr; stdout stays
+    // pure JSON. Lines are forwarded (filtered) to `onLine` for the status panel.
+    const child = spawn(ytdlpPath, ['--verbose', '--flat-playlist', '--dump-single-json', url])
     let stdout = ''
     let stderr = ''
+    let pending = ''
     child.stdout.on('data', (d: Buffer) => {
       stdout += d.toString()
     })
     child.stderr.on('data', (d: Buffer) => {
       stderr += d.toString()
+      pending += d.toString()
+      const parts = pending.split('\n')
+      pending = parts.pop() ?? ''
+      for (const ln of parts) if (onLine && isRelevantStatusLine(ln)) onLine(ln.trim())
     })
     child.on('error', (error) => resolve({ stdout, stderr, code: -1, error }))
-    child.on('close', (c) => resolve({ stdout, stderr, code: c ?? -1 }))
+    child.on('close', (c) => {
+      if (onLine && isRelevantStatusLine(pending)) onLine(pending.trim())
+      resolve({ stdout, stderr, code: c ?? -1 })
+    })
   })
   if (error) throw new Error(`yt-dlp failed to start: ${error.message}`)
   if (code !== 0) throw new Error(stderr.slice(-2000) || `yt-dlp exited ${code}`)
@@ -117,6 +140,8 @@ export interface RunJobDeps {
   settings: Settings
   homeBase: string
   onProgress: (p: JobProgress) => void
+  /** Pre-resolution lifecycle status (resolving phase + console lines). */
+  onStatus?: (s: JobStatus) => void
   mbFetch?: typeof fetch
   signal?: AbortSignal
   /** When set, download into this exact folder instead of deriving from base/title. */
@@ -168,10 +193,14 @@ function trackProgress(t: TrackProgress): number {
 
 /** Full pipeline: resolve all entries → download → transform each track as it lands. */
 export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> {
-  const { bin, settings, homeBase, onProgress, signal } = deps
+  const { bin, settings, homeBase, onProgress, onStatus, signal } = deps
   log.info('pipeline', `job start: ${url}`)
   const jobSpan = startSpan('job', 'pipeline')
-  const job = await timed('resolve-playlist', 'pipeline', () => resolvePlaylist(bin.ytdlp, url))
+  onStatus?.({ phase: 'resolving', key: 'launching' })
+  const job = await timed('resolve-playlist', 'pipeline', () =>
+    resolvePlaylist(bin.ytdlp, url, (line) => onStatus?.({ phase: 'resolving', line }))
+  )
+  onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
   log.info('pipeline', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
   const dest =
     deps.folderOverride ??

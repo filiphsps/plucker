@@ -54,6 +54,14 @@ export default {
     tracks_one: '{{count}} track',
     tracks_other: '{{count}} tracks'
   },
+  resolve: {
+    title: 'Starting download',
+    launching: 'Launched yt-dlp',
+    resolving: 'Resolving playlist…',
+    resolved_one: 'Found {{count}} track',
+    resolved_other: 'Found {{count}} tracks',
+    errorTitle: 'Couldn’t start download'
+  },
   status: {
     queued: 'queued',
     downloading: 'downloading',

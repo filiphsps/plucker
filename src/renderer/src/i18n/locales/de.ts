@@ -55,6 +55,14 @@ const de: typeof en = {
     tracks_one: '{{count}} Titel',
     tracks_other: '{{count}} Titel'
   },
+  resolve: {
+    title: 'Download wird gestartet',
+    launching: 'yt-dlp gestartet',
+    resolving: 'Playlist wird aufgelöst…',
+    resolved_one: '{{count}} Titel gefunden',
+    resolved_other: '{{count}} Titel gefunden',
+    errorTitle: 'Download konnte nicht gestartet werden'
+  },
   status: {
     queued: 'in Warteschlange',
     downloading: 'lädt herunter',

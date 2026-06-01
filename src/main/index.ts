@@ -131,35 +131,45 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('job:start', async (_e, url: string, folderOverride?: string) => {
     const settings = loadSettings()
     abort = new AbortController()
-    const result = await runJob(url, {
-      bin: currentBin(),
-      settings,
-      homeBase: expandHome(settings.downloads.baseFolder),
-      cache: getMetaCache(),
-      onProgress: (p) => {
-        const win = getWindow()
-        win?.webContents.send('job:progress', p)
-        win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
-      },
-      signal: abort.signal,
-      folderOverride
-    })
-    getWindow()?.setProgressBar(-1)
+    try {
+      const result = await runJob(url, {
+        bin: currentBin(),
+        settings,
+        homeBase: expandHome(settings.downloads.baseFolder),
+        cache: getMetaCache(),
+        onProgress: (p) => {
+          const win = getWindow()
+          win?.webContents.send('job:progress', p)
+          win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
+        },
+        onStatus: (s) => getWindow()?.webContents.send('job:status', s),
+        signal: abort.signal,
+        folderOverride
+      })
+      getWindow()?.setProgressBar(-1)
 
-    // Record to history (re-load fresh so we don't clobber edits made during the run).
-    if (result.tracks.length > 0) {
-      const entry: HistoryEntry = {
-        id: randomUUID(),
-        url: result.url,
-        title: result.title,
-        folder: result.folder,
-        kind: result.kind,
-        completedAt: new Date().toISOString(),
-        tracks: result.tracks
+      // Record to history (re-load fresh so we don't clobber edits made during the run).
+      if (result.tracks.length > 0) {
+        const entry: HistoryEntry = {
+          id: randomUUID(),
+          url: result.url,
+          title: result.title,
+          folder: result.folder,
+          kind: result.kind,
+          completedAt: new Date().toISOString(),
+          tracks: result.tracks
+        }
+        const fresh = loadSettings()
+        saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+        getWindow()?.webContents.send('history:changed')
       }
-      const fresh = loadSettings()
-      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-      getWindow()?.webContents.send('history:changed')
+    } catch (err) {
+      getWindow()?.setProgressBar(-1)
+      getWindow()?.webContents.send('job:status', {
+        phase: 'error',
+        error: err instanceof Error ? err.message : String(err)
+      })
+      throw err
     }
   })
 }
