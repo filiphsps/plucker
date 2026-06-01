@@ -1,6 +1,8 @@
 appId: com.plucker.app
 productName: Plucker
-compression: normal
+# store skips the extra archive compression pass: faster release builds for a
+# marginally larger artifact — the DMG is already zlib-compressed (UDZO) below.
+compression: store
 directories:
   buildResources: build
 files:
