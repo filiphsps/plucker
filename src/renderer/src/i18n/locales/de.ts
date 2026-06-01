@@ -4,12 +4,31 @@ const de: typeof en = {
   app: {
     settings: 'Einstellungen'
   },
+  nav: {
+    download: 'Laden',
+    history: 'Verlauf'
+  },
+  actions: {
+    redownload: 'Erneut laden',
+    delete: 'Löschen',
+    openFolder: 'Ordner öffnen',
+    reveal: 'Im Ordner anzeigen',
+    confirmDelete: 'Von der Festplatte löschen? Dies kann nicht rückgängig gemacht werden.'
+  },
+  track: {
+    coverAlt: 'Albumcover'
+  },
+  history: {
+    title: 'Verlauf',
+    empty: 'Noch keine Downloads'
+  },
   download: {
     urlLabel: 'YouTube-Playlist- oder Video-URL einfügen',
     urlPlaceholder: 'https://youtube.com/playlist…',
     pluck: 'Laden',
     plucking: 'Lädt …',
     cancel: 'Abbrechen',
+    clear: 'Leeren',
     tracks_one: '{{count}} Titel',
     tracks_other: '{{count}} Titel'
   },

@@ -2,12 +2,31 @@ export default {
   app: {
     settings: 'Settings'
   },
+  nav: {
+    download: 'Download',
+    history: 'History'
+  },
+  actions: {
+    redownload: 'Redownload',
+    delete: 'Delete',
+    openFolder: 'Open folder',
+    reveal: 'Reveal in folder',
+    confirmDelete: 'Delete from disk? This cannot be undone.'
+  },
+  track: {
+    coverAlt: 'Album cover'
+  },
+  history: {
+    title: 'History',
+    empty: 'No downloads yet'
+  },
   download: {
     urlLabel: 'Paste a YouTube playlist or video URL',
     urlPlaceholder: 'https://youtube.com/playlist…',
     pluck: 'Pluck',
     plucking: 'Plucking…',
     cancel: 'Cancel',
+    clear: 'Clear',
     tracks_one: '{{count}} track',
     tracks_other: '{{count}} tracks'
   },
