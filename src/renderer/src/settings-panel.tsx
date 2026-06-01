@@ -11,7 +11,14 @@ import {
   Database,
   ChevronRight
 } from 'lucide-react'
-import type { Settings, Bitrate, MinBitrate, CookieSource, Language } from '../../shared/types'
+import type {
+  Settings,
+  Bitrate,
+  MinBitrate,
+  CompressionLevel,
+  CookieSource,
+  Language
+} from '../../shared/types'
 import type { TransformManifest } from '../../shared/transforms'
 import { TransformsSection } from './transforms-section'
 import { Panel, PanelRow } from './ui/panel'
@@ -178,7 +185,22 @@ export function SettingsPanel({
               value={s.performance.parallel}
               min={1}
               max={16}
-              onChange={(n) => set({ performance: { parallel: n } })}
+              onChange={(n) => set({ performance: { ...s.performance, parallel: n } })}
+            />
+          </PanelRow>
+          <PanelRow
+            name={t('settings.performance.compressionLevel')}
+            desc={t('settings.performance.compressionLevelDesc')}
+          >
+            <Stepper
+              value={s.performance.compressionLevel}
+              min={0}
+              max={9}
+              onChange={(n) =>
+                set({
+                  performance: { ...s.performance, compressionLevel: n as CompressionLevel }
+                })
+              }
             />
           </PanelRow>
         </Panel>

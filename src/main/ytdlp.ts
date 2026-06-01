@@ -32,6 +32,11 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
     '--audio-quality',
     `${settings.audio.preferredBitrate}K`,
     '--embed-thumbnail',
+    // libmp3lame algorithm effort: higher = faster encode (big help on slow CPUs),
+    // inaudible at our bitrates. Use -compression_level (not -q:a, which would
+    // switch the CBR encode to VBR and change the target bitrate).
+    '--postprocessor-args',
+    `ExtractAudio:-compression_level ${settings.performance.compressionLevel}`,
     '--embed-metadata',
     '--ffmpeg-location',
     ffmpegPath,

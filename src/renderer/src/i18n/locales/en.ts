@@ -112,7 +112,10 @@ export default {
     },
     performance: {
       parallel: 'Parallel downloads',
-      parallelDesc: 'How many tracks to pluck at once (1–16)'
+      parallelDesc: 'How many tracks to pluck at once (1–16)',
+      compressionLevel: 'Encoding effort',
+      compressionLevelDesc:
+        'libmp3lame quality vs speed (0 = best, 9 = fastest). Higher is much faster on older Macs and inaudible at high bitrates.'
     },
     updates: {
       checkOnLaunch: 'Check for updates on launch',

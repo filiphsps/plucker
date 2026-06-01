@@ -37,7 +37,7 @@ describe('loadSettings', () => {
 
 describe('saveSettings', () => {
   it('round-trips', () => {
-    const next = { ...DEFAULT_SETTINGS, performance: { parallel: 8 } }
+    const next = { ...DEFAULT_SETTINGS, performance: { parallel: 8, compressionLevel: 7 as const } }
     saveSettings(file, next)
     expect(JSON.parse(readFileSync(file, 'utf8')).performance.parallel).toBe(8)
   })

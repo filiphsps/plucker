@@ -53,6 +53,14 @@ describe('buildDownloadArgs', () => {
     expect(args[fi + 1]).toBe('ba[abr>=128]') // no "/ba" fallback → skips below-floor videos
   })
 
+  it('passes the libmp3lame compression level to the audio extractor', () => {
+    const s = { ...DEFAULT_SETTINGS, performance: { parallel: 4, compressionLevel: 7 as const } }
+    const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })
+    const i = args.indexOf('--postprocessor-args')
+    expect(i).toBeGreaterThanOrEqual(0)
+    expect(args[i + 1]).toBe('ExtractAudio:-compression_level 7')
+  })
+
   it('downloads the whole playlist by default', () => {
     const args = buildDownloadArgs({
       url: 'u',

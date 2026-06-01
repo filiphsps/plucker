@@ -113,7 +113,10 @@ const de: typeof en = {
     },
     performance: {
       parallel: 'Parallele Downloads',
-      parallelDesc: 'Wie viele Titel gleichzeitig geladen werden (1–16)'
+      parallelDesc: 'Wie viele Titel gleichzeitig geladen werden (1–16)',
+      compressionLevel: 'Encoding-Aufwand',
+      compressionLevelDesc:
+        'libmp3lame Qualität vs. Tempo (0 = beste, 9 = schnellste). Höhere Werte sind auf älteren Macs deutlich schneller und bei hohen Bitraten nicht hörbar.'
     },
     updates: {
       checkOnLaunch: 'Beim Start nach Updates suchen',

@@ -4,6 +4,12 @@ export type CookieSource = 'auto' | 'none' | 'chrome' | 'edge' | 'safari' | 'fir
 
 export type Bitrate = 320 | 256 | 192 | 128 // MP3 re-encode target
 export type MinBitrate = 64 | 96 | 128 | 160 // source-audio floor
+/**
+ * libmp3lame algorithm-quality / effort (ffmpeg `-compression_level`): 0 = best
+ * but slowest, 9 = fastest but lowest. Higher values cut encode time on slow
+ * CPUs and are effectively inaudible at high bitrates. Default 7.
+ */
+export type CompressionLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
 /** UI language: 'system' follows the OS locale, otherwise an explicit override. */
 export type Language = 'system' | 'en' | 'de'
@@ -19,7 +25,7 @@ export interface Settings {
   audio: { format: 'mp3'; preferredBitrate: Bitrate; minBitrate: MinBitrate | null }
   cookies: { source: CookieSource }
   transforms: TransformInstance[]
-  performance: { parallel: number }
+  performance: { parallel: number; compressionLevel: CompressionLevel }
   updates: { checkOnLaunch: boolean }
 }
 
