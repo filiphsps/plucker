@@ -1,34 +1,41 @@
 // Sets up the bundled binaries the app needs (yt-dlp + ffmpeg) under resources/bin/
-// so Plucker works out of the box. Runs automatically on `postinstall` and is
-// idempotent (skips anything already present). Safe to re-run manually:
-//   pnpm fetch-binaries
+// so Plucker works out of the box. Runs automatically on `postinstall` (host arch
+// only) and is idempotent. Safe to re-run manually:
+//   pnpm fetch-binaries          # host arch only (dev)
+//   pnpm fetch-binaries --all    # both arm64 + x64 (for packaging two DMGs)
 //
 // Layout produced (matches src/main/binaries.ts → binaryPaths):
 //   resources/bin/universal/yt-dlp     (universal2 macOS binary, macOS 10.15+)
-//   resources/bin/<arch>/ffmpeg        (static build for the current arch)
-//
-// ffmpeg comes from the `ffmpeg-static` dependency (downloaded for the host arch
-// during install). To bundle the *other* arch's ffmpeg when packaging both DMGs,
-// set FFMPEG_ARM64_URL / FFMPEG_X64_URL to verified static-build URLs.
+//   resources/bin/<arch>/ffmpeg        (static build per arch)
 import { mkdirSync, chmodSync, existsSync, copyFileSync, createWriteStream } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
+import { createGunzip } from 'node:zlib'
 import { createRequire } from 'node:module'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BIN = join(ROOT, 'resources', 'bin')
-const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
+const HOST_ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
 
 // Always-valid asset: GitHub's "latest" redirect resolves to the newest release.
 const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos'
+
+// Static ffmpeg builds (gzipped), pinned to the ffmpeg-static release. Per-arch env
+// overrides win if set. These let us bundle ffmpeg for an arch other than the host.
+const FFMPEG_RELEASE = 'b6.1.1'
+const ffmpegUrl = (arch) =>
+  process.env[`FFMPEG_${arch.toUpperCase()}_URL`] ??
+  `https://github.com/eugeneware/ffmpeg-static/releases/download/${FFMPEG_RELEASE}/ffmpeg-darwin-${arch}.gz`
 
 async function downloadTo(url, dest) {
   const res = await fetch(url, { redirect: 'follow' })
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${url}`)
   mkdirSync(dirname(dest), { recursive: true })
-  await pipeline(Readable.fromWeb(res.body), createWriteStream(dest))
+  const body = Readable.fromWeb(res.body)
+  const stream = url.endsWith('.gz') ? pipeline(body, createGunzip(), createWriteStream(dest)) : pipeline(body, createWriteStream(dest))
+  await stream
   chmodSync(dest, 0o755)
 }
 
@@ -50,41 +57,34 @@ async function ensureFfmpeg(arch) {
     return
   }
 
-  // Explicit per-arch URL override (used to fetch the non-host arch for packaging).
-  const urlOverride = process.env[`FFMPEG_${arch.toUpperCase()}_URL`]
-  if (urlOverride) {
-    console.log(`↓ downloading ffmpeg (${arch}) …`)
-    await downloadTo(urlOverride, dest)
-    console.log('✓ ffmpeg →', dest)
-    return
+  // Fast path for the host arch: reuse the binary the ffmpeg-static dep already
+  // downloaded (decompressed). Other arches always come from the pinned URL.
+  if (arch === HOST_ARCH && !process.env[`FFMPEG_${arch.toUpperCase()}_URL`]) {
+    try {
+      const src = createRequire(import.meta.url)('ffmpeg-static')
+      if (src && existsSync(src)) {
+        mkdirSync(dirname(dest), { recursive: true })
+        copyFileSync(src, dest)
+        chmodSync(dest, 0o755)
+        console.log('✓ ffmpeg →', dest)
+        return
+      }
+    } catch {
+      // fall through to URL download
+    }
   }
 
-  // Default: copy the host-arch binary provided by the ffmpeg-static dependency.
-  if (arch !== ARCH) {
-    throw new Error(
-      `no ffmpeg source for ${arch} (host is ${ARCH}); set FFMPEG_${arch.toUpperCase()}_URL`
-    )
-  }
-  const require = createRequire(import.meta.url)
-  let src
-  try {
-    src = require('ffmpeg-static')
-  } catch {
-    src = null
-  }
-  if (!src || !existsSync(src)) {
-    throw new Error('ffmpeg-static binary missing — run `pnpm install` to fetch it')
-  }
-  mkdirSync(dirname(dest), { recursive: true })
-  copyFileSync(src, dest)
-  chmodSync(dest, 0o755)
+  console.log(`↓ downloading ffmpeg (${arch}) …`)
+  await downloadTo(ffmpegUrl(arch), dest)
   console.log('✓ ffmpeg →', dest)
 }
 
 async function main() {
-  console.log(`Setting up binaries for ${process.platform}/${ARCH} …`)
+  const all = process.argv.includes('--all')
+  const arches = all ? ['arm64', 'x64'] : [HOST_ARCH]
+  console.log(`Setting up binaries (${arches.join(', ')}) …`)
   await ensureYtDlp()
-  await ensureFfmpeg(ARCH)
+  for (const arch of arches) await ensureFfmpeg(arch)
   console.log('Binary setup complete.')
 }
 
