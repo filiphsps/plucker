@@ -15,16 +15,17 @@
     "dev": "electron-vite dev",
     "test": "vitest run",
     "build": "npm run typecheck && electron-vite build",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && node scripts/fetch-binaries.mjs",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac --arm64 --x64 --config electron-builder.yml",
     "build:linux": "npm run build && electron-builder --linux",
-    "fetch-binaries": "tsx scripts/fetch-binaries.ts"
+    "fetch-binaries": "node scripts/fetch-binaries.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "ffmpeg-static": "^5.3.0",
     "node-id3": "^0.2.9"
   },
   "devDependencies": {
@@ -48,7 +49,6 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "tailwindcss": "^3.4.19",
-    "tsx": "^4.22.3",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
     "vitest": "^4.1.7"
