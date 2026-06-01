@@ -4,6 +4,7 @@ import { arch } from 'node:os'
 import { rmSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { version as appVersion } from '../../package.json'
 import icon from '../../resources/icon.png?asset'
 import { loadSettings, saveSettings, settingsPath, expandHome } from './settings'
 import { binaryPaths } from './binaries'
@@ -11,6 +12,10 @@ import { runJob } from './pipeline'
 import { readCoverDataUrl } from './tagger'
 import { addEntry, removeEntry, removeTrack } from './history'
 import type { Settings, HistoryEntry } from '../shared/types'
+
+// Set the app name as early as possible so the macOS app menu + About panel
+// (built when the app becomes ready) read "Plucker" instead of "Electron".
+app.setName('Plucker')
 
 let mainWindow: BrowserWindow | null = null
 let abort: AbortController | null = null
@@ -129,6 +134,14 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.plucker.app')
+
+  // macOS "About Plucker" panel details.
+  app.setAboutPanelOptions({
+    applicationName: 'Plucker',
+    applicationVersion: appVersion,
+    copyright: '© 2026 Filiph Sandström',
+    credits: 'Download YouTube playlists as tagged MP3s'
+  })
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
