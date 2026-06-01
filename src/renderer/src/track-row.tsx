@@ -302,6 +302,7 @@ export function TrackRow({
           key={editing ? 'edit' : 'view'}
           meta={resolvedMeta}
           source={source}
+          file={track.file}
           state={detailState}
           editing={editing}
           onSave={onSaveTags}

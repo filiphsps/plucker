@@ -47,6 +47,7 @@ const EDIT_FIELDS: Array<{ key: keyof TrackTags; labelKey: string }> = [
 export function TrackDetail({
   meta,
   source,
+  file,
   state = 'ready',
   editing = false,
   onSave,
@@ -55,6 +56,8 @@ export function TrackDetail({
 }: {
   meta: TrackMetadata | null
   source?: TrackSource
+  /** Absolute path to the on-disk file; shown as a tooltip on the size cell. */
+  file?: string
   state?: 'loading' | 'ready' | 'unavailable'
   editing?: boolean
   onSave?: (tags: TrackTags) => void
@@ -88,7 +91,7 @@ export function TrackDetail({
     { label: t('meta.audio.sampleRate'), value: formatSampleRate(a.sampleRateHz) },
     { label: t('meta.audio.channels'), value: formatChannels(a.channels) },
     { label: t('meta.audio.codec'), value: formatCodec(a.codec) },
-    { label: t('meta.audio.size'), value: formatBytes(a.sizeBytes) }
+    { label: t('meta.audio.size'), value: formatBytes(a.sizeBytes), tooltip: file || undefined }
   ]
 
   if (editing) {
