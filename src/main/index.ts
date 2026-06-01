@@ -1,11 +1,48 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { arch } from 'node:os'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { loadSettings, saveSettings, settingsPath, expandHome } from './settings'
+import { binaryPaths } from './binaries'
+import { runJob } from './pipeline'
+import type { Settings } from '../shared/types'
+
+let mainWindow: BrowserWindow | null = null
+let abort: AbortController | null = null
+
+function registerIpc(getWindow: () => BrowserWindow | null): void {
+  ipcMain.handle('settings:get', () => loadSettings())
+  ipcMain.handle('settings:save', (_e, s: Settings) => saveSettings(settingsPath(), s))
+  ipcMain.handle('dialog:chooseFolder', async () => {
+    const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
+    return r.canceled ? null : r.filePaths[0]
+  })
+  ipcMain.handle('job:cancel', () => {
+    abort?.abort()
+  })
+  ipcMain.handle('job:start', async (_e, url: string) => {
+    const settings = loadSettings()
+    const bin = binaryPaths({
+      packaged: app.isPackaged,
+      arch: arch() === 'arm64' ? 'arm64' : 'x64',
+      resourcesPath: process.resourcesPath,
+      projectRoot: app.getAppPath()
+    })
+    abort = new AbortController()
+    await runJob(url, {
+      bin,
+      settings,
+      homeBase: expandHome(settings.downloads.baseFolder),
+      onProgress: (p) => getWindow()?.webContents.send('job:progress', p),
+      signal: abort.signal
+    })
+  })
+}
 
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
@@ -16,12 +53,13 @@ function createWindow(): void {
       sandbox: false
     }
   })
+  mainWindow = win
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  win.on('ready-to-show', () => {
+    win.show()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
@@ -29,9 +67,9 @@ function createWindow(): void {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
@@ -51,6 +89,8 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  registerIpc(() => mainWindow)
 
   createWindow()
 

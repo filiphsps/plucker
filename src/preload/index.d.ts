@@ -1,8 +1,9 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
+import type { PluckerApi } from './index'
 
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: unknown
+    plucker: PluckerApi
   }
 }
