@@ -6,6 +6,12 @@ import type { TransformManifest } from '../shared/transforms'
 // Custom APIs for renderer
 const api = {
   getSystemLocale: (): Promise<string> => ipcRenderer.invoke('app:locale'),
+  getAccentColor: (): Promise<string> => ipcRenderer.invoke('accent:get'),
+  onAccentChanged: (cb: (hex: string) => void): (() => void) => {
+    const fn = (_: unknown, hex: string): void => cb(hex)
+    ipcRenderer.on('accent:changed', fn)
+    return () => ipcRenderer.removeListener('accent:changed', fn)
+  },
   getSettings: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: Settings): Promise<void> => ipcRenderer.invoke('settings:save', s),
   getTransformCatalog: (): Promise<TransformManifest[]> => ipcRenderer.invoke('transforms:catalog'),

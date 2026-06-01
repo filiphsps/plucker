@@ -30,7 +30,7 @@ describe('SchemaForm', () => {
         t={(k) => k}
       />
     )
-    expect(html).toContain('type="checkbox"')
+    expect(html).toContain('role="switch"') // booleans render the themed Switch
     expect(html).toContain('type="number"')
     expect(html).toContain('<select')
     expect(html).toContain('value="yo"')

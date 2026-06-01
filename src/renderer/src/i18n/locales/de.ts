@@ -20,9 +20,19 @@ const de: typeof en = {
   track: {
     coverAlt: 'Albumcover'
   },
+  deck: {
+    nowPlucking: 'WIRD GELADEN',
+    jobProgress: 'FORTSCHRITT',
+    tracks: 'TITEL'
+  },
   history: {
     title: 'Verlauf',
-    empty: 'Noch keine Downloads'
+    empty: 'Noch keine Downloads',
+    search: 'Verlauf durchsuchen …',
+    completeBadge: 'FERTIG',
+    failedBadge_one: '{{count}} FEHLER',
+    failedBadge_other: '{{count}} FEHLER',
+    colFile: 'Datei'
   },
   download: {
     urlLabel: 'YouTube-Playlist- oder Video-URL einfügen',
@@ -31,6 +41,12 @@ const de: typeof en = {
     plucking: 'Lädt …',
     cancel: 'Abbrechen',
     clear: 'Leeren',
+    colTrack: 'Titel',
+    colProgress: 'Fortschritt',
+    colStatus: 'Status',
+    colSource: 'Quelle',
+    colDest: 'Ziel',
+    emptyHint: 'Füge oben eine Playlist- oder Video-URL ein und klicke auf Laden.',
     tracks_one: '{{count}} Titel',
     tracks_other: '{{count}} Titel'
   },
@@ -45,40 +61,53 @@ const de: typeof en = {
   settings: {
     title: 'Einstellungen',
     done: 'Fertig',
+    cancel: 'Abbrechen',
+    save: 'Änderungen speichern',
     sections: {
-      language: 'Sprache',
+      language: 'Allgemein',
       downloads: 'Downloads',
       audio: 'Audio',
-      cookies: 'Cookies',
-      transforms: 'Transformationen',
+      cookies: 'Netzwerk & Cookies',
+      transforms: 'Transformationskette',
       performance: 'Leistung',
       updates: 'Aktualisierungen'
     },
     language: {
       label: 'Sprache',
+      desc: 'Oberflächensprache für Plucker',
       system: 'System'
     },
     downloads: {
-      choose: 'Auswählen',
-      perPlaylistSubfolder: 'Unterordner pro Playlist'
+      choose: 'Auswählen …',
+      folder: 'Bibliotheksordner',
+      folderDesc: 'Wo geladene Titel gespeichert werden',
+      perPlaylistSubfolder: 'Unterordner pro Playlist',
+      subfolderDesc: 'Einen nach jeder Playlist benannten Ordner erstellen'
     },
     audio: {
       preferredBitrate: 'Bevorzugte Bitrate',
-      minQuality: 'Mindest-Quellqualität (darunter überspringen)',
+      preferredDesc: 'Ziel-MP3-Qualität, wenn verfügbar',
+      minQuality: 'Mindestqualität',
+      minDesc: 'Quellen unter dieser Bitrate überspringen',
       off: 'Aus'
     },
     cookies: {
+      label: 'Cookie-Quelle',
+      desc: 'Browser-Cookies für altersbeschränkte oder private Inhalte importieren',
       auto: 'Automatisch',
       none: 'Keine'
     },
     transforms: {
-      add: 'Transformation hinzufügen …'
+      add: 'Transformation hinzufügen …',
+      runsNote: 'läuft von oben nach unten für jeden Titel'
     },
     performance: {
-      parallel: 'Parallele Downloads'
+      parallel: 'Parallele Downloads',
+      parallelDesc: 'Wie viele Titel gleichzeitig geladen werden (1–16)'
     },
     updates: {
-      checkOnLaunch: 'Beim Start nach Updates suchen'
+      checkOnLaunch: 'Beim Start nach Updates suchen',
+      desc: 'Benachrichtigen, wenn eine neue Version verfügbar ist'
     }
   },
   transforms: {

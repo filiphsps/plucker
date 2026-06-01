@@ -1,107 +1,86 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { JobProgress, TrackStatus } from '../../shared/types'
+import { Download } from 'lucide-react'
+import type { JobProgress } from '../../shared/types'
 import { TrackRow } from './track-row'
 
-const ICON: Record<TrackStatus, string> = {
-  queued: '○',
-  downloading: '⬇',
-  transforming: '🏷',
-  done: '✓',
-  failed: '✗',
-  skipped: '–'
-}
-
-export function DownloadView(): React.JSX.Element {
+export function DownloadView({
+  progress,
+  onRunningChange
+}: {
+  progress: JobProgress | null
+  onRunningChange: (running: boolean) => void
+}): React.JSX.Element {
   const { t } = useTranslation()
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState<JobProgress | null>(null)
-
-  useEffect(() => window.plucker.onProgress(setProgress), [])
-
-  const done = progress?.tracks.filter((x) => x.status === 'done').length ?? 0
-
-  const statusText = (status: TrackStatus, percent?: number, transformPercent?: number): string =>
-    status === 'downloading'
-      ? `${Math.round(percent ?? 0)}%`
-      : status === 'transforming'
-        ? `${Math.round(transformPercent ?? 0)}%`
-        : t(`status.${status}`)
 
   async function start(): Promise<void> {
     if (!url.trim()) return
     setBusy(true)
+    onRunningChange(true)
     try {
       await window.plucker.startDownload(url.trim())
     } finally {
       setBusy(false)
+      onRunningChange(false)
     }
   }
 
   return (
-    <div className="flex-1 min-h-0 p-6 flex flex-col gap-5">
-      <div>
-        <label className="text-sm text-neutral-400">{t('download.urlLabel')}</label>
-        <div className="mt-2 flex gap-2">
+    <div className="flex h-full flex-col">
+      {/* command bar */}
+      <div className="flex gap-2.5 border-b border-line bg-panel2 px-4 py-3">
+        <div className="flex flex-1 items-center gap-2.5 rounded-[7px] border border-line bg-[#0a0b0e] px-3">
+          <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-accent" />
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && start()}
             placeholder={t('download.urlPlaceholder')}
-            className="flex-1 rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 outline-none focus:border-neutral-600"
+            className="h-9 w-full bg-transparent font-mono text-[12px] text-ink outline-none placeholder:text-ink-faint"
           />
-          <button
-            onClick={start}
-            disabled={busy}
-            className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-5 py-2 font-medium"
-          >
-            {busy ? t('download.plucking') : t('download.pluck')}
-          </button>
         </div>
+        <button
+          onClick={start}
+          disabled={busy}
+          className="flex h-9 items-center gap-[7px] rounded-[7px] bg-accent px-[22px] text-[13px] font-semibold text-white disabled:opacity-50"
+        >
+          <Download size={15} strokeWidth={2.2} />
+          {busy ? t('download.plucking') : t('download.pluck')}
+        </button>
       </div>
 
       {progress && (
-        <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-neutral-800">
-          <div className="px-4 py-2 text-sm border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-950">
-            <button
-              onClick={() => progress.folder && window.plucker.openFolder(progress.folder)}
-              title={t('actions.openFolder')}
-              className="text-neutral-300 hover:text-white truncate text-left"
-            >
-              {progress.jobTitle} · {t('download.tracks', { count: progress.total })}
-            </button>
-            {!busy && (
-              <button
-                onClick={() => setProgress(null)}
-                className="text-neutral-400 hover:text-neutral-100 shrink-0 ml-3"
-              >
-                {t('download.clear')}
-              </button>
-            )}
+        <>
+          {/* column header */}
+          <div className="flex items-center gap-3 border-b border-line bg-panel2 py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
+            <span className="w-[22px]">#</span>
+            <span className="flex-1">{t('download.colTrack')}</span>
+            <span className="w-[188px]">{t('download.colProgress')}</span>
+            <span className="w-16 text-right">{t('download.colStatus')}</span>
           </div>
-          <ul className="divide-y divide-neutral-900">
-            {progress.tracks.map((track) => (
-              <li key={track.index}>
-                <TrackRow
-                  track={track}
-                  statusLabel={`${ICON[track.status]} ${statusText(track.status, track.percent, track.transformPercent)}`}
-                />
-              </li>
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            {progress.tracks.map((tr) => (
+              <TrackRow
+                key={tr.index}
+                variant="download"
+                index={tr.index}
+                track={tr}
+                detail={{
+                  [t('download.colSource')]: tr.videoId ? `youtube.com/watch?v=${tr.videoId}` : '—',
+                  [t('download.colDest')]: tr.file ?? '—'
+                }}
+              />
             ))}
-          </ul>
-          <div className="px-4 py-2 border-t border-neutral-800 text-sm flex items-center justify-between sticky bottom-0 bg-neutral-950">
-            <span>
-              {done} / {progress.total}
-            </span>
-            {busy && (
-              <button
-                onClick={() => window.plucker.cancel()}
-                className="text-red-400 hover:text-red-300"
-              >
-                {t('download.cancel')}
-              </button>
-            )}
           </div>
+        </>
+      )}
+
+      {!progress && (
+        <div className="flex flex-1 items-center justify-center text-ink-faint">
+          {t('download.emptyHint')}
         </div>
       )}
     </div>

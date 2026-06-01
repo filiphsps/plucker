@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Music, Folder, RotateCw, Trash2, Search, Check } from 'lucide-react'
 import type { HistoryEntry } from '../../shared/types'
 import { TrackRow } from './track-row'
 
@@ -14,6 +15,7 @@ export function HistoryView({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     window.plucker.getHistory().then(setHistory)
@@ -24,87 +26,143 @@ export function HistoryView({
     onNavigateDownload()
     window.plucker.startDownload(url, folder)
   }
-
   async function deleteEntry(id: string): Promise<void> {
     if (!window.confirm(t('actions.confirmDelete'))) return
     setHistory(await window.plucker.removeHistoryEntry(id, true))
   }
-
   async function deleteTrack(id: string, file: string): Promise<void> {
     if (!window.confirm(t('actions.confirmDelete'))) return
     setHistory(await window.plucker.removeHistoryTrack(id, file, true))
   }
 
-  const iconBtn =
-    'text-neutral-400 hover:text-neutral-100 px-1.5 py-0.5 rounded text-xs border border-neutral-800'
+  const filtered = history.filter((e) =>
+    query.trim() ? e.title.toLowerCase().includes(query.trim().toLowerCase()) : true
+  )
 
   if (history.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-neutral-500">
+      <div className="flex h-full items-center justify-center text-ink-faint">
         {t('history.empty')}
       </div>
     )
   }
 
+  const ra =
+    'flex h-7 w-7 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink'
+  const jbtn =
+    'flex h-[30px] items-center gap-1.5 rounded-md border border-line bg-raise px-2.5 text-[12px] text-ink-dim hover:text-ink'
+
   return (
-    <div className="flex-1 min-h-0 overflow-auto p-6 flex flex-col gap-4">
-      {history.map((entry) => (
-        <div key={entry.id} className="rounded-lg border border-neutral-800">
-          <div className="px-4 py-2 border-b border-neutral-800 flex items-center justify-between gap-3">
-            <button
-              onClick={() => window.plucker.openFolder(entry.folder)}
-              title={t('actions.openFolder')}
-              className="min-w-0 text-left"
-            >
-              <div className="truncate text-neutral-200">{entry.title}</div>
-              <div className="truncate text-xs text-neutral-500">
-                {new Date(entry.completedAt).toLocaleString()} ·{' '}
-                {t('download.tracks', { count: entry.tracks.length })}
-              </div>
-            </button>
-            <div className="flex items-center gap-1 shrink-0">
-              <button onClick={() => redownload(entry.url, entry.folder)} className={iconBtn}>
-                {t('actions.redownload')}
-              </button>
+    <div className="h-full overflow-auto p-4">
+      <div className="mb-4 flex h-[34px] items-center gap-2.5 rounded-[7px] border border-line bg-[#0a0b0e] px-3 text-ink-faint">
+        <Search size={14} />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('history.search')}
+          className="h-full w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-faint"
+        />
+      </div>
+
+      {filtered.map((entry) => {
+        const failed = entry.tracks.filter(
+          (tk) => (tk as { status?: string }).status === 'failed'
+        ).length
+        return (
+          <div
+            key={entry.id}
+            className="mb-3.5 overflow-hidden rounded-[10px] border border-line bg-panel2"
+          >
+            <div className="flex items-center gap-3 border-b border-line bg-panel px-3.5 py-[11px]">
               <button
-                onClick={() => deleteEntry(entry.id)}
-                className={iconBtn + ' hover:text-red-300'}
+                onClick={() => window.plucker.openFolder(entry.folder)}
+                className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md border border-line bg-[#23272e] text-ink-faint"
+                title={t('actions.openFolder')}
               >
-                {t('actions.delete')}
+                <Music size={20} />
               </button>
-            </div>
-          </div>
-          <ul className="divide-y divide-neutral-900">
-            {entry.tracks.map((track) => (
-              <li key={track.file}>
-                <TrackRow
-                  track={track}
-                  actions={
-                    <>
-                      {track.videoId && (
-                        <button
-                          onClick={() => redownload(watchUrl(track.videoId!), entry.folder)}
-                          title={t('actions.redownload')}
-                          className={iconBtn}
-                        >
-                          ↻
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteTrack(entry.id, track.file)}
-                        title={t('actions.delete')}
-                        className={iconBtn + ' hover:text-red-300'}
-                      >
-                        🗑
-                      </button>
-                    </>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14px] font-semibold text-[#e7ebef]">
+                  {entry.title}
+                </div>
+                <div className="mt-[3px] font-mono text-[10.5px] tracking-[0.3px] text-ink-faint">
+                  {new Date(entry.completedAt).toLocaleString()} ·{' '}
+                  {t('download.tracks', { count: entry.tracks.length })}
+                </div>
+              </div>
+              {failed > 0 ? (
+                <span className="rounded-md border border-warn/30 bg-warn/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-warn">
+                  {t('history.failedBadge', { count: failed })}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 rounded-md border border-ok/30 bg-ok/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-ok">
+                  <Check size={11} strokeWidth={3} />
+                  {t('history.completeBadge')}
+                </span>
+              )}
+              <div className="flex gap-1.5">
+                <button className={jbtn} onClick={() => window.plucker.openFolder(entry.folder)}>
+                  <Folder size={14} />
+                  {t('actions.openFolder')}
+                </button>
+                <button className={jbtn} onClick={() => redownload(entry.url, entry.folder)}>
+                  <RotateCw size={14} />
+                  {t('actions.redownload')}
+                </button>
+                <button
+                  className={
+                    jbtn + ' w-[30px] justify-center px-0 hover:border-bad/40 hover:text-bad'
                   }
-                />
-              </li>
+                  title={t('actions.delete')}
+                  onClick={() => deleteEntry(entry.id)}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+
+            {entry.tracks.map((tk, i) => (
+              <TrackRow
+                key={tk.file || i}
+                variant="history"
+                index={i + 1}
+                track={tk}
+                detail={{
+                  [t('history.colFile')]: tk.file?.split('/').pop() ?? '—',
+                  [t('download.colSource')]: tk.videoId ? watchUrl(tk.videoId) : '—'
+                }}
+                actions={
+                  <>
+                    <button
+                      className={ra}
+                      title={t('actions.reveal')}
+                      onClick={() => tk.file && window.plucker.revealFile(tk.file)}
+                    >
+                      <Folder size={15} />
+                    </button>
+                    {tk.videoId && (
+                      <button
+                        className={ra}
+                        title={t('actions.redownload')}
+                        onClick={() => redownload(watchUrl(tk.videoId!), entry.folder)}
+                      >
+                        <RotateCw size={15} />
+                      </button>
+                    )}
+                    <button
+                      className={ra + ' hover:text-bad'}
+                      title={t('actions.delete')}
+                      onClick={() => deleteTrack(entry.id, tk.file)}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </>
+                }
+              />
             ))}
-          </ul>
-        </div>
-      ))}
+          </div>
+        )
+      })}
     </div>
   )
 }

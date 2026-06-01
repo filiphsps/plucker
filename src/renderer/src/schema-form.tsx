@@ -1,6 +1,6 @@
-// src/renderer/src/SchemaForm.tsx
 import React from 'react'
 import type { ConfigField } from '../../shared/transforms'
+import { Switch } from './ui/switch'
 
 export function SchemaForm({
   fields,
@@ -13,47 +13,45 @@ export function SchemaForm({
   onChange: (next: Record<string, unknown>) => void
   t: (key: string) => string
 }): React.JSX.Element {
-  const field = 'w-full rounded bg-neutral-900 border border-neutral-800 px-2 py-1 text-sm'
   const set = (key: string, value: unknown): void => onChange({ ...config, [key]: value })
+  const klass = 'mb-[5px] font-mono text-[9px] uppercase tracking-[1px] text-ink-faint'
+  const input =
+    'flex h-[30px] items-center rounded-md border border-line bg-[#0a0b0e] px-2.5 font-mono text-[12px] text-ink outline-none'
 
   return (
-    <div className="flex flex-col gap-2 mt-2">
+    <div className="grid grid-cols-2 gap-x-[18px] gap-y-3 px-3.5 pb-3.5 pl-[41px]">
       {fields.map((f) => {
         const value = config[f.key] ?? f.default
         const label = t(f.labelKey)
         if (f.type === 'boolean') {
           return (
-            <label key={f.key} className="flex gap-2 items-center text-sm">
-              <input
-                type="checkbox"
-                checked={Boolean(value)}
-                onChange={(e) => set(f.key, e.target.checked)}
-              />
-              {label}
+            <label key={f.key} className="flex items-center gap-2.5">
+              <Switch checked={Boolean(value)} onChange={(v) => set(f.key, v)} label={label} />
+              <span className="text-[12.5px] text-ink">{label}</span>
             </label>
           )
         }
         if (f.type === 'number') {
           return (
-            <label key={f.key} className="text-sm block">
-              {label}
+            <div key={f.key}>
+              <div className={klass}>{label}</div>
               <input
                 type="number"
-                className={field}
+                className={input + ' w-full'}
                 value={Number(value)}
                 min={f.min}
                 max={f.max}
                 onChange={(e) => set(f.key, Number(e.target.value))}
               />
-            </label>
+            </div>
           )
         }
         if (f.type === 'enum') {
           return (
-            <label key={f.key} className="text-sm block">
-              {label}
+            <div key={f.key}>
+              <div className={klass}>{label}</div>
               <select
-                className={field}
+                className={input + ' pl-select w-full'}
                 value={String(value)}
                 onChange={(e) => set(f.key, e.target.value)}
               >
@@ -63,18 +61,18 @@ export function SchemaForm({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           )
         }
         return (
-          <label key={f.key} className="text-sm block">
-            {label}
+          <div key={f.key}>
+            <div className={klass}>{label}</div>
             <input
-              className={field}
+              className={input + ' w-full'}
               value={String(value)}
               onChange={(e) => set(f.key, e.target.value)}
             />
-          </label>
+          </div>
         )
       })}
     </div>

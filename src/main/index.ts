@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences } from 'electron'
 import { join } from 'path'
 import { arch } from 'node:os'
 import { rmSync } from 'node:fs'
@@ -14,6 +14,7 @@ import { readCoverDataUrl } from './tagger'
 import { addEntry, removeEntry, removeTrack } from './history'
 import { checkForUpdates } from './updater'
 import { buildAppMenu } from './menu'
+import { getAccentColor } from './accent'
 import type { Settings, HistoryEntry } from '../shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel
@@ -25,6 +26,7 @@ let abort: AbortController | null = null
 
 function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('app:locale', () => app.getLocale())
+  ipcMain.handle('accent:get', () => getAccentColor())
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:save', (_e, s: Settings) => saveSettings(settingsPath(), s))
   ipcMain.handle('transforms:catalog', () => getCatalog())
@@ -163,6 +165,11 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   registerIpc(() => mainWindow)
+
+  // Push OS accent-color changes to the renderer so --color-accent updates live.
+  systemPreferences.subscribeNotification?.('AppleColorPreferencesChangedNotification', () =>
+    mainWindow?.webContents.send('accent:changed', getAccentColor())
+  )
 
   buildAppMenu(() => mainWindow)
 
