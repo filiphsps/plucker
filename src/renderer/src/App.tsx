@@ -1,7 +1,13 @@
+import React, { useState } from 'react'
+import { DownloadView } from './DownloadView'
+import { SettingsPanel } from './SettingsPanel'
+
 export default function App(): React.JSX.Element {
+  const [showSettings, setShowSettings] = useState(false)
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center">
-      <h1 className="text-2xl font-semibold">🎵 Plucker</h1>
-    </div>
+    <>
+      <DownloadView onOpenSettings={() => setShowSettings(true)} />
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+    </>
   )
 }
