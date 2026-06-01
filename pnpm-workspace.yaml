@@ -1,12 +1,3 @@
-# Flat (npm-style) node_modules instead of pnpm's default symlinked layout.
-# electron-builder's dependency collector can't follow pnpm's nested symlinks for some
-# transitive deps (e.g. `ms`, via electron-updater → builder-util-runtime → debug) and
-# drops them from the packaged asar, crashing the release app with "Cannot find module
-# 'ms'". A hoisted layout lets electron-builder collect the whole production tree.
-# (pnpm 11 reads this here, not from .npmrc's `node-linker`.) The CI smoke test in
-# .github/workflows/ci.yml guards against regressions.
-nodeLinker: hoisted
-
 allowBuilds:
   electron: true
   electron-winstaller: true

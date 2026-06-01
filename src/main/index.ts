@@ -12,7 +12,7 @@ import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl } from './tagger'
 import { addEntry, removeEntry, removeTrack } from './history'
-import { checkForUpdates, smokeCheckUpdater } from './updater'
+import { checkForUpdates } from './updater'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
 import type { Settings, HistoryEntry } from '../shared/types'
@@ -180,21 +180,12 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // CI smoke test: boot the packaged app, exercise the updater's HTTP layer to prove all
-  // transitive deps are present (see smokeCheckUpdater), then exit with the verdict. The
-  // safety timeout guards against a hung request — booting this far already passed.
-  if (process.env.PLUCKER_SMOKE_TEST === '1') {
-    void smokeCheckUpdater().then((code) => app.exit(code))
-    setTimeout(() => app.exit(0), 20000)
-    return
-  }
-
   // Notify-only update check shortly after launch (opt-out via settings).
   if (loadSettings().updates.checkOnLaunch) {
     setTimeout(() => void checkForUpdates(() => mainWindow, { silent: true }), 3000)
   }
 
-  app.on('activate', function () {
+  app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
