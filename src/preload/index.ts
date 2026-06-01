@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Settings, JobProgress } from '../shared/types'
+import type { Settings, JobProgress, HistoryEntry } from '../shared/types'
 
 // Custom APIs for renderer
 const api = {
@@ -8,12 +8,28 @@ const api = {
   getSettings: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: Settings): Promise<void> => ipcRenderer.invoke('settings:save', s),
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFolder'),
-  startDownload: (url: string): Promise<void> => ipcRenderer.invoke('job:start', url),
+  startDownload: (url: string, folderOverride?: string): Promise<void> =>
+    ipcRenderer.invoke('job:start', url, folderOverride),
   cancel: (): Promise<void> => ipcRenderer.invoke('job:cancel'),
   onProgress: (cb: (p: JobProgress) => void): (() => void) => {
     const fn = (_: unknown, p: JobProgress): void => cb(p)
     ipcRenderer.on('job:progress', fn)
     return () => ipcRenderer.removeListener('job:progress', fn)
+  },
+  // Filesystem navigation + cover art
+  openFolder: (path: string): Promise<string> => ipcRenderer.invoke('shell:openFolder', path),
+  revealFile: (path: string): Promise<void> => ipcRenderer.invoke('shell:revealFile', path),
+  getCover: (file: string): Promise<string | null> => ipcRenderer.invoke('cover:get', file),
+  // History
+  getHistory: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:get'),
+  removeHistoryEntry: (id: string, deleteFiles: boolean): Promise<HistoryEntry[]> =>
+    ipcRenderer.invoke('history:removeEntry', id, deleteFiles),
+  removeHistoryTrack: (id: string, file: string, deleteFile: boolean): Promise<HistoryEntry[]> =>
+    ipcRenderer.invoke('history:removeTrack', id, file, deleteFile),
+  onHistoryChanged: (cb: () => void): (() => void) => {
+    const fn = (): void => cb()
+    ipcRenderer.on('history:changed', fn)
+    return () => ipcRenderer.removeListener('history:changed', fn)
   }
 }
 

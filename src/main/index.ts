@@ -1,12 +1,16 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { arch } from 'node:os'
+import { rmSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { loadSettings, saveSettings, settingsPath, expandHome } from './settings'
 import { binaryPaths } from './binaries'
 import { runJob } from './pipeline'
-import type { Settings } from '../shared/types'
+import { readCoverDataUrl } from './tagger'
+import { addEntry, removeEntry, removeTrack } from './history'
+import type { Settings, HistoryEntry } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let abort: AbortController | null = null
@@ -19,10 +23,36 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     return r.canceled ? null : r.filePaths[0]
   })
+
+  // Filesystem navigation + cover art.
+  ipcMain.handle('shell:openFolder', (_e, path: string) => shell.openPath(path))
+  ipcMain.handle('shell:revealFile', (_e, path: string) => shell.showItemInFolder(path))
+  ipcMain.handle('cover:get', (_e, file: string) => readCoverDataUrl(file))
+
+  // History.
+  ipcMain.handle('history:get', () => loadSettings().history)
+  ipcMain.handle('history:removeEntry', (_e, id: string, deleteFiles: boolean) => {
+    const s = loadSettings()
+    if (deleteFiles) {
+      const entry = s.history.find((h) => h.id === id)
+      if (entry?.folder) rmSync(entry.folder, { recursive: true, force: true })
+    }
+    const history = removeEntry(s.history, id)
+    saveSettings(settingsPath(), { ...s, history })
+    return history
+  })
+  ipcMain.handle('history:removeTrack', (_e, id: string, file: string, deleteFile: boolean) => {
+    const s = loadSettings()
+    if (deleteFile) rmSync(file, { force: true })
+    const history = removeTrack(s.history, id, file)
+    saveSettings(settingsPath(), { ...s, history })
+    return history
+  })
+
   ipcMain.handle('job:cancel', () => {
     abort?.abort()
   })
-  ipcMain.handle('job:start', async (_e, url: string) => {
+  ipcMain.handle('job:start', async (_e, url: string, folderOverride?: string) => {
     const settings = loadSettings()
     const bin = binaryPaths({
       packaged: app.isPackaged,
@@ -31,13 +61,30 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       projectRoot: app.getAppPath()
     })
     abort = new AbortController()
-    await runJob(url, {
+    const result = await runJob(url, {
       bin,
       settings,
       homeBase: expandHome(settings.downloads.baseFolder),
       onProgress: (p) => getWindow()?.webContents.send('job:progress', p),
-      signal: abort.signal
+      signal: abort.signal,
+      folderOverride
     })
+
+    // Record to history (re-load fresh so we don't clobber edits made during the run).
+    if (result.tracks.length > 0) {
+      const entry: HistoryEntry = {
+        id: randomUUID(),
+        url: result.url,
+        title: result.title,
+        folder: result.folder,
+        kind: result.kind,
+        completedAt: new Date().toISOString(),
+        tracks: result.tracks
+      }
+      const fresh = loadSettings()
+      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+      getWindow()?.webContents.send('history:changed')
+    }
   })
 }
 

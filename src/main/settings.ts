@@ -19,6 +19,7 @@ function mergeDefaults(partial: unknown): Settings {
   return {
     version: d.version,
     language: p.language ?? d.language,
+    history: Array.isArray(p.history) ? (p.history as Settings['history']) : d.history,
     downloads: { ...d.downloads, ...(p.downloads ?? {}) },
     audio: { ...d.audio, ...(p.audio ?? {}) },
     cookies: { ...d.cookies, ...(p.cookies ?? {}) },

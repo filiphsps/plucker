@@ -9,6 +9,7 @@ export type Language = 'system' | 'en' | 'de'
 export interface Settings {
   version: number
   language: Language
+  history: HistoryEntry[]
   downloads: { baseFolder: string; perPlaylistSubfolder: boolean }
   audio: { format: 'mp3'; preferredBitrate: Bitrate; minBitrate: MinBitrate | null }
   cookies: { source: CookieSource }
@@ -34,12 +35,43 @@ export interface TrackProgress {
   status: TrackStatus
   percent?: number
   reason?: string
+  /** Absolute path to the final mp3 once downloaded/tagged (enables reveal-in-folder). */
+  file?: string
+  videoId?: string
+  artist?: string
+  album?: string
+  year?: string
 }
 
 export interface JobProgress {
   jobTitle: string
   total: number
   tracks: TrackProgress[]
+  /** Absolute destination folder for this job (enables open-folder). */
+  folder: string
+  /** Source URL of the job (enables redownload). */
+  url: string
+}
+
+/** A single tagged track recorded in history. */
+export interface HistoryTrack {
+  file: string
+  title: string
+  artist?: string
+  album?: string
+  year?: string
+  videoId?: string
+}
+
+/** A completed download recorded in the persistent history. */
+export interface HistoryEntry {
+  id: string
+  url: string
+  title: string
+  folder: string
+  kind: 'playlist' | 'video'
+  completedAt: string // ISO timestamp
+  tracks: HistoryTrack[]
 }
 
 export interface ParsedTitle {

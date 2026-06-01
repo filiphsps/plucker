@@ -18,6 +18,7 @@ describe('buildDownloadArgs', () => {
     expect(args).toContain('--ffmpeg-location')
     expect(args).toContain('/bin/ffmpeg')
     expect(args).toContain('--ignore-errors')
+    expect(args).toContain('--write-info-json')
     expect(args.some((a) => a.includes('/out/'))).toBe(true)
     expect(args[args.length - 1]).toBe('https://yt/playlist')
   })
@@ -58,10 +59,11 @@ describe('buildDownloadArgs', () => {
 })
 
 describe('parseProgressLine', () => {
-  it('parses our custom progress template', () => {
-    expect(parseProgressLine('PLUCKER 3 42.5 Song Title')).toEqual({
+  it('parses index, percent, video id and (space-containing) title', () => {
+    expect(parseProgressLine('PLUCKER 3 42.5 dQw4w9WgXcQ Song Title')).toEqual({
       index: 3,
       percent: 42.5,
+      videoId: 'dQw4w9WgXcQ',
       title: 'Song Title'
     })
   })
@@ -69,9 +71,10 @@ describe('parseProgressLine', () => {
     expect(parseProgressLine('[download] Destination: x')).toBeNull()
   })
   it('coerces a non-numeric (single-video NA) index to 1', () => {
-    expect(parseProgressLine('PLUCKER NA 100 Song Title')).toEqual({
+    expect(parseProgressLine('PLUCKER NA 100 dQw4w9WgXcQ Song Title')).toEqual({
       index: 1,
       percent: 100,
+      videoId: 'dQw4w9WgXcQ',
       title: 'Song Title'
     })
   })

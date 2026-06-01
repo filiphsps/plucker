@@ -1,6 +1,6 @@
-import { mkdirSync, readdirSync, renameSync, existsSync } from 'node:fs'
+import { mkdirSync, readdirSync, renameSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Settings, TrackTags, JobProgress, TrackProgress } from '../shared/types'
+import type { Settings, TrackTags, JobProgress, TrackProgress, HistoryTrack } from '../shared/types'
 import { sanitizeFileName, buildFileName } from './rename'
 import { parseTitle } from './title-parser'
 import { selectBestMatch } from './mb-select'
@@ -55,6 +55,20 @@ export async function resolveJob(ytdlpPath: string, url: string): Promise<Resolv
   return { kind: isPlaylist ? 'playlist' : 'video', title: json.title ?? 'Plucker' }
 }
 
+/** Read a yt-dlp `.info.json` sidecar for the canonical video id + title. */
+function readSidecar(path: string): { id?: string; title?: string } {
+  if (!existsSync(path)) return {}
+  try {
+    const info = JSON.parse(readFileSync(path, 'utf8'))
+    return {
+      id: typeof info.id === 'string' ? info.id : undefined,
+      title: typeof info.title === 'string' ? info.title : undefined
+    }
+  } catch {
+    return {}
+  }
+}
+
 export interface RunJobDeps {
   bin: BinaryPaths
   settings: Settings
@@ -62,18 +76,37 @@ export interface RunJobDeps {
   onProgress: (p: JobProgress) => void
   mbFetch?: typeof fetch
   signal?: AbortSignal
+  /** When set, download into this exact folder instead of deriving from base/title. */
+  folderOverride?: string
+}
+
+/** What runJob returns to the caller for persisting to history. */
+export interface JobResult {
+  title: string
+  folder: string
+  url: string
+  kind: 'playlist' | 'video'
+  tracks: HistoryTrack[]
 }
 
 /** Full pipeline: resolve → download → tag/enrich → rename. */
-export async function runJob(url: string, deps: RunJobDeps): Promise<void> {
+export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> {
   const { bin, settings, homeBase, onProgress, signal } = deps
   const job = await resolveJob(bin.ytdlp, url)
-  const dest = destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
+  const dest =
+    deps.folderOverride ??
+    destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
   mkdirSync(dest, { recursive: true })
 
   const tracks: TrackProgress[] = []
   const emit = (): void =>
-    onProgress({ jobTitle: job.title, total: tracks.length, tracks: [...tracks] })
+    onProgress({
+      jobTitle: job.title,
+      total: tracks.length,
+      tracks: [...tracks],
+      folder: dest,
+      url
+    })
 
   // Download
   const args = buildDownloadArgs({ url, destFolder: dest, settings, ffmpegPath: bin.ffmpeg })
@@ -89,6 +122,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<void> {
       t.percent = e.percent
       t.status = e.percent >= 100 ? 'tagging' : 'downloading'
       t.title = e.title
+      t.videoId = e.videoId
       emit()
     },
     signal
@@ -102,25 +136,35 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<void> {
     tracks.push({
       index: skipIdx--,
       title: s.videoId,
+      videoId: s.videoId,
       status: 'skipped',
       reason: 'below minimum quality'
     })
   }
   if (res.skipped.length) emit()
 
-  // Tag + enrich
-  if (settings.tagging.enabled) {
-    const mb = new MusicBrainzClient(settings.tagging.userAgentEmail, { fetchImpl: deps.mbFetch })
-    for (const file of readdirSync(dest).filter((f) => f.endsWith('.mp3'))) {
-      const full = join(dest, file)
-      const ytTags = readTrackTags(full)
-      const parsed = parseTitle(ytTags.title ?? file.replace(/\.mp3$/, ''))
-      const ytNorm: TrackTags = {
-        ...ytTags,
-        artist: ytTags.artist || parsed.artist || undefined,
-        title: parsed.title
-      }
+  const history: HistoryTrack[] = []
+  const mb = settings.tagging.enabled
+    ? new MusicBrainzClient(settings.tagging.userAgentEmail, { fetchImpl: deps.mbFetch })
+    : null
 
+  for (const file of readdirSync(dest).filter((f) => f.endsWith('.mp3'))) {
+    let full = join(dest, file)
+    const sidecarPath = full.replace(/\.mp3$/, '.info.json')
+    const sidecar = readSidecar(sidecarPath)
+    const videoId = sidecar.id
+
+    const ytTags = readTrackTags(full)
+    const rawTitle = sidecar.title ?? ytTags.title ?? file.replace(/\.mp3$/, '')
+    const parsed = parseTitle(rawTitle)
+    const ytNorm: TrackTags = {
+      ...ytTags,
+      artist: ytTags.artist || parsed.artist || undefined,
+      title: parsed.title
+    }
+
+    let merged = ytNorm
+    if (mb) {
       let mbTags: TrackTags = {}
       if (settings.tagging.enrichWithMusicBrainz) {
         try {
@@ -156,27 +200,50 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<void> {
           /* keep youtube tags, not enriched */
         }
       }
-
-      const merged = mergeTags(ytNorm, mbTags, settings)
+      merged = mergeTags(ytNorm, mbTags, settings)
       writeTrackTags(full, merged)
 
-      // Rename
+      // Rename from final tags.
       if (settings.rename.enabled) {
         const newName = buildFileName(settings.rename.template, merged)
         if (newName) {
           const target = join(dest, `${newName}.mp3`)
-          if (target !== full && !existsSync(target)) renameSync(full, target)
+          if (target !== full && !existsSync(target)) {
+            renameSync(full, target)
+            full = target
+          }
         }
       }
-      const t =
-        tracks.find((x) => x.title && x.title.includes(parsed.title)) ??
-        tracks.find((x) => x.status === 'tagging')
-      if (t) {
-        t.status = 'done'
-        emit()
-      }
+    }
+
+    // Drop the sidecar once we've consumed it.
+    if (existsSync(sidecarPath)) rmSync(sidecarPath, { force: true })
+
+    history.push({
+      file: full,
+      title: merged.title ?? parsed.title,
+      artist: merged.artist,
+      album: merged.album,
+      year: merged.year,
+      videoId
+    })
+
+    // Attach the result to the matching progress track (by video id, reliably).
+    const t =
+      (videoId ? tracks.find((x) => x.videoId === videoId) : undefined) ??
+      tracks.find((x) => x.title && x.title.includes(parsed.title)) ??
+      tracks.find((x) => x.status === 'tagging')
+    if (t) {
+      t.status = 'done'
+      t.file = full
+      t.artist = merged.artist
+      t.album = merged.album
+      t.year = merged.year
+      if (merged.title) t.title = merged.title
+      emit()
     }
   }
+
   // Tracks that reached post-processing (100% → 'tagging') are done; tracks that
   // never completed (still 'downloading') errored under --ignore-errors → failed.
   tracks.forEach((t) => {
@@ -184,4 +251,6 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<void> {
     t.status = t.status === 'tagging' ? 'done' : 'failed'
   })
   emit()
+
+  return { title: job.title, folder: dest, url, kind: job.kind, tracks: history }
 }
