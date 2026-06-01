@@ -5,15 +5,15 @@ import { Logo } from './logo'
 describe('Logo', () => {
   it('renders the full wordmark', () => {
     const html = renderToStaticMarkup(<Logo />)
-    // The accent "U" is split into its own span, so assert the segments.
-    expect(html).toContain('PL')
-    expect(html).toContain('U')
-    expect(html).toContain('CKER')
+    // The accent "L" is split into its own span, so assert around it.
+    expect(html).toContain('>P<')
+    expect(html).toContain('>L<')
+    expect(html).toContain('UCKER')
   })
 
-  it('colors the accent "U" with the given accent', () => {
+  it('colors the accent "L" with the given accent', () => {
     const html = renderToStaticMarkup(<Logo accent="#0a84ff" />)
-    expect(html).toMatch(/color:#0a84ff[^"]*">U</)
+    expect(html).toMatch(/color:#0a84ff[^"]*">L</)
   })
 
   it('applies overrides used by the icon build', () => {

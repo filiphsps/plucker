@@ -8,6 +8,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { Logo } from './logo'
+import { HeaderIconButton } from './ui/header-icon-button'
 
 export type View = 'download' | 'history'
 
@@ -57,32 +58,19 @@ export function Header({
       </nav>
       <div className="flex-1" />
       {consoleAvailable && (
-        <button
+        <HeaderIconButton
+          icon={Terminal}
+          label={t('console.toggle')}
+          active={consoleOpen}
           onClick={onToggleConsole}
-          aria-label={t('console.toggle')}
-          title={t('console.toggle')}
-          className={
-            'no-drag flex h-8 w-8 items-center justify-center rounded-md transition-colors ' +
-            (consoleOpen
-              ? 'bg-accent-dim text-accent'
-              : 'text-ink-faint hover:bg-raise hover:text-ink')
-          }
-        >
-          <Terminal size={18} />
-        </button>
+        />
       )}
-      <button
+      <HeaderIconButton
+        icon={SlidersHorizontal}
+        label={t('app.settings')}
+        active={settingsActive}
         onClick={onOpenSettings}
-        aria-label={t('app.settings')}
-        className={
-          'no-drag flex h-8 w-8 items-center justify-center rounded-md transition-colors ' +
-          (settingsActive
-            ? 'bg-accent-dim text-accent'
-            : 'text-ink-faint hover:bg-raise hover:text-ink')
-        }
-      >
-        <SlidersHorizontal size={18} />
-      </button>
+      />
     </header>
   )
 }
