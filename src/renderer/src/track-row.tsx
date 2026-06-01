@@ -5,6 +5,7 @@ import type { TrackStatus, TrackMetadata, TrackTags } from '../../shared/types'
 import { TrackDetail, type TrackSource } from './ui/meta/track-detail'
 import { formatDuration, formatSpeed, formatElapsed } from './ui/meta/format'
 import { Tooltip } from './ui/tooltip'
+import { statusColumnWidth } from './status-column'
 
 export interface TrackRowData {
   title: string
@@ -81,6 +82,7 @@ export function TrackRow({
   onCancelEdit?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
+  const statusWidth = statusColumnWidth(t)
   const [open, setOpen] = useState(false)
   const [cover, setCover] = useState<{ key: string; url: string | null } | null>(null)
   const [fetched, setFetched] = useState<{ file: string; data: TrackMetadata } | null>(null)
@@ -129,25 +131,37 @@ export function TrackRow({
   const statusEl = (): React.JSX.Element => {
     if (track.status === 'done')
       return (
-        <span className="flex w-16 items-center justify-end gap-1.5 font-mono text-[11px] text-ok">
+        <span
+          style={{ width: statusWidth }}
+          className="flex items-center justify-end gap-1.5 whitespace-nowrap font-mono text-[11px] text-ok"
+        >
           <Check size={13} strokeWidth={3} />
           {t('status.done').toUpperCase()}
         </span>
       )
     if (track.status === 'downloading')
       return (
-        <span className="w-16 text-right font-mono text-[11px] text-accent">
+        <span
+          style={{ width: statusWidth }}
+          className="whitespace-nowrap text-right font-mono text-[11px] text-accent"
+        >
           {Math.round(track.percent ?? 0)}%
         </span>
       )
     if (track.status === 'transforming')
       return (
-        <span className="w-16 text-right font-mono text-[11px] text-accent">
+        <span
+          style={{ width: statusWidth }}
+          className="whitespace-nowrap text-right font-mono text-[11px] text-accent"
+        >
           {Math.round(track.transformPercent ?? 0)}%
         </span>
       )
     return (
-      <span className="w-16 text-right font-mono text-[11px] text-ink-faint">
+      <span
+        style={{ width: statusWidth }}
+        className="whitespace-nowrap text-right font-mono text-[11px] text-ink-faint"
+      >
         {t(`status.${track.status ?? 'queued'}`).toUpperCase()}
       </span>
     )
