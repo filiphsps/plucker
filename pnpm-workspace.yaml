@@ -7,3 +7,6 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   ffmpeg-static: true
+
+minimumReleaseAgeExclude:
+  - vite@8.0.16
