@@ -1,12 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { Settings, JobProgress, HistoryEntry } from '../shared/types'
+import type { TransformManifest } from '../shared/transforms'
 
 // Custom APIs for renderer
 const api = {
   getSystemLocale: (): Promise<string> => ipcRenderer.invoke('app:locale'),
   getSettings: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: Settings): Promise<void> => ipcRenderer.invoke('settings:save', s),
+  getTransformCatalog: (): Promise<TransformManifest[]> => ipcRenderer.invoke('transforms:catalog'),
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFolder'),
   startDownload: (url: string, folderOverride?: string): Promise<void> =>
     ipcRenderer.invoke('job:start', url, folderOverride),

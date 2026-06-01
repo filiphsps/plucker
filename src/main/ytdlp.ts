@@ -32,6 +32,8 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
     '--progress-template',
     PROGRESS_TEMPLATE,
     '--write-info-json',
+    '--print',
+    'after_move:PLUCKERDONE %(filepath)s',
     '-o',
     join(destFolder, '%(artist,uploader)s - %(track,title)s.%(ext)s'),
     '--yes-playlist'
@@ -62,6 +64,12 @@ export function parseProgressLine(line: string): ProgressEvent | null {
   return { index, percent: Number(m[2]), videoId: m[3], title: m[4].trim() }
 }
 
+/** Parse our after_move completion sentinel into the final file path. */
+export function parseCompleteLine(line: string): string | null {
+  const m = line.match(/^PLUCKERDONE\s+(.+)$/)
+  return m ? m[1].trim() : null
+}
+
 export interface SkipEvent {
   videoId: string
 }
@@ -83,6 +91,7 @@ export function runYtDlp(
   ytdlpPath: string,
   args: string[],
   onProgress: (e: ProgressEvent) => void,
+  onComplete: (filePath: string) => void,
   signal?: AbortSignal
 ): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
@@ -105,6 +114,11 @@ export function runYtDlp(
       const lines = outBuf.split('\n')
       outBuf = lines.pop() ?? ''
       for (const line of lines) {
+        const done = parseCompleteLine(line)
+        if (done) {
+          onComplete(done)
+          continue
+        }
         const e = parseProgressLine(line)
         if (e) onProgress(e)
       }

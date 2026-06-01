@@ -33,7 +33,7 @@ export default {
   status: {
     queued: 'queued',
     downloading: 'downloading',
-    tagging: 'tagging',
+    transforming: 'transforming',
     done: 'done',
     failed: 'failed',
     skipped: 'skipped'
@@ -46,8 +46,7 @@ export default {
       downloads: 'Downloads',
       audio: 'Audio',
       cookies: 'Cookies',
-      tagging: 'Tagging',
-      naming: 'Naming',
+      transforms: 'Transforms',
       performance: 'Performance'
     },
     language: {
@@ -67,22 +66,33 @@ export default {
       auto: 'Automatic',
       none: 'None'
     },
-    tagging: {
-      enabled: 'Enable tagging',
-      enrich: 'Enrich with MusicBrainz',
-      fetchCover: 'Fetch album cover',
-      fetchGenre: 'Fetch genre',
-      fetchTrackNumber: 'Fetch track number',
-      primarySource: 'Primary source',
-      minMatchScore: 'Min match score',
-      contactEmail: 'MusicBrainz contact email'
-    },
-    naming: {
-      renameAfter: 'Rename files after tagging',
-      tokensHelp: 'Tokens: {artist} {track} {title} {album} {year}'
+    transforms: {
+      add: 'Add transform…'
     },
     performance: {
       parallel: 'Parallel downloads'
+    }
+  },
+  transforms: {
+    autoTag: {
+      label: 'Auto-tag',
+      description: 'Read YouTube tags and enrich from MusicBrainz.',
+      fields: {
+        primarySource: 'Primary source',
+        enrich: 'Enrich with MusicBrainz',
+        fetchCover: 'Fetch album cover',
+        fetchGenre: 'Fetch genre',
+        fetchTrackNumber: 'Fetch track number',
+        minMatchScore: 'Min match score'
+      },
+      options: { youtube: 'YouTube', musicbrainz: 'MusicBrainz' }
+    },
+    rename: {
+      label: 'Rename file',
+      description: 'Rename the file from its final tags.',
+      fields: {
+        template: 'Filename template — tokens: {artist} {track} {title} {album} {year}'
+      }
     }
   }
 }

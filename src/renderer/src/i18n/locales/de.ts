@@ -35,7 +35,7 @@ const de: typeof en = {
   status: {
     queued: 'in Warteschlange',
     downloading: 'lädt herunter',
-    tagging: 'markiert',
+    transforming: 'verarbeitet',
     done: 'fertig',
     failed: 'fehlgeschlagen',
     skipped: 'übersprungen'
@@ -48,8 +48,7 @@ const de: typeof en = {
       downloads: 'Downloads',
       audio: 'Audio',
       cookies: 'Cookies',
-      tagging: 'Tags',
-      naming: 'Benennung',
+      transforms: 'Transformationen',
       performance: 'Leistung'
     },
     language: {
@@ -69,22 +68,33 @@ const de: typeof en = {
       auto: 'Automatisch',
       none: 'Keine'
     },
-    tagging: {
-      enabled: 'Tagging aktivieren',
-      enrich: 'Mit MusicBrainz anreichern',
-      fetchCover: 'Albumcover abrufen',
-      fetchGenre: 'Genre abrufen',
-      fetchTrackNumber: 'Titelnummer abrufen',
-      primarySource: 'Primäre Quelle',
-      minMatchScore: 'Mindest-Trefferwert',
-      contactEmail: 'MusicBrainz-Kontakt-E-Mail'
-    },
-    naming: {
-      renameAfter: 'Dateien nach dem Taggen umbenennen',
-      tokensHelp: 'Platzhalter: {artist} {track} {title} {album} {year}'
+    transforms: {
+      add: 'Transformation hinzufügen …'
     },
     performance: {
       parallel: 'Parallele Downloads'
+    }
+  },
+  transforms: {
+    autoTag: {
+      label: 'Auto-Tag',
+      description: 'YouTube-Tags lesen und mit MusicBrainz anreichern.',
+      fields: {
+        primarySource: 'Primäre Quelle',
+        enrich: 'Mit MusicBrainz anreichern',
+        fetchCover: 'Albumcover abrufen',
+        fetchGenre: 'Genre abrufen',
+        fetchTrackNumber: 'Titelnummer abrufen',
+        minMatchScore: 'Mindest-Trefferwert'
+      },
+      options: { youtube: 'YouTube', musicbrainz: 'MusicBrainz' }
+    },
+    rename: {
+      label: 'Datei umbenennen',
+      description: 'Datei anhand der finalen Tags umbenennen.',
+      fields: {
+        template: 'Dateinamen-Vorlage – Platzhalter: {artist} {track} {title} {album} {year}'
+      }
     }
   }
 }

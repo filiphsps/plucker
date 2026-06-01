@@ -43,6 +43,37 @@ describe('saveSettings', () => {
   })
 })
 
+describe('mergeDefaults v1→v2 migration', () => {
+  it('resets transforms to defaults and drops old blocks when version < 2', () => {
+    const v1 = {
+      version: 1,
+      downloads: { baseFolder: '/custom', perPlaylistSubfolder: false },
+      performance: { parallel: 8 },
+      tagging: { enabled: true, primarySource: 'musicbrainz' },
+      rename: { enabled: true, template: 'x' }
+    }
+    writeFileSync(file, JSON.stringify(v1))
+    const s = loadSettings(file)
+    expect(s.version).toBe(2)
+    expect(s.transforms).toEqual(DEFAULT_SETTINGS.transforms)
+    expect(s.downloads.baseFolder).toBe('/custom') // preserved
+    expect(s.performance.parallel).toBe(8) // preserved
+    expect('tagging' in s).toBe(false)
+    expect('rename' in s).toBe(false)
+  })
+
+  it('preserves a custom v2 transforms array', () => {
+    const v2 = {
+      version: 2,
+      transforms: [{ instanceId: 'x', type: 'rename', enabled: false, config: { template: 'y' } }]
+    }
+    writeFileSync(file, JSON.stringify(v2))
+    const s = loadSettings(file)
+    expect(s.transforms).toHaveLength(1)
+    expect(s.transforms[0].config.template).toBe('y')
+  })
+})
+
 describe('expandHome', () => {
   it('expands leading ~', () => {
     expect(expandHome('~/Music/Plucker', '/Users/x')).toBe('/Users/x/Music/Plucker')

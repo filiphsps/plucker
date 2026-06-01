@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildDownloadArgs, parseProgressLine, parseSkipLine } from './ytdlp'
+import { buildDownloadArgs, parseProgressLine, parseSkipLine, parseCompleteLine } from './ytdlp'
 import { DEFAULT_SETTINGS } from '../shared/defaults'
 
 describe('buildDownloadArgs', () => {
@@ -55,6 +55,31 @@ describe('buildDownloadArgs', () => {
       ffmpegPath: '/f'
     })
     expect(args).not.toContain('-f')
+  })
+})
+
+describe('parseCompleteLine', () => {
+  it('extracts the final filepath from a PLUCKERDONE line', () => {
+    expect(parseCompleteLine('PLUCKERDONE /tmp/My Folder/Artist - Title.mp3')).toBe(
+      '/tmp/My Folder/Artist - Title.mp3'
+    )
+  })
+  it('returns null for unrelated lines', () => {
+    expect(parseCompleteLine('PLUCKER 1 50 abc Some Title')).toBeNull()
+  })
+})
+
+describe('buildDownloadArgs completion sentinel', () => {
+  it('adds an after_move print of the final filepath', () => {
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/d',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/ff'
+    })
+    const idx = args.indexOf('--print')
+    expect(idx).toBeGreaterThan(-1)
+    expect(args[idx + 1]).toBe('after_move:PLUCKERDONE %(filepath)s')
   })
 })
 

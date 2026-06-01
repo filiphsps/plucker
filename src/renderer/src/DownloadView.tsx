@@ -6,7 +6,7 @@ import { TrackRow } from './TrackRow'
 const ICON: Record<TrackStatus, string> = {
   queued: '○',
   downloading: '⬇',
-  tagging: '🏷',
+  transforming: '🏷',
   done: '✓',
   failed: '✗',
   skipped: '–'
@@ -22,8 +22,12 @@ export function DownloadView(): React.JSX.Element {
 
   const done = progress?.tracks.filter((x) => x.status === 'done').length ?? 0
 
-  const statusText = (status: TrackStatus, percent?: number): string =>
-    status === 'downloading' ? `${Math.round(percent ?? 0)}%` : t(`status.${status}`)
+  const statusText = (status: TrackStatus, percent?: number, transformPercent?: number): string =>
+    status === 'downloading'
+      ? `${Math.round(percent ?? 0)}%`
+      : status === 'transforming'
+        ? `${Math.round(transformPercent ?? 0)}%`
+        : t(`status.${status}`)
 
   async function start(): Promise<void> {
     if (!url.trim()) return
@@ -80,7 +84,7 @@ export function DownloadView(): React.JSX.Element {
               <li key={track.index}>
                 <TrackRow
                   track={track}
-                  statusLabel={`${ICON[track.status]} ${statusText(track.status, track.percent)}`}
+                  statusLabel={`${ICON[track.status]} ${statusText(track.status, track.percent, track.transformPercent)}`}
                 />
               </li>
             ))}

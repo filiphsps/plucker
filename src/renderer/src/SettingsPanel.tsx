@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Settings, Bitrate, MinBitrate, CookieSource, Language } from '../../shared/types'
+import type { TransformManifest } from '../../shared/transforms'
+import { TransformsSection } from './TransformsSection'
 import { applyLanguage } from './i18n'
 
 const BITRATES: Bitrate[] = [320, 256, 192, 128]
@@ -8,19 +10,13 @@ const MIN_BITRATES: MinBitrate[] = [64, 96, 128, 160]
 const SOURCES: CookieSource[] = ['auto', 'none', 'chrome', 'edge', 'safari', 'firefox', 'brave']
 const LANGUAGES: Language[] = ['system', 'en', 'de']
 
-const TAGGING_TOGGLES = [
-  ['enabled', 'settings.tagging.enabled'],
-  ['enrichWithMusicBrainz', 'settings.tagging.enrich'],
-  ['fetchCoverArt', 'settings.tagging.fetchCover'],
-  ['fetchGenre', 'settings.tagging.fetchGenre'],
-  ['fetchTrackNumber', 'settings.tagging.fetchTrackNumber']
-] as const
-
 export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { t } = useTranslation()
   const [s, setS] = useState<Settings | null>(null)
+  const [catalog, setCatalog] = useState<TransformManifest[]>([])
   useEffect(() => {
     window.plucker.getSettings().then(setS)
+    window.plucker.getTransformCatalog().then(setCatalog)
   }, [])
   if (!s) return <div />
 
@@ -156,74 +152,12 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
           </select>
         </section>
 
-        <section className="mb-5">
-          <h3 className={heading}>{t('settings.sections.tagging')}</h3>
-          {TAGGING_TOGGLES.map(([k, labelKey]) => (
-            <label key={k} className="flex gap-2 items-center text-sm">
-              <input
-                type="checkbox"
-                checked={s.tagging[k] as boolean}
-                onChange={(e) => set({ tagging: { ...s.tagging, [k]: e.target.checked } })}
-              />
-              {t(labelKey)}
-            </label>
-          ))}
-          <label className="text-sm mt-2 block">
-            {t('settings.tagging.primarySource')}
-            <select
-              className={field}
-              value={s.tagging.primarySource}
-              onChange={(e) =>
-                set({
-                  tagging: {
-                    ...s.tagging,
-                    primarySource: e.target.value as 'youtube' | 'musicbrainz'
-                  }
-                })
-              }
-            >
-              <option value="youtube">YouTube</option>
-              <option value="musicbrainz">MusicBrainz</option>
-            </select>
-          </label>
-          <label className="text-sm mt-2 block">
-            {t('settings.tagging.minMatchScore')}
-            <input
-              type="number"
-              className={field}
-              value={s.tagging.minMatchScore}
-              onChange={(e) =>
-                set({ tagging: { ...s.tagging, minMatchScore: Number(e.target.value) } })
-              }
-            />
-          </label>
-          <label className="text-sm mt-2 block">
-            {t('settings.tagging.contactEmail')}
-            <input
-              className={field}
-              value={s.tagging.userAgentEmail}
-              onChange={(e) => set({ tagging: { ...s.tagging, userAgentEmail: e.target.value } })}
-            />
-          </label>
-        </section>
-
-        <section className="mb-5">
-          <h3 className={heading}>{t('settings.sections.naming')}</h3>
-          <label className="flex gap-2 items-center text-sm">
-            <input
-              type="checkbox"
-              checked={s.rename.enabled}
-              onChange={(e) => set({ rename: { ...s.rename, enabled: e.target.checked } })}
-            />
-            {t('settings.naming.renameAfter')}
-          </label>
-          <input
-            className={`${field} mt-2`}
-            value={s.rename.template}
-            onChange={(e) => set({ rename: { ...s.rename, template: e.target.value } })}
-          />
-          <p className="text-xs text-neutral-500 mt-1">{t('settings.naming.tokensHelp')}</p>
-        </section>
+        <TransformsSection
+          instances={s.transforms}
+          catalog={catalog}
+          onChange={(transforms) => set({ transforms })}
+          t={(key) => t(key as never)}
+        />
 
         <section className="mb-6">
           <h3 className={heading}>{t('settings.sections.performance')}</h3>

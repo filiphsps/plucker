@@ -9,6 +9,7 @@ import icon from '../../resources/icon.png?asset'
 import { loadSettings, saveSettings, settingsPath, expandHome } from './settings'
 import { binaryPaths } from './binaries'
 import { runJob } from './pipeline'
+import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl } from './tagger'
 import { addEntry, removeEntry, removeTrack } from './history'
 import type { Settings, HistoryEntry } from '../shared/types'
@@ -24,6 +25,7 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('app:locale', () => app.getLocale())
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:save', (_e, s: Settings) => saveSettings(settingsPath(), s))
+  ipcMain.handle('transforms:catalog', () => getCatalog())
   ipcMain.handle('dialog:chooseFolder', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     return r.canceled ? null : r.filePaths[0]
@@ -70,10 +72,15 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       bin,
       settings,
       homeBase: expandHome(settings.downloads.baseFolder),
-      onProgress: (p) => getWindow()?.webContents.send('job:progress', p),
+      onProgress: (p) => {
+        const win = getWindow()
+        win?.webContents.send('job:progress', p)
+        win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
+      },
       signal: abort.signal,
       folderOverride
     })
+    getWindow()?.setProgressBar(-1)
 
     // Record to history (re-load fresh so we don't clobber edits made during the run).
     if (result.tracks.length > 0) {

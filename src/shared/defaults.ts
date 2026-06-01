@@ -1,22 +1,35 @@
 import type { Settings } from './types'
+import type { TransformInstance } from './transforms'
+
+export const DEFAULT_TRANSFORMS: TransformInstance[] = [
+  {
+    instanceId: 'auto-tag-default',
+    type: 'auto-tag',
+    enabled: true,
+    config: {
+      primarySource: 'youtube',
+      enrichWithMusicBrainz: true,
+      fetchCoverArt: true,
+      fetchGenre: true,
+      fetchTrackNumber: true,
+      minMatchScore: 80
+    }
+  },
+  {
+    instanceId: 'rename-default',
+    type: 'rename',
+    enabled: true,
+    config: { template: '{artist} - {track}. {title} - {album} ({year})' }
+  }
+]
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1,
+  version: 2,
   language: 'system',
   history: [],
   downloads: { baseFolder: '~/Music/Plucker', perPlaylistSubfolder: true },
   audio: { format: 'mp3', preferredBitrate: 320, minBitrate: null },
   cookies: { source: 'auto' },
-  tagging: {
-    enabled: true,
-    primarySource: 'youtube',
-    enrichWithMusicBrainz: true,
-    fetchCoverArt: true,
-    fetchGenre: true,
-    fetchTrackNumber: true,
-    minMatchScore: 80,
-    userAgentEmail: 'you@example.com'
-  },
-  rename: { enabled: true, template: '{artist} - {track}. {title} - {album} ({year})' },
+  transforms: DEFAULT_TRANSFORMS,
   performance: { parallel: 4 }
 }

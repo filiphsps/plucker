@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { destFolderFor, mergeTags } from './pipeline'
-import { DEFAULT_SETTINGS } from '../shared/defaults'
+import { destFolderFor, parseEntries } from './pipeline'
 
 describe('destFolderFor', () => {
   it('nests playlist title under base when perPlaylistSubfolder', () => {
@@ -17,29 +16,28 @@ describe('destFolderFor', () => {
   })
 })
 
-describe('mergeTags (youtube primary, musicbrainz enrich)', () => {
-  const yt = { artist: 'YT Artist', title: 'YT Title' }
-  const mb = {
-    artist: 'MB Artist',
-    title: 'MB Title',
-    album: 'MB Album',
-    year: '1999',
-    genre: 'Rock'
-  }
-  it('keeps YouTube values, fills gaps from MusicBrainz', () => {
-    const merged = mergeTags(yt, mb, DEFAULT_SETTINGS)
-    expect(merged.artist).toBe('YT Artist') // YT wins
-    expect(merged.title).toBe('YT Title') // YT wins
-    expect(merged.album).toBe('MB Album') // gap filled
-    expect(merged.year).toBe('1999') // gap filled
-    expect(merged.genre).toBe('Rock') // gap filled
-  })
-  it('inverts precedence when primarySource is musicbrainz', () => {
-    const s = {
-      ...DEFAULT_SETTINGS,
-      tagging: { ...DEFAULT_SETTINGS.tagging, primarySource: 'musicbrainz' as const }
+describe('parseEntries', () => {
+  it('lists all playlist entries with 1-based index', () => {
+    const json = {
+      _type: 'playlist',
+      title: 'My List',
+      entries: [
+        { id: 'aaa', title: 'First' },
+        { id: 'bbb', title: 'Second' }
+      ]
     }
-    const merged = mergeTags(yt, mb, s)
-    expect(merged.artist).toBe('MB Artist')
+    const r = parseEntries(json)
+    expect(r.kind).toBe('playlist')
+    expect(r.title).toBe('My List')
+    expect(r.entries).toEqual([
+      { videoId: 'aaa', title: 'First', index: 1 },
+      { videoId: 'bbb', title: 'Second', index: 2 }
+    ])
+  })
+  it('treats a single video as one entry', () => {
+    const json = { id: 'vid', title: 'Solo' }
+    const r = parseEntries(json)
+    expect(r.kind).toBe('video')
+    expect(r.entries).toEqual([{ videoId: 'vid', title: 'Solo', index: 1 }])
   })
 })

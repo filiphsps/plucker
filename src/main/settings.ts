@@ -12,10 +12,11 @@ export function expandHome(p: string, home = homedir()): string {
   return p.startsWith('~') ? join(home, p.slice(1)) : p
 }
 
-/** Deep-merge a partial object onto defaults, one level per nested group. */
+/** Merge a partial object onto defaults; reset transforms when migrating from < v2. */
 function mergeDefaults(partial: unknown): Settings {
-  const p = (partial ?? {}) as { [K in keyof Settings]?: Partial<Settings[K]> }
+  const p = (partial ?? {}) as Partial<Settings> & { version?: number }
   const d = DEFAULT_SETTINGS
+  const isV2 = typeof p.version === 'number' && p.version >= 2
   return {
     version: d.version,
     language: p.language ?? d.language,
@@ -23,8 +24,8 @@ function mergeDefaults(partial: unknown): Settings {
     downloads: { ...d.downloads, ...(p.downloads ?? {}) },
     audio: { ...d.audio, ...(p.audio ?? {}) },
     cookies: { ...d.cookies, ...(p.cookies ?? {}) },
-    tagging: { ...d.tagging, ...(p.tagging ?? {}) },
-    rename: { ...d.rename, ...(p.rename ?? {}) },
+    transforms:
+      isV2 && Array.isArray(p.transforms) ? (p.transforms as Settings['transforms']) : d.transforms,
     performance: { ...d.performance, ...(p.performance ?? {}) }
   }
 }

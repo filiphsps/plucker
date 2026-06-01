@@ -1,3 +1,5 @@
+import type { TransformInstance } from './transforms'
+
 export type CookieSource = 'auto' | 'none' | 'chrome' | 'edge' | 'safari' | 'firefox' | 'brave'
 
 export type Bitrate = 320 | 256 | 192 | 128 // MP3 re-encode target
@@ -13,27 +15,19 @@ export interface Settings {
   downloads: { baseFolder: string; perPlaylistSubfolder: boolean }
   audio: { format: 'mp3'; preferredBitrate: Bitrate; minBitrate: MinBitrate | null }
   cookies: { source: CookieSource }
-  tagging: {
-    enabled: boolean
-    primarySource: 'youtube' | 'musicbrainz'
-    enrichWithMusicBrainz: boolean
-    fetchCoverArt: boolean
-    fetchGenre: boolean
-    fetchTrackNumber: boolean
-    minMatchScore: number
-    userAgentEmail: string
-  }
-  rename: { enabled: boolean; template: string }
+  transforms: TransformInstance[]
   performance: { parallel: number }
 }
 
-export type TrackStatus = 'queued' | 'downloading' | 'tagging' | 'done' | 'failed' | 'skipped'
+export type TrackStatus = 'queued' | 'downloading' | 'transforming' | 'done' | 'failed' | 'skipped'
 
 export interface TrackProgress {
   index: number
   title: string
   status: TrackStatus
   percent?: number
+  /** 0..100 progress within the transform phase. */
+  transformPercent?: number
   reason?: string
   /** Absolute path to the final mp3 once downloaded/tagged (enables reveal-in-folder). */
   file?: string
@@ -51,6 +45,8 @@ export interface JobProgress {
   folder: string
   /** Source URL of the job (enables redownload). */
   url: string
+  /** 0..1 overall job progress (download-weighted), for the OS progress bar. */
+  overall: number
 }
 
 /** A single tagged track recorded in history. */
