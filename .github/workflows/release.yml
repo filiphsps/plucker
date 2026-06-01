@@ -49,13 +49,35 @@ jobs:
       # already exists (release-please made it); we upload the assets ourselves below.
       - run: pnpm build:mac
 
-      # Upload the DMGs plus the electron-updater metadata (zip + latest-mac.yml).
-      # nullglob keeps this resilient: if the update metadata isn't present, only the
-      # DMGs upload rather than failing the release.
+      # Render UI screenshots from the freshly built app (out/ exists after build:mac)
+      # into .github/img/. These are both attached to the release and committed back
+      # to master so the README images track every release.
+      - run: pnpm build:screenshots
+
+      # Upload the DMGs plus the electron-updater metadata (zip + latest-mac.yml) and
+      # the rendered screenshots. nullglob keeps this resilient: if the update metadata
+      # isn't present, only the available assets upload rather than failing the release.
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
-          assets=(dist/*.dmg dist/*.zip dist/latest-mac.yml)
+          assets=(dist/*.dmg dist/*.zip dist/latest-mac.yml .github/img/*.png)
           gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
+
+      # Commit the refreshed screenshots back to master. The release commit (= this tag)
+      # is master's tip at release time, so the screenshot commit fast-forwards onto it.
+      # [skip ci] avoids a redundant CI run; the chore: prefix opens no new release PR.
+      - name: Commit refreshed screenshots
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- .github/img; then
+            echo "screenshots: no changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/img/*.png
+          git commit -m "chore(screenshots): refresh for ${{ needs.release-please.outputs.tag_name }} [skip ci]"
+          git push origin HEAD:master

@@ -1,0 +1,37 @@
+name: screenshots
+
+# On-demand preview: build the app on macOS, render the UI screenshots, and
+# upload them as artifacts so they can be reviewed before a release refreshes
+# the committed images in .github/img/. (The release workflow regenerates and
+# commits these automatically — this is just for previewing.)
+on:
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Playwright drives both the icon render (during build) and the app screenshots.
+      - run: pnpm exec playwright install chromium
+
+      # Builds the renderer + main process into out/, which build:screenshots launches.
+      - run: pnpm build
+
+      - run: pnpm build:screenshots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: .github/img/*.png
+          if-no-files-found: error
