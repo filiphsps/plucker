@@ -133,6 +133,33 @@ export interface JobResult {
   tracks: HistoryTrack[]
 }
 
+/** A track is settled once it reaches one of these — anything else is still in flight. */
+const TERMINAL_STATUSES: ReadonlySet<TrackProgress['status']> = new Set([
+  'done',
+  'failed',
+  'skipped'
+])
+
+/**
+ * Backstop run after the pool drains: any track still in a non-terminal state
+ * (`queued`/`downloading`/`transforming`) never reached done/failed/skipped, so
+ * count it as failed. Without this a track that threw mid-transform stays
+ * `transforming` forever, which the UI reads as a live job — pinning the deck in
+ * a "downloading" state with nothing left to cancel. Mutates in place and
+ * returns the tracks it rescued so the caller can log them.
+ */
+export function finalizePendingTracks(tracks: TrackProgress[]): TrackProgress[] {
+  const rescued: TrackProgress[] = []
+  for (const t of tracks) {
+    if (TERMINAL_STATUSES.has(t.status)) continue
+    t.status = 'failed'
+    t.stage = undefined
+    t.reason = t.reason ?? 'Download failed'
+    rescued.push(t)
+  }
+  return rescued
+}
+
 /** 0..1 progress for one track: download weighted 0.8, transforms 0.2. */
 function trackProgress(t: TrackProgress): number {
   if (t.status === 'done' || t.status === 'failed' || t.status === 'skipped') return 1
@@ -356,22 +383,31 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       emit()
       return
     }
-    await finishTrack(t, downloaded)
-    t.elapsedMs = Math.round(trackSpan.end(t.title))
+    // A throw inside finishTrack (hash/transform/probe) would otherwise leave the
+    // track stuck in `transforming`. Mark it failed here so the row settles
+    // immediately rather than waiting on the end-of-job backstop.
+    try {
+      await finishTrack(t, downloaded)
+      t.elapsedMs = Math.round(trackSpan.end(t.title))
+    } catch (err) {
+      t.status = 'failed'
+      t.stage = undefined
+      t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
+      t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
+      log.warn('pipeline', `track failed "${t.title}": ${t.reason}`)
+    }
     emit()
   }
 
   job.entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
   await pool.drain()
 
-  // Safety net: a slot that threw before assigning a terminal status counts as failed.
-  tracks.forEach((t) => {
-    if (t.status === 'queued' || t.status === 'downloading') {
-      t.status = 'failed'
-      t.reason = t.reason ?? 'Download failed'
-      log.warn('pipeline', `download failed for "${t.title}": ${t.reason}`)
-    }
-  })
+  // Safety net: a slot that threw before assigning a terminal status (e.g. a
+  // throw during transform/probe, or an aborted yt-dlp spawn) counts as failed,
+  // so the job always settles to idle once every track has been attempted.
+  for (const t of finalizePendingTracks(tracks)) {
+    log.warn('pipeline', `track did not complete "${t.title}": ${t.reason}`)
+  }
   emit()
 
   const history = historyByIndex.filter((h): h is HistoryTrack => h !== undefined)
