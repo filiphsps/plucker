@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/filiphsps/plucker/compare/plucker-v0.7.1...plucker-v0.8.0) (2026-06-01)
+
+
+### Features
+
+* **cookies:** escalate to root for browser cookies on permission error ([e6e112b](https://github.com/filiphsps/plucker/commit/e6e112b3a399d0b660ee0f3b16b4e5d6d311cedb))
+
+
+### Bug Fixes
+
+* **updater:** offer manual download fallback when self-install fails ([4d12255](https://github.com/filiphsps/plucker/commit/4d12255720d6265ea60f31541b02e70dbfb6811b))
+
 ## [0.7.1](https://github.com/filiphsps/plucker/compare/plucker-v0.7.0...plucker-v0.7.1) (2026-06-01)
 
 
