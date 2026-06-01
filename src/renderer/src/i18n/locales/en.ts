@@ -45,6 +45,7 @@ export default {
     cancel: 'Cancel',
     clear: 'Clear',
     colTrack: 'Track',
+    colSpeed: 'Speed',
     colProgress: 'Progress',
     colStatus: 'Status',
     colSource: 'Source',
@@ -60,6 +61,15 @@ export default {
     done: 'done',
     failed: 'failed',
     skipped: 'skipped'
+  },
+  stage: {
+    downloading: 'Downloading · yt-dlp',
+    hashing: 'Hashing audio',
+    probing: 'Reading audio specs',
+    saving: 'Saving file',
+    'auto-tag': 'Auto-tagging · MusicBrainz',
+    rename: 'Renaming file',
+    took: 'took {{time}}'
   },
   settings: {
     title: 'Settings',

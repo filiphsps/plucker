@@ -46,6 +46,7 @@ const de: typeof en = {
     cancel: 'Abbrechen',
     clear: 'Leeren',
     colTrack: 'Titel',
+    colSpeed: 'Tempo',
     colProgress: 'Fortschritt',
     colStatus: 'Status',
     colSource: 'Quelle',
@@ -61,6 +62,15 @@ const de: typeof en = {
     done: 'fertig',
     failed: 'fehlgeschlagen',
     skipped: 'übersprungen'
+  },
+  stage: {
+    downloading: 'Lädt herunter · yt-dlp',
+    hashing: 'Audio-Hash wird berechnet',
+    probing: 'Audiodaten werden gelesen',
+    saving: 'Datei wird gespeichert',
+    'auto-tag': 'Auto-Tagging · MusicBrainz',
+    rename: 'Datei wird umbenannt',
+    took: 'dauerte {{time}}'
   },
   settings: {
     title: 'Einstellungen',

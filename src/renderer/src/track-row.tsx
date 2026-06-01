@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Music, ChevronRight, ChevronDown, Check, X, AlertTriangle } from 'lucide-react'
 import type { TrackStatus, TrackMetadata, TrackTags } from '../../shared/types'
 import { TrackDetail, type TrackSource } from './ui/meta/track-detail'
-import { formatDuration } from './ui/meta/format'
+import { formatDuration, formatSpeed, formatElapsed } from './ui/meta/format'
+import { Tooltip } from './ui/tooltip'
 
 export interface TrackRowData {
   title: string
@@ -20,6 +21,12 @@ export interface TrackRowData {
   videoId?: string
   /** Audio-content hash; cache key for the expanded metadata panel. */
   hash?: string
+  /** Current activity id for the live status tooltip (resolved via the `stage.*` i18n keys). */
+  stage?: string
+  /** Live download speed in bytes/sec while downloading. */
+  speedBytesPerSec?: number
+  /** Total processing time in ms, shown in the status tooltip once done. */
+  elapsedMs?: number
 }
 
 const METER_CELLS = 14
@@ -146,6 +153,17 @@ export function TrackRow({
     )
   }
 
+  // Resolve the current stage id to a localized label (built-ins live under
+  // `stage.*`; transform stages fall back to their type id). Once done, the
+  // tooltip instead reports the total processing time.
+  const stageText = track.stage
+    ? t(`stage.${track.stage}` as never, { defaultValue: track.stage })
+    : null
+  const tooltipText =
+    track.status === 'done' && track.elapsedMs != null
+      ? t('stage.took', { time: formatElapsed(track.elapsedMs) })
+      : stageText
+
   const missingBadge = (
     <span className="rounded-md border border-warn/30 bg-warn/[0.08] px-[7px] py-[3px] font-mono text-[10px] text-warn">
       {t('history.missingBadge')}
@@ -230,11 +248,14 @@ export function TrackRow({
 
         {variant === 'download' ? (
           <>
+            <span className="w-[64px] text-right font-mono text-[11px] text-ink-dim tnum">
+              {track.status === 'downloading' ? formatSpeed(track.speedBytesPerSec) : ''}
+            </span>
             <Meter
               value={track.percent ?? (track.status === 'done' ? 100 : 0)}
               done={track.status === 'done'}
             />
-            {statusEl()}
+            {tooltipText ? <Tooltip label={tooltipText}>{statusEl()}</Tooltip> : statusEl()}
           </>
         ) : (
           <>

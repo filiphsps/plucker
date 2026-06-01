@@ -63,6 +63,7 @@ export function DownloadView({
           <div className="flex items-center gap-3 border-b border-line py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
             <span className="w-[22px]">#</span>
             <span className="flex-1">{t('download.colTrack')}</span>
+            <span className="w-[64px]" />
             <span className="w-[188px]">{t('download.colProgress')}</span>
             <span className="w-16 text-right">{t('download.colStatus')}</span>
           </div>

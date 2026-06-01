@@ -2,6 +2,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Music, X } from 'lucide-react'
 import type { JobProgress } from '../../shared/types'
+import { formatSpeed } from './ui/meta/format'
 
 const SEGMENTS = 32
 
@@ -41,6 +42,11 @@ export function TransportDeck({
     (x) => x.status === 'done' || x.status === 'failed' || x.status === 'skipped'
   ).length
   const failed = progress.tracks.filter((x) => x.status === 'failed').length
+  // Aggregate live download speed across all concurrently-downloading tracks.
+  const totalSpeed = progress.tracks.reduce(
+    (sum, x) => sum + (x.status === 'downloading' ? (x.speedBytesPerSec ?? 0) : 0),
+    0
+  )
   const subtitle = [active?.artist, active?.album].filter(Boolean).join(' · ')
 
   return (
@@ -61,6 +67,7 @@ export function TransportDeck({
         <Meter value={progress.overall} />
         <div className="flex justify-between font-mono text-[9px] tracking-[0.5px] text-ink-faint">
           <span>{t('deck.jobProgress')}</span>
+          {totalSpeed > 0 && <span className="text-accent">{formatSpeed(totalSpeed)}</span>}
           <span>{Math.round(progress.overall * 100)}%</span>
         </div>
       </div>

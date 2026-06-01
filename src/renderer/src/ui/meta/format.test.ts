@@ -5,10 +5,25 @@ import {
   formatChannels,
   formatSampleRate,
   formatBitrate,
-  formatCodec
+  formatCodec,
+  formatSpeed,
+  formatElapsed,
+  formatNumber
 } from './format'
 
 const DASH = '—'
+
+describe('formatNumber', () => {
+  it('groups thousands', () => {
+    expect(formatNumber(7300)).toBe('7,300')
+  })
+  it('groups millions and keeps requested decimals', () => {
+    expect(formatNumber(1200300.25, 2)).toBe('1,200,300.25')
+  })
+  it('formats integers without decimals by default', () => {
+    expect(formatNumber(320)).toBe('320')
+  })
+})
 
 describe('formatDuration', () => {
   it('formats minutes:seconds', () => {
@@ -77,5 +92,27 @@ describe('formatCodec', () => {
   })
   it('returns a dash when missing', () => {
     expect(formatCodec(undefined)).toBe(DASH)
+  })
+})
+
+describe('formatSpeed', () => {
+  it('formats bytes/sec with a /s suffix', () => {
+    expect(formatSpeed(1_572_864)).toBe('1.5 MB/s')
+  })
+  it('returns a dash for zero or missing speed', () => {
+    expect(formatSpeed(0)).toBe(DASH)
+    expect(formatSpeed(undefined)).toBe(DASH)
+  })
+})
+
+describe('formatElapsed', () => {
+  it('formats sub-second durations in ms', () => {
+    expect(formatElapsed(735)).toBe('735ms')
+  })
+  it('formats longer durations in seconds with one decimal', () => {
+    expect(formatElapsed(7200)).toBe('7.2s')
+  })
+  it('returns a dash when missing', () => {
+    expect(formatElapsed(undefined)).toBe(DASH)
   })
 })

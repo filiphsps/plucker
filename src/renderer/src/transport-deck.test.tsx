@@ -28,6 +28,19 @@ describe('TransportDeck', () => {
     expect(html).toContain('aria-label="Cancel"')
   })
 
+  it('shows the aggregate download speed across active downloads', () => {
+    const progress: JobProgress = {
+      ...base,
+      tracks: [
+        { index: 1, title: 'A', status: 'downloading', percent: 20, speedBytesPerSec: 1_048_576 },
+        { index: 2, title: 'B', status: 'downloading', percent: 40, speedBytesPerSec: 1_048_576 },
+        { index: 3, title: 'C', status: 'done', speedBytesPerSec: 9999 }
+      ]
+    }
+    const html = renderToStaticMarkup(<TransportDeck progress={progress} onCancel={() => {}} />)
+    expect(html).toContain('2.0 MB/s') // 1 MB/s + 1 MB/s, done track excluded
+  })
+
   it('counts failed (and skipped) tracks toward the total and shows a failed tally', () => {
     const progress: JobProgress = {
       ...base,
