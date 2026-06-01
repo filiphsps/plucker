@@ -6,6 +6,8 @@ import { buildDownloadArgs, runYtDlp } from './ytdlp'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
 import { createPool } from './pool'
+import { startSpan, timed } from './bench'
+import { log } from './log'
 import { hashAudioFile } from './audio-hash'
 import { probeAudio } from './audio-meta'
 import type { MetadataCache } from './metadata-cache'
@@ -134,7 +136,10 @@ function trackProgress(t: TrackProgress): number {
 /** Full pipeline: resolve all entries → download → transform each track as it lands. */
 export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> {
   const { bin, settings, homeBase, onProgress, signal } = deps
-  const job = await resolvePlaylist(bin.ytdlp, url)
+  log.info('pipeline', `job start: ${url}`)
+  const jobSpan = startSpan('job', 'pipeline')
+  const job = await timed('resolve-playlist', 'pipeline', () => resolvePlaylist(bin.ytdlp, url))
+  log.info('pipeline', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
   const dest =
     deps.folderOverride ??
     destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
@@ -210,7 +215,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     // cached results and history can point straight at the cache entry.
     let hash: string | undefined
     try {
-      hash = await hashAudioFile(filePath)
+      hash = await timed('hash', 'pipeline', () => hashAudioFile(filePath))
       t.hash = hash
     } catch {
       /* unreadable download — proceed without a cache key */
@@ -220,6 +225,8 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     t.transformPercent = 0
     emit()
     pool.run(async () => {
+      const trackSpan = startSpan('track-process', 'pipeline')
+      const transformSpan = startSpan('transform-chain', 'pipeline')
       const res = await runTransformChain(
         filePath,
         dest,
@@ -238,10 +245,12 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
           emit()
         }
       )
+      transformSpan.end(t.title)
       if (existsSync(sidecarPath)) rmSync(sidecarPath, { force: true })
       if (res.failed) {
         t.status = 'failed'
         t.reason = res.reason
+        log.warn('pipeline', `transform failed for "${t.title}": ${res.reason}`)
       } else {
         if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
         // Probe technical audio properties once and cache them by content hash;
@@ -256,7 +265,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
               /* stat failed — leave size undefined */
             }
             deps.cache.writeAudio(hash, {
-              ...(await probeAudio(bin.ffmpeg, res.outputFile)),
+              ...(await timed('probe', 'pipeline', () => probeAudio(bin.ffmpeg, res.outputFile))),
               sizeBytes
             })
           }
@@ -282,13 +291,17 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
           videoId: sidecar.id,
           hash
         })
+        log.debug('pipeline', `track done: ${t.title}`)
       }
+      trackSpan.end(t.title)
       emit()
     })
   }
 
   const args = buildDownloadArgs({ url, destFolder: dest, settings, ffmpegPath: bin.ffmpeg })
+  const dlSpan = startSpan('download-phase', 'pipeline')
   const dl = await runYtDlp(bin.ytdlp, args, onDownloadProgress, onComplete, signal)
+  dlSpan.end(`exit ${dl.code}`)
 
   // Await any completion handlers still hashing/probing so none is dropped before
   // we drain the transform pool below.
@@ -320,9 +333,19 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       t.status = 'failed'
       t.reason =
         (t.videoId ? errByVideo.get(t.videoId) : undefined) ?? lastError ?? 'Download failed'
+      log.warn('pipeline', `download failed for "${t.title}": ${t.reason}`)
     }
   })
   emit()
+
+  const doneCount = tracks.filter((t) => t.status === 'done').length
+  const failedCount = tracks.filter((t) => t.status === 'failed').length
+  const skippedCount = tracks.filter((t) => t.status === 'skipped').length
+  jobSpan.end(`${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`)
+  log.info(
+    'pipeline',
+    `job done "${job.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`
+  )
 
   return { title: job.title, folder: dest, url, kind: job.kind, tracks: history }
 }
