@@ -20,7 +20,7 @@ const YTDLP_URL = `https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VE
 // to real, verified URLs before running.
 const FFMPEG = {
   arm64: process.env.FFMPEG_ARM64_URL ?? '',
-  x64: process.env.FFMPEG_X64_URL ?? '',
+  x64: process.env.FFMPEG_X64_URL ?? ''
 }
 
 async function download(url: string, dest: string): Promise<void> {
@@ -28,7 +28,10 @@ async function download(url: string, dest: string): Promise<void> {
   const res = await fetch(url)
   if (!res.ok || !res.body) throw new Error(`Download failed ${res.status}: ${url}`)
   mkdirSync(join(dest, '..'), { recursive: true })
-  await pipeline(Readable.fromWeb(res.body as any), createWriteStream(dest))
+  await pipeline(
+    Readable.fromWeb(res.body as import('node:stream/web').ReadableStream),
+    createWriteStream(dest)
+  )
   chmodSync(dest, 0o755)
   console.log('✓', dest)
 }
@@ -40,4 +43,7 @@ async function main(): Promise<void> {
   if (!existsSync(join(BIN, 'universal', 'yt-dlp'))) throw new Error('yt-dlp missing')
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

@@ -26,13 +26,13 @@ export function buildFileName(template: string, tags: TrackTags): string {
     .replaceAll('{year}', tags.year ?? '')
 
   out = out
-    .replace(/\(\s*\)/g, '')           // empty parens
-    .replace(/\.\s+(?=-|\.|$)/g, ' ')  // dangling "03." when no title follows
-    .replace(/\s*-\s*-\s*/g, ' - ')    // doubled dashes
-    .replace(/^\s*[-.]\s*/, '')         // leading separators
-    .replace(/\s*[-.]\s*$/, '')         // trailing separators
-    .replace(/\s{2,}/g, ' ')            // collapse spaces
-    .replace(/\s+\.\s+/g, ' ')          // dangling dot with spaces (missing track)
+    .replace(/\(\s*\)/g, '') // empty parens
+    .replace(/\.\s+(?=-|\.|$)/g, ' ') // dangling "03." when no title follows
+    .replace(/\s*-\s*-\s*/g, ' - ') // doubled dashes
+    .replace(/^\s*[-.]\s*/, '') // leading separators
+    .replace(/\s*[-.]\s*$/, '') // trailing separators
+    .replace(/\s{2,}/g, ' ') // collapse spaces
+    .replace(/\s+\.\s+/g, ' ') // dangling dot with spaces (missing track)
     .trim()
 
   return sanitizeFileName(out)

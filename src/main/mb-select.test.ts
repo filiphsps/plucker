@@ -4,18 +4,33 @@ import { selectBestMatch } from './mb-select'
 const json = {
   recordings: [
     {
-      id: 'rec-low', score: 50, title: 'Low', 'artist-credit': [{ artist: { name: 'X' } }],
-      releases: [{ id: 'r1', title: 'Single', 'release-group': { 'primary-type': 'Single' } }],
+      id: 'rec-low',
+      score: 50,
+      title: 'Low',
+      'artist-credit': [{ artist: { name: 'X' } }],
+      releases: [{ id: 'r1', title: 'Single', 'release-group': { 'primary-type': 'Single' } }]
     },
     {
-      id: 'rec-hi', score: 95, title: 'Da Funk',
+      id: 'rec-hi',
+      score: 95,
+      title: 'Da Funk',
       'artist-credit': [{ artist: { name: 'Daft Punk' } }],
       releases: [
-        { id: 'r-single', title: 'Da Funk', date: '1995', 'release-group': { 'primary-type': 'Single', id: 'rg-s' } },
-        { id: 'r-album', title: 'Homework', date: '1997-01-20', 'release-group': { 'primary-type': 'Album', id: 'rg-a' } },
-      ],
-    },
-  ],
+        {
+          id: 'r-single',
+          title: 'Da Funk',
+          date: '1995',
+          'release-group': { 'primary-type': 'Single', id: 'rg-s' }
+        },
+        {
+          id: 'r-album',
+          title: 'Homework',
+          date: '1997-01-20',
+          'release-group': { 'primary-type': 'Album', id: 'rg-a' }
+        }
+      ]
+    }
+  ]
 }
 
 describe('selectBestMatch', () => {
@@ -34,10 +49,24 @@ describe('selectBestMatch', () => {
     expect(m!.year).toBe('1997')
   })
   it('falls back to first release when no album exists', () => {
-    const onlySingle = { recordings: [{
-      id: 'r', score: 90, title: 'T', 'artist-credit': [{ artist: { name: 'A' } }],
-      releases: [{ id: 'r1', title: 'S', date: '2000', 'release-group': { 'primary-type': 'Single', id: 'g1' } }],
-    }] }
+    const onlySingle = {
+      recordings: [
+        {
+          id: 'r',
+          score: 90,
+          title: 'T',
+          'artist-credit': [{ artist: { name: 'A' } }],
+          releases: [
+            {
+              id: 'r1',
+              title: 'S',
+              date: '2000',
+              'release-group': { 'primary-type': 'Single', id: 'g1' }
+            }
+          ]
+        }
+      ]
+    }
     const m = selectBestMatch(onlySingle, 80)
     expect(m!.releaseId).toBe('r1')
     expect(m!.year).toBe('2000')

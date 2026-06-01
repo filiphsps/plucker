@@ -51,6 +51,6 @@ export function selectBestMatch(json: unknown, minScore: number): MbMatch | null
     date: rel?.date ?? null,
     year: year(rel?.date),
     releaseId: rel?.id ?? null,
-    releaseGroupId: rel?.['release-group']?.id ?? null,
+    releaseGroupId: rel?.['release-group']?.id ?? null
   }
 }

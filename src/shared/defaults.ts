@@ -13,8 +13,8 @@ export const DEFAULT_SETTINGS: Settings = {
     fetchGenre: true,
     fetchTrackNumber: true,
     minMatchScore: 80,
-    userAgentEmail: 'you@example.com',
+    userAgentEmail: 'you@example.com'
   },
   rename: { enabled: true, template: '{artist} - {track}. {title} - {album} ({year})' },
-  performance: { parallel: 4 },
+  performance: { parallel: 4 }
 }

@@ -1,6 +1,9 @@
 const BASE = 'https://musicbrainz.org/ws/2'
 
-interface Opts { fetchImpl?: typeof fetch; throttleMs?: number }
+interface Opts {
+  fetchImpl?: typeof fetch
+  throttleMs?: number
+}
 
 export class MusicBrainzClient {
   private ua: string
@@ -33,7 +36,8 @@ export class MusicBrainzClient {
 
   async searchRecording(artist: string | null, title: string): Promise<unknown> {
     const parts = [artist ? `artist:"${artist}"` : '', `recording:"${title}"`]
-      .filter(Boolean).join(' AND ')
+      .filter(Boolean)
+      .join(' AND ')
     const q = encodeURIComponent(parts)
     return this.getJson(`${BASE}/recording?query=${q}&fmt=json&limit=5`)
   }

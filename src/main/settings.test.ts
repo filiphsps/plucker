@@ -7,7 +7,10 @@ import { DEFAULT_SETTINGS } from '../shared/defaults'
 
 let dir: string
 let file: string
-beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'plucker-')); file = join(dir, '.plucker.json') })
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'plucker-'))
+  file = join(dir, '.plucker.json')
+})
 afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
 describe('loadSettings', () => {

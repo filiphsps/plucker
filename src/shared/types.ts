@@ -1,8 +1,7 @@
-export type CookieSource =
-  | 'auto' | 'none' | 'chrome' | 'edge' | 'safari' | 'firefox' | 'brave'
+export type CookieSource = 'auto' | 'none' | 'chrome' | 'edge' | 'safari' | 'firefox' | 'brave'
 
-export type Bitrate = 320 | 256 | 192 | 128      // MP3 re-encode target
-export type MinBitrate = 64 | 96 | 128 | 160     // source-audio floor
+export type Bitrate = 320 | 256 | 192 | 128 // MP3 re-encode target
+export type MinBitrate = 64 | 96 | 128 | 160 // source-audio floor
 
 export interface Settings {
   version: number
@@ -23,8 +22,7 @@ export interface Settings {
   performance: { parallel: number }
 }
 
-export type TrackStatus =
-  | 'queued' | 'downloading' | 'tagging' | 'done' | 'failed' | 'skipped'
+export type TrackStatus = 'queued' | 'downloading' | 'tagging' | 'done' | 'failed' | 'skipped'
 
 export interface TrackProgress {
   index: number
@@ -40,7 +38,10 @@ export interface JobProgress {
   tracks: TrackProgress[]
 }
 
-export interface ParsedTitle { artist: string | null; title: string }
+export interface ParsedTitle {
+  artist: string | null
+  title: string
+}
 
 export interface TrackTags {
   artist?: string

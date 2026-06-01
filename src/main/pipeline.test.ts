@@ -19,17 +19,26 @@ describe('destFolderFor', () => {
 
 describe('mergeTags (youtube primary, musicbrainz enrich)', () => {
   const yt = { artist: 'YT Artist', title: 'YT Title' }
-  const mb = { artist: 'MB Artist', title: 'MB Title', album: 'MB Album', year: '1999', genre: 'Rock' }
+  const mb = {
+    artist: 'MB Artist',
+    title: 'MB Title',
+    album: 'MB Album',
+    year: '1999',
+    genre: 'Rock'
+  }
   it('keeps YouTube values, fills gaps from MusicBrainz', () => {
     const merged = mergeTags(yt, mb, DEFAULT_SETTINGS)
-    expect(merged.artist).toBe('YT Artist')   // YT wins
-    expect(merged.title).toBe('YT Title')      // YT wins
-    expect(merged.album).toBe('MB Album')      // gap filled
-    expect(merged.year).toBe('1999')           // gap filled
-    expect(merged.genre).toBe('Rock')          // gap filled
+    expect(merged.artist).toBe('YT Artist') // YT wins
+    expect(merged.title).toBe('YT Title') // YT wins
+    expect(merged.album).toBe('MB Album') // gap filled
+    expect(merged.year).toBe('1999') // gap filled
+    expect(merged.genre).toBe('Rock') // gap filled
   })
   it('inverts precedence when primarySource is musicbrainz', () => {
-    const s = { ...DEFAULT_SETTINGS, tagging: { ...DEFAULT_SETTINGS.tagging, primarySource: 'musicbrainz' as const } }
+    const s = {
+      ...DEFAULT_SETTINGS,
+      tagging: { ...DEFAULT_SETTINGS.tagging, primarySource: 'musicbrainz' as const }
+    }
     const merged = mergeTags(yt, mb, s)
     expect(merged.artist).toBe('MB Artist')
   })

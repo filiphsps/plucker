@@ -18,8 +18,13 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }))
 describe('tagger', () => {
   it('writes and reads back core tags', () => {
     writeTrackTags(mp3, {
-      artist: 'Daft Punk', title: 'Da Funk', album: 'Homework',
-      date: '1997-01-20', year: '1997', trackNumber: '3', genre: 'House',
+      artist: 'Daft Punk',
+      title: 'Da Funk',
+      album: 'Homework',
+      date: '1997-01-20',
+      year: '1997',
+      trackNumber: '3',
+      genre: 'House'
     })
     const t = readTrackTags(mp3)
     expect(t.artist).toBe('Daft Punk')

@@ -19,15 +19,20 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
   const args = [
     '--ignore-errors',
     '--extract-audio',
-    '--audio-format', 'mp3',
-    '--audio-quality', `${settings.audio.preferredBitrate}K`,
+    '--audio-format',
+    'mp3',
+    '--audio-quality',
+    `${settings.audio.preferredBitrate}K`,
     '--embed-thumbnail',
     '--embed-metadata',
-    '--ffmpeg-location', ffmpegPath,
+    '--ffmpeg-location',
+    ffmpegPath,
     '--newline',
-    '--progress-template', PROGRESS_TEMPLATE.replace('%(progress._percent_str)s', '%(progress._percent)d'),
-    '-o', join(destFolder, '%(artist,uploader)s - %(track,title)s.%(ext)s'),
-    '--yes-playlist',
+    '--progress-template',
+    PROGRESS_TEMPLATE.replace('%(progress._percent_str)s', '%(progress._percent)d'),
+    '-o',
+    join(destFolder, '%(artist,uploader)s - %(track,title)s.%(ext)s'),
+    '--yes-playlist'
   ]
   // Source-bitrate floor: select best audio at/above the floor with NO fallback,
   // so below-floor videos yield no format and are skipped under --ignore-errors.
@@ -41,7 +46,11 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
   return args
 }
 
-export interface ProgressEvent { index: number; percent: number; title: string }
+export interface ProgressEvent {
+  index: number
+  percent: number
+  title: string
+}
 
 export function parseProgressLine(line: string): ProgressEvent | null {
   const m = line.match(/^PLUCKER\s+(\S+)\s+([\d.]+)\s+(.+)$/)
@@ -50,7 +59,9 @@ export function parseProgressLine(line: string): ProgressEvent | null {
   return { index, percent: Number(m[2]), title: m[3].trim() }
 }
 
-export interface SkipEvent { videoId: string }
+export interface SkipEvent {
+  videoId: string
+}
 
 /** Detect yt-dlp "Requested format is not available" lines (our below-floor skips). */
 export function parseSkipLine(line: string): SkipEvent | null {
@@ -58,14 +69,18 @@ export function parseSkipLine(line: string): SkipEvent | null {
   return m ? { videoId: m[1] } : null
 }
 
-export interface SpawnResult { code: number; stderrTail: string; skipped: SkipEvent[] }
+export interface SpawnResult {
+  code: number
+  stderrTail: string
+  skipped: SkipEvent[]
+}
 
 /** Spawn yt-dlp, stream progress + skips, resolve with exit code + tail of stderr. */
 export function runYtDlp(
   ytdlpPath: string,
   args: string[],
   onProgress: (e: ProgressEvent) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(ytdlpPath, args, { signal })
@@ -76,7 +91,10 @@ export function runYtDlp(
     const scanSkips = (buf: string): string => {
       const lines = buf.split('\n')
       const rest = lines.pop() ?? ''
-      for (const line of lines) { const s = parseSkipLine(line); if (s) skipped.push(s) }
+      for (const line of lines) {
+        const s = parseSkipLine(line)
+        if (s) skipped.push(s)
+      }
       return rest
     }
     child.stdout.on('data', (d: Buffer) => {

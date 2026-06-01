@@ -14,7 +14,7 @@ export function expandHome(p: string, home = homedir()): string {
 
 /** Deep-merge a partial object onto defaults, one level per nested group. */
 function mergeDefaults(partial: unknown): Settings {
-  const p = (partial ?? {}) as Record<string, any>
+  const p = (partial ?? {}) as { [K in keyof Settings]?: Partial<Settings[K]> }
   const d = DEFAULT_SETTINGS
   return {
     version: d.version,
@@ -23,7 +23,7 @@ function mergeDefaults(partial: unknown): Settings {
     cookies: { ...d.cookies, ...(p.cookies ?? {}) },
     tagging: { ...d.tagging, ...(p.tagging ?? {}) },
     rename: { ...d.rename, ...(p.rename ?? {}) },
-    performance: { ...d.performance, ...(p.performance ?? {}) },
+    performance: { ...d.performance, ...(p.performance ?? {}) }
   }
 }
 

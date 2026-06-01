@@ -24,14 +24,14 @@ export function readTrackTags(file: string): TrackTags {
     date: t.date,
     year: t.year,
     trackNumber: t.trackNumber,
-    genre: t.genre,
+    genre: t.genre
   }
 }
 
 export function embedCover(file: string, image: Buffer, mime = 'image/jpeg'): void {
   const res = NodeID3.update(
     { image: { mime, type: { id: 3 }, description: 'Front Cover', imageBuffer: image } },
-    file,
+    file
   )
   if (res !== true) throw new Error(`Failed to embed cover: ${String(res)}`)
 }
