@@ -35,7 +35,12 @@ export function TransportDeck({
   const active =
     progress.tracks.find((x) => x.status === 'downloading' || x.status === 'transforming') ??
     progress.tracks.find((x) => x.status === 'queued')
-  const done = progress.tracks.filter((x) => x.status === 'done').length
+  // Count every terminal track (done, failed or skipped) toward the total so the
+  // counter reaches the total even when some tracks fail, instead of stalling.
+  const processed = progress.tracks.filter(
+    (x) => x.status === 'done' || x.status === 'failed' || x.status === 'skipped'
+  ).length
+  const failed = progress.tracks.filter((x) => x.status === 'failed').length
   const subtitle = [active?.artist, active?.album].filter(Boolean).join(' · ')
 
   return (
@@ -61,11 +66,16 @@ export function TransportDeck({
       </div>
       <div className="text-right">
         <div className="font-mono text-2xl font-semibold leading-none tnum text-accent">
-          {done}/{progress.total}
+          {processed}/{progress.total}
         </div>
         <div className="mt-1 font-mono text-[9px] tracking-[1.5px] text-ink-faint">
           {t('deck.tracks')}
         </div>
+        {failed > 0 && (
+          <div className="mt-1 font-mono text-[9px] tracking-[1.5px] text-bad">
+            {t('deck.failed', { count: failed })}
+          </div>
+        )}
       </div>
       <button
         onClick={onCancel}

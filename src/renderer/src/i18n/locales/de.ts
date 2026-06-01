@@ -23,7 +23,9 @@ const de: typeof en = {
   deck: {
     nowPlucking: 'WIRD GELADEN',
     jobProgress: 'FORTSCHRITT',
-    tracks: 'TITEL'
+    tracks: 'TITEL',
+    failed_one: '{{count}} FEHLER',
+    failed_other: '{{count}} FEHLER'
   },
   history: {
     title: 'Verlauf',

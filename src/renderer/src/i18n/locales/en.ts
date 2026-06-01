@@ -22,7 +22,9 @@ export default {
   deck: {
     nowPlucking: 'NOW PLUCKING',
     jobProgress: 'JOB PROGRESS',
-    tracks: 'TRACKS'
+    tracks: 'TRACKS',
+    failed_one: '{{count}} FAILED',
+    failed_other: '{{count}} FAILED'
   },
   history: {
     title: 'History',

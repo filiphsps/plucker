@@ -27,4 +27,20 @@ describe('TransportDeck', () => {
     const html = renderToStaticMarkup(<TransportDeck progress={base} onCancel={() => {}} />)
     expect(html).toContain('aria-label="Cancel"')
   })
+
+  it('counts failed (and skipped) tracks toward the total and shows a failed tally', () => {
+    const progress: JobProgress = {
+      ...base,
+      total: 4,
+      tracks: [
+        { index: 1, title: 'A', status: 'done' },
+        { index: 2, title: 'B', status: 'failed', reason: 'Video unavailable' },
+        { index: 3, title: 'C', status: 'skipped' },
+        { index: 4, title: 'D', status: 'downloading', percent: 10 }
+      ]
+    }
+    const html = renderToStaticMarkup(<TransportDeck progress={progress} onCancel={() => {}} />)
+    expect(html).toContain('3/4') // done + failed + skipped count toward the total
+    expect(html).toContain('1 FAILED')
+  })
 })
