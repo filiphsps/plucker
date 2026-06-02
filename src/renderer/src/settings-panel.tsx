@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation, Trans } from 'react-i18next'
 import {
   Globe,
@@ -72,12 +72,26 @@ export function SettingsPanel({
   // Snapshot of the last-persisted settings, used to detect unsaved edits.
   const [saved, setSaved] = useState<Settings | null>(null)
   const [catalog, setCatalog] = useState<TransformManifest[]>([])
+  // Latest draft vs. persisted language, read by the unmount cleanup below so a
+  // live language preview that was never saved can be rolled back.
+  const langRef = useRef<{ draft: Language; saved: Language }>({ draft: 'system', saved: 'system' })
+  useEffect(() => {
+    langRef.current = { draft: s?.language ?? 'system', saved: saved?.language ?? 'system' }
+  })
   useEffect(() => {
     window.plucker.getSettings().then((loaded) => {
       setS(loaded)
       setSaved(loaded)
     })
     window.plucker.getTransformCatalog().then(setCatalog)
+  }, [])
+  // On close/unmount, if the previewed language was never persisted, restore the
+  // saved one so leaving Settings without saving resets the live language.
+  useEffect(() => {
+    return () => {
+      const { draft, saved: savedLang } = langRef.current
+      if (draft !== savedLang) void applyLanguage(savedLang)
+    }
   }, [])
   if (!s) return <div />
 
@@ -117,7 +131,13 @@ export function SettingsPanel({
             <select
               className={sel}
               value={s.language}
-              onChange={(e) => set({ language: e.target.value as Language })}
+              onChange={(e) => {
+                const language = e.target.value as Language
+                set({ language })
+                // Reflect the choice in the UI immediately; the unmount cleanup
+                // reverts it if the user leaves without saving.
+                void applyLanguage(language)
+              }}
             >
               {LANGUAGES.map((l) => (
                 <option key={l} value={l}>
