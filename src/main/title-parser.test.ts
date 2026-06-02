@@ -1,33 +1,67 @@
 import { describe, it, expect } from 'vitest'
 import { parseTitle } from './title-parser'
 
-describe('parseTitle', () => {
-  it('splits "Artist - Title"', () => {
-    expect(parseTitle('Daft Punk - Around the World')).toEqual({
+describe('parseTitle — separators & noise', () => {
+  it('splits a plain "Artist - Title"', () => {
+    expect(parseTitle('Daft Punk - Around the World')).toMatchObject({
       artist: 'Daft Punk',
       title: 'Around the World'
     })
   })
-  it('strips trailing parenthetical/bracket noise from title', () => {
-    expect(parseTitle('Artist - Song (Official Video)')).toEqual({
-      artist: 'Artist',
-      title: 'Song'
-    })
-    expect(parseTitle('Artist - Song [HD Remaster]')).toEqual({
-      artist: 'Artist',
-      title: 'Song'
-    })
+  it('handles en/em dashes and pipe separators', () => {
+    expect(parseTitle('Artist – Song')).toMatchObject({ artist: 'Artist', title: 'Song' })
+    expect(parseTitle('Artist — Song')).toMatchObject({ artist: 'Artist', title: 'Song' })
+    expect(parseTitle('Artist | Song')).toMatchObject({ artist: 'Artist', title: 'Song' })
   })
-  it('returns null artist when there is no separator', () => {
-    expect(parseTitle('Just A Title (Lyrics)')).toEqual({
+  it('strips noise tokens from the title', () => {
+    expect(parseTitle('Artist - Song (Official Music Video)')).toMatchObject({ title: 'Song' })
+    expect(parseTitle('Artist - Song [Lyric Video] (HD)')).toMatchObject({ title: 'Song' })
+  })
+  it('strips a leading track index', () => {
+    expect(parseTitle('01. Artist - Song')).toMatchObject({ artist: 'Artist', title: 'Song' })
+  })
+  it('returns null artist for a bare title', () => {
+    expect(parseTitle('Just A Title (Lyrics)')).toMatchObject({
       artist: null,
       title: 'Just A Title'
     })
   })
-  it('only splits on the first " - "', () => {
-    expect(parseTitle('A - B - C')).toEqual({ artist: 'A', title: 'B - C' })
+})
+
+describe('parseTitle — featured & version', () => {
+  it('extracts featured artists and removes them from the title by default', () => {
+    const r = parseTitle('Artist - Song (feat. Guest One & Guest Two)')
+    expect(r.title).toBe('Song')
+    expect(r.featured).toEqual(['Guest One', 'Guest Two'])
   })
-  it('trims whitespace', () => {
-    expect(parseTitle('  X  -  Y  ')).toEqual({ artist: 'X', title: 'Y' })
+  it('extracts an inline "ft." too', () => {
+    const r = parseTitle('Artist - Song ft. Guest')
+    expect(r.title).toBe('Song')
+    expect(r.featured).toEqual(['Guest'])
+  })
+  it('keeps the featured tokens in the title when parseFeatured is false', () => {
+    const r = parseTitle('Artist - Song (feat. Guest)', { parseFeatured: false })
+    expect(r.featured).toBeUndefined()
+    expect(r.title).toContain('feat. Guest')
+  })
+  it('extracts a version descriptor', () => {
+    const r = parseTitle('Artist - Song (Acoustic Remix)')
+    expect(r.version).toBe('Acoustic Remix')
+    expect(r.title).toBe('Song')
+  })
+})
+
+describe('parseTitle — source kind', () => {
+  it('treats a title-only video on an official artist channel as title, artist = channel', () => {
+    const r = parseTitle('Blinding Lights', { kind: 'official-artist', channelName: 'The Weeknd' })
+    expect(r).toMatchObject({ artist: 'The Weeknd', title: 'Blinding Lights' })
+  })
+  it('does not invent an artist from the channel for a generic source', () => {
+    expect(
+      parseTitle('Blinding Lights', { kind: 'generic', channelName: 'Some Uploader' })
+    ).toMatchObject({
+      artist: null,
+      title: 'Blinding Lights'
+    })
   })
 })

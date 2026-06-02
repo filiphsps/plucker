@@ -220,6 +220,10 @@ export interface HistoryEntry {
 export interface ParsedTitle {
   artist: string | null
   title: string
+  /** Featured artists pulled out of the title (feat./ft./with), if any. */
+  featured?: string[]
+  /** Version/edit descriptor pulled out of the title, e.g. "Acoustic Remix". */
+  version?: string
 }
 
 export interface TrackTags {
