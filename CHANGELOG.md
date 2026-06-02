@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/filiphsps/plucker/compare/plucker-v0.11.0...plucker-v0.12.0) (2026-06-02)
+
+
+### Features
+
+* **download:** autofocus url input on mount and window focus ([0f09b39](https://github.com/filiphsps/plucker/commit/0f09b395653654296ffa118210722684c93c3506))
+* **settings:** add reset-settings action with confirm and relaunch ([f2983ab](https://github.com/filiphsps/plucker/commit/f2983ab4249bf7aa6a67b9cac6afb6615543e728))
+
+
+### Bug Fixes
+
+* **history:** delete only an entry's own files, not the shared folder ([3f80ccc](https://github.com/filiphsps/plucker/commit/3f80ccc8b61644832373ca33f2224eb626000e3f))
+
 ## [0.11.0](https://github.com/filiphsps/plucker/compare/plucker-v0.10.1...plucker-v0.11.0) (2026-06-02)
 
 
