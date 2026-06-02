@@ -50,6 +50,20 @@ export function removeEntry(history: HistoryEntry[], id: string): HistoryEntry[]
 }
 
 /**
+ * The on-disk files this entry actually owns — the downloaded track files.
+ *
+ * Deletion must be keyed on these, never on the entry's destination `folder`:
+ * the folder is shared with other jobs (same-url redownloads collapse onto one
+ * folder, and every job shares the base folder when per-playlist subfolders are
+ * off), so removing the folder would wipe unrelated downloads. A stopped/failed
+ * job owns no files, so deleting it is just clearing history.
+ */
+export function entryFiles(entry: HistoryEntry | undefined): string[] {
+  if (!entry) return []
+  return entry.tracks.map((t) => t.file).filter((f): f is string => Boolean(f))
+}
+
+/**
  * Remove a single track (by its index within the entry) and drop the entry if it
  * becomes empty. Index-based rather than file-based so failed/cancelled tracks —
  * which have no file — can still be removed individually.

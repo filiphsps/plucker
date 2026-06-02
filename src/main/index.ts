@@ -22,7 +22,7 @@ import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { getWaveform, forWaveform } from './waveform'
-import { addEntry, removeEntry, removeTrack } from './history'
+import { addEntry, entryFiles, removeEntry, removeTrack } from './history'
 import { addUrl, removeUrl } from '../shared/url-history'
 import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
@@ -176,8 +176,11 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('history:removeEntry', (_e, id: string, deleteFiles: boolean) => {
     const s = loadSettings()
     if (deleteFiles) {
+      // Delete only the files this entry owns — never the shared destination
+      // folder, which would clobber other jobs' downloads (same-url redownloads,
+      // or every job when per-playlist subfolders are off).
       const entry = s.history.find((h) => h.id === id)
-      if (entry?.folder) rmSync(entry.folder, { recursive: true, force: true })
+      for (const file of entryFiles(entry)) rmSync(file, { force: true })
     }
     const history = removeEntry(s.history, id)
     saveSettings(settingsPath(), { ...s, history })

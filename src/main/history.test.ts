@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { addEntry, removeEntry, removeTrack, normalizeHistory, HISTORY_CAP } from './history'
+import {
+  addEntry,
+  entryFiles,
+  removeEntry,
+  removeTrack,
+  normalizeHistory,
+  HISTORY_CAP
+} from './history'
 import type { HistoryEntry } from '../shared/types'
 
 function entry(id: string, files: string[] = ['a.mp3']): HistoryEntry {
@@ -60,6 +67,32 @@ describe('removeEntry', () => {
   it('removes by id', () => {
     const h = [entry('a'), entry('b')]
     expect(removeEntry(h, 'a').map((e) => e.id)).toEqual(['b'])
+  })
+})
+
+describe('entryFiles', () => {
+  it('returns the files the entry owns', () => {
+    expect(entryFiles(entry('a', ['x.mp3', 'y.mp3']))).toEqual(['x.mp3', 'y.mp3'])
+  })
+  it('returns [] for undefined', () => {
+    expect(entryFiles(undefined)).toEqual([])
+  })
+  it('skips file-less (failed/stopped) tracks so deletion only clears history', () => {
+    const stopped: HistoryEntry = {
+      ...entry('a'),
+      outcome: 'cancelled',
+      tracks: [
+        { title: 'broken', status: 'failed', reason: 'boom' },
+        { title: 'aborted', status: 'cancelled' }
+      ]
+    }
+    expect(entryFiles(stopped)).toEqual([])
+  })
+  it('does not expose the shared destination folder', () => {
+    // Regression: deleting an entry must not key off `folder`, which is shared
+    // across jobs (same-url redownloads, or every job when subfolders are off).
+    const e = entry('a', ['only.mp3'])
+    expect(entryFiles(e)).not.toContain(e.folder)
   })
 })
 
