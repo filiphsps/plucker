@@ -15,6 +15,7 @@ import { filterEntries, logScopes } from './console-filter'
 import { LogMessage } from './log-value-view'
 import { showContextMenu } from './ui/context-menu'
 import { consoleLineMenuItems } from './console-line-menu'
+import { Tooltip } from './ui/tooltip'
 
 const LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error']
 
@@ -154,7 +155,6 @@ export function ConsolePanel({
         <button
           onClick={() => setAutoScroll((v) => !v)}
           aria-pressed={autoScroll}
-          title={t('console.autoScroll')}
           className={
             'flex h-5 items-center gap-1 px-1 ' +
             (autoScroll ? 'text-accent' : 'text-ink-faint hover:text-ink')
@@ -165,7 +165,6 @@ export function ConsolePanel({
         </button>
         <button
           onClick={() => void copyVisible()}
-          title={t('console.copy')}
           className="flex h-5 items-center gap-1 px-1 text-ink-faint hover:text-ink"
         >
           <Copy size={12} />
@@ -173,61 +172,70 @@ export function ConsolePanel({
             {copied ? t('console.copied') : t('console.copy')}
           </span>
         </button>
-        <button
-          onClick={() => void window.plucker.revealLog()}
-          title={t('console.reveal')}
-          className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
-        >
-          <FolderOpen size={12} />
-        </button>
-        <button
-          onClick={onClear}
-          title={t('console.clear')}
-          className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
-        >
-          <Trash2 size={12} />
-        </button>
-        {docked ? (
+        <Tooltip label={t('console.reveal')}>
           <button
-            onClick={onUndock}
-            title={t('console.undock')}
-            aria-label={t('console.undock')}
+            onClick={() => void window.plucker.revealLog()}
+            aria-label={t('console.reveal')}
             className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
           >
-            <PictureInPicture2 size={13} />
+            <FolderOpen size={12} />
           </button>
-        ) : (
-          <>
+        </Tooltip>
+        <Tooltip label={t('console.clear')}>
+          <button
+            onClick={onClear}
+            aria-label={t('console.clear')}
+            className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+          >
+            <Trash2 size={12} />
+          </button>
+        </Tooltip>
+        {docked ? (
+          <Tooltip label={t('console.undock')}>
             <button
-              onClick={onToggleAlwaysOnTop}
-              aria-pressed={alwaysOnTop}
-              title={t('console.pin')}
-              aria-label={t('console.pin')}
-              className={
-                'flex h-5 items-center px-1 ' +
-                (alwaysOnTop ? 'text-accent' : 'text-ink-faint hover:text-ink')
-              }
-            >
-              <Pin size={13} />
-            </button>
-            <button
-              onClick={onDock}
-              title={t('console.dock')}
-              aria-label={t('console.dock')}
+              onClick={onUndock}
+              aria-label={t('console.undock')}
               className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
             >
-              <PictureInPicture size={13} />
+              <PictureInPicture2 size={13} />
             </button>
+          </Tooltip>
+        ) : (
+          <>
+            <Tooltip label={t('console.pin')}>
+              <button
+                onClick={onToggleAlwaysOnTop}
+                aria-pressed={alwaysOnTop}
+                aria-label={t('console.pin')}
+                className={
+                  'flex h-5 items-center px-1 ' +
+                  (alwaysOnTop ? 'text-accent' : 'text-ink-faint hover:text-ink')
+                }
+              >
+                <Pin size={13} />
+              </button>
+            </Tooltip>
+            <Tooltip label={t('console.dock')}>
+              <button
+                onClick={onDock}
+                aria-label={t('console.dock')}
+                className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+              >
+                <PictureInPicture size={13} />
+              </button>
+            </Tooltip>
           </>
         )}
         {docked && onClose && (
-          <button
-            onClick={onClose}
-            aria-label={t('console.toggle')}
-            className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
-          >
-            <X size={13} />
-          </button>
+          <Tooltip label={t('console.toggle')}>
+            <button
+              onClick={onClose}
+              aria-label={t('console.toggle')}
+              className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+            >
+              <X size={13} />
+            </button>
+          </Tooltip>
         )}
       </div>
 
