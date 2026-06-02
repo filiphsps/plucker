@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.14.0](https://github.com/filiphsps/plucker/compare/plucker-v0.13.0...plucker-v0.14.0) (2026-06-02)
+
+
+### Features
+
+* **audio:** add ffmpeg PCM decode helper ([f72e074](https://github.com/filiphsps/plucker/commit/f72e074352188e1fa21f3433b02def129606da64))
+* **dsp:** add chroma-based musical key estimation ([f7a04c9](https://github.com/filiphsps/plucker/commit/f7a04c904bf029eb4d27e398686769d1b13361c8))
+* **dsp:** add musical-key to Camelot mapping ([c3f3ffb](https://github.com/filiphsps/plucker/commit/c3f3ffb585057085dca876a17c927178961e2035))
+* **dsp:** add onset-autocorrelation BPM estimation ([e7130d9](https://github.com/filiphsps/plucker/commit/e7130d951d9a71d2a8049d103f3f0840c2dfdd9f))
+* **dsp:** add radix-2 FFT utility ([28bdc5c](https://github.com/filiphsps/plucker/commit/28bdc5c4630647a35c9563d0778917ee2f0b0827))
+* **i18n:** add analyze-key-bpm transform strings ([5084dba](https://github.com/filiphsps/plucker/commit/5084dbaf7494fa54eb7e97f5a7682688ac8d298f))
+* **meta:** render key, Camelot & BPM tags dynamically in the detail panel ([7e789e3](https://github.com/filiphsps/plucker/commit/7e789e310a68628b7aee5ce777b62ceea149228b))
+* **tagger:** write key, BPM, and Camelot ID3 frames ([b981209](https://github.com/filiphsps/plucker/commit/b981209f2e1802508e649c2e82a016698a087859))
+* **transforms:** add analyze-key-bpm transform ([8b58c58](https://github.com/filiphsps/plucker/commit/8b58c580c3be155441fff1a406adcc563a4755b9))
+* **transforms:** leveled, structured per-step logging with timing ([04902de](https://github.com/filiphsps/plucker/commit/04902dee8f614f21d1b79d0ce5244d7f4ce81df2))
+* **transforms:** register analyze-key-bpm in the catalog ([01403d1](https://github.com/filiphsps/plucker/commit/01403d1eab36f16c68f69189eba36a28e8d61459))
+
+
+### Bug Fixes
+
+* **download:** hide URL suggestions until input has a character ([cb9d763](https://github.com/filiphsps/plucker/commit/cb9d763646e4639845ffa3031cbe9703ce9fb7f6))
+
 ## [0.13.0](https://github.com/filiphsps/plucker/compare/plucker-v0.12.0...plucker-v0.13.0) (2026-06-02)
 
 
