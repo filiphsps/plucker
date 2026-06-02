@@ -12,6 +12,7 @@ export default {
   actions: {
     redownload: 'Redownload',
     delete: 'Delete',
+    clear: 'Clear',
     openFolder: 'Open folder',
     reveal: 'Reveal in folder',
     confirmDelete: 'Delete from disk? This cannot be undone.'

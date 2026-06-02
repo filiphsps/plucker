@@ -13,6 +13,7 @@ const de: typeof en = {
   actions: {
     redownload: 'Erneut laden',
     delete: 'Löschen',
+    clear: 'Entfernen',
     openFolder: 'Ordner öffnen',
     reveal: 'Im Ordner anzeigen',
     confirmDelete: 'Von der Festplatte löschen? Dies kann nicht rückgängig gemacht werden.'

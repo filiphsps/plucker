@@ -54,7 +54,10 @@ describe('selectOnClick', () => {
     expect([...add.selected].sort()).toEqual(['a', 'c'])
     expect(add.anchor).toBe('c')
 
-    const remove = selectOnClick(new Set(['a', 'c']), 'a', ordered, 'c', { shift: false, meta: true })
+    const remove = selectOnClick(new Set(['a', 'c']), 'a', ordered, 'c', {
+      shift: false,
+      meta: true
+    })
     expect([...remove.selected]).toEqual(['a'])
   })
 
