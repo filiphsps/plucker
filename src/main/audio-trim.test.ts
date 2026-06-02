@@ -22,7 +22,7 @@ describe('trimSilence', () => {
     const encode = vi.fn()
     const detect = vi.fn()
     const result = await trimSilence('/tmp/t.mp3', { ...BOTH, mode: 'none' }, { detect, encode })
-    expect(result).toEqual({ file: '/tmp/t.mp3', trimmed: false })
+    expect(result).toEqual({ file: '/tmp/t.mp3', trimmed: false, leadingSec: 0, trailingSec: 0 })
     expect(detect).not.toHaveBeenCalled()
     expect(encode).not.toHaveBeenCalled()
   })
@@ -31,7 +31,7 @@ describe('trimSilence', () => {
     const encode = vi.fn()
     const deps: TrimDeps = { detect: vi.fn(async () => NO_SILENCE), encode }
     const result = await trimSilence('/tmp/t.mp3', BOTH, deps)
-    expect(result).toEqual({ file: '/tmp/t.mp3', trimmed: false })
+    expect(result).toEqual({ file: '/tmp/t.mp3', trimmed: false, leadingSec: 0, trailingSec: 0 })
     expect(encode).not.toHaveBeenCalled()
   })
 
@@ -39,7 +39,13 @@ describe('trimSilence', () => {
     const encode = vi.fn(async () => {})
     const deps: TrimDeps = { detect: vi.fn(async () => WITH_EDGE_SILENCE), encode }
     const result = await trimSilence('/tmp/t.mp3', BOTH, deps)
-    expect(result).toEqual({ file: '/tmp/t.mp3.trim.mp3', trimmed: true })
+    // Leading region [0, 1.2] → 1.2s removed from the start; no trailing silence.
+    expect(result).toEqual({
+      file: '/tmp/t.mp3.trim.mp3',
+      trimmed: true,
+      leadingSec: 1.2,
+      trailingSec: 0
+    })
     expect(encode).toHaveBeenCalledWith(
       '/tmp/t.mp3',
       '/tmp/t.mp3.trim.mp3',

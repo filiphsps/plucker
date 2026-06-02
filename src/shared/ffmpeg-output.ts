@@ -61,3 +61,30 @@ export function hasTrimmableSilence(
   if (mode === 'both') return hasLeading || hasTrailing
   return false
 }
+
+/**
+ * Estimate how much edge silence the requested `mode` will remove, in seconds,
+ * split per end. Leading is the length of a region anchored at the very start;
+ * trailing is the span from a trailing region's start to the end of the track
+ * (its reported `end` is clamped to the duration). Returns zeros for ends the
+ * mode doesn't trim or that have no edge silence. Used only for logging, so an
+ * unknown duration simply yields a 0 trailing estimate rather than guessing.
+ */
+export function measureEdgeSilence(
+  regions: SilenceRegion[],
+  durationSec: number | null,
+  mode: TrimMode
+): { leadingSec: number; trailingSec: number } {
+  const round = (n: number): number => Math.round(Math.max(n, 0) * 1000) / 1000
+  let leadingSec = 0
+  let trailingSec = 0
+  if (mode === 'start' || mode === 'both') {
+    const lead = regions.find((r) => r.start <= EDGE_EPS)
+    if (lead) leadingSec = round(lead.end - Math.max(lead.start, 0))
+  }
+  if ((mode === 'end' || mode === 'both') && durationSec !== null) {
+    const trail = regions.find((r) => r.end >= durationSec - EDGE_EPS)
+    if (trail) trailingSec = round(durationSec - trail.start)
+  }
+  return { leadingSec, trailingSec }
+}

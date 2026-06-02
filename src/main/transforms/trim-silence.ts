@@ -70,11 +70,16 @@ export const trimSilenceTransform: TransformDefinition<TrimSilenceConfig> = {
       config,
       ffmpegTrimDeps(services.bin.ffmpeg, services.signal)
     )
+    const settings = `mode=${config.mode}, threshold ${config.thresholdDb}dB, min ${config.minDurationSec}s`
     if (result.trimmed) {
       renameSync(result.file, ctx.workingFile)
-      services.log.info(`trimmed ${config.mode} (threshold ${config.thresholdDb}dB)`)
+      const ends: string[] = []
+      if (result.leadingSec > 0) ends.push(`${result.leadingSec.toFixed(2)}s from start`)
+      if (result.trailingSec > 0) ends.push(`${result.trailingSec.toFixed(2)}s from end`)
+      const removed = ends.length ? ends.join(' + ') : 'edge silence'
+      services.log.info(`trimmed ${removed} (${settings})`)
     } else {
-      services.log.debug(`no edge silence to trim (mode=${config.mode})`)
+      services.log.debug(`no edge silence to trim (${settings})`)
     }
   }
 }

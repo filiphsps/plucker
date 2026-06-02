@@ -100,7 +100,10 @@ export async function enrich(
     )
     return { tags: {} }
   }
-  services.log.info(`MusicBrainz match: "${match.artist ?? '?'} – ${match.title}"`)
+  services.log.info(
+    `MusicBrainz match: "${match.artist ?? '?'} – ${match.title}" ` +
+      `(score ${match.score}/100, min ${config.minMatchScore})`
+  )
   const tags: TrackTags = {
     artist: match.artist ?? undefined,
     title: match.title,
@@ -229,10 +232,38 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
     // fallback when no other cover is available.
     if (cover) embedCover(ctx.workingFile, cover, 'image/jpeg')
     ctx.tags = mergeTags(ytNorm, mbTags, config.primarySource)
-    services.log.info(
-      `tagged "${ctx.tags.artist ?? '?'} – ${ctx.tags.title ?? '?'}"` +
-        ` (primary=${config.primarySource}${ctx.tags.album ? `, album="${ctx.tags.album}"` : ''}` +
-        `${ctx.tags.genre ? `, genre=${ctx.tags.genre}` : ''}${cover ? ', +cover' : ''})`
-    )
+    logTagSummary(ctx.tags, !!cover, config.primarySource, services.log)
   }
+}
+
+/** ID3 text frames auto-tag populates, in the order shown in the log summary. */
+const SUMMARY_FIELDS: { key: keyof TrackTags; label: string }[] = [
+  { key: 'artist', label: 'artist' },
+  { key: 'title', label: 'title' },
+  { key: 'album', label: 'album' },
+  { key: 'date', label: 'date' },
+  { key: 'year', label: 'year' },
+  { key: 'trackNumber', label: 'track' },
+  { key: 'genre', label: 'genre' }
+]
+
+/**
+ * Log exactly which tags ended up set (with their values) and which are still
+ * missing, so a glance at the log shows what auto-tag achieved for the track.
+ * Cover art is tracked alongside the text frames even though it isn't a tag.
+ */
+function logTagSummary(
+  tags: TrackTags,
+  hasCover: boolean,
+  primarySource: 'youtube' | 'musicbrainz',
+  log: TransformLog
+): void {
+  const set = SUMMARY_FIELDS.filter(({ key }) => tags[key]).map(
+    ({ key, label }) => `${label}=${tags[key]}`
+  )
+  const missing = SUMMARY_FIELDS.filter(({ key }) => !tags[key]).map(({ label }) => label)
+  if (hasCover) set.push('cover')
+  else missing.push('cover')
+  log.info(`tags set (primary=${primarySource}): ${set.length ? set.join(', ') : 'none'}`)
+  if (missing.length) log.info(`tags missing: ${missing.join(', ')}`)
 }

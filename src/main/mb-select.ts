@@ -1,4 +1,6 @@
 export interface MbMatch {
+  /** MusicBrainz relevance score (0–100) of the chosen recording. */
+  score: number
   recordingId: string
   artist: string | null
   title: string
@@ -44,6 +46,7 @@ export function selectBestMatch(json: unknown, minScore: number): MbMatch | null
 
   const rel = pickRelease(rec.releases)
   return {
+    score: rec.score ?? 0,
     recordingId: rec.id,
     artist: rec['artist-credit']?.[0]?.artist?.name ?? null,
     title: rec.title ?? '',

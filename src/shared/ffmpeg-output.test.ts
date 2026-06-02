@@ -4,7 +4,8 @@ import {
   parseSilenceRegions,
   parseDurationSec,
   parseBitrateKbps,
-  hasTrimmableSilence
+  hasTrimmableSilence,
+  measureEdgeSilence
 } from './ffmpeg-output'
 
 const SAMPLE = `
@@ -73,5 +74,33 @@ describe('hasTrimmableSilence', () => {
   it('mode both accepts either end', () => {
     expect(hasTrimmableSilence(leading, dur, 'both')).toBe(true)
     expect(hasTrimmableSilence(trailing, dur, 'both')).toBe(true)
+  })
+})
+
+describe('measureEdgeSilence', () => {
+  const dur = 201.2
+  const both = [
+    { start: 0, end: 1.5 },
+    { start: 199.9, end: 201.2 }
+  ]
+
+  it('measures leading and trailing seconds for mode both', () => {
+    expect(measureEdgeSilence(both, dur, 'both')).toEqual({ leadingSec: 1.5, trailingSec: 1.3 })
+  })
+
+  it('only measures the requested end', () => {
+    expect(measureEdgeSilence(both, dur, 'start')).toEqual({ leadingSec: 1.5, trailingSec: 0 })
+    expect(measureEdgeSilence(both, dur, 'end')).toEqual({ leadingSec: 0, trailingSec: 1.3 })
+  })
+
+  it('reports zero trailing when the duration is unknown', () => {
+    expect(measureEdgeSilence(both, null, 'both')).toEqual({ leadingSec: 1.5, trailingSec: 0 })
+  })
+
+  it('ignores mid-track silence', () => {
+    expect(measureEdgeSilence([{ start: 90, end: 92 }], dur, 'both')).toEqual({
+      leadingSec: 0,
+      trailingSec: 0
+    })
   })
 })

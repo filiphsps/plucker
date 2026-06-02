@@ -5,13 +5,18 @@ import {
   parseSilenceRegions,
   parseDurationSec,
   parseBitrateKbps,
-  hasTrimmableSilence
+  hasTrimmableSilence,
+  measureEdgeSilence
 } from '../shared/ffmpeg-output'
 
 export interface TrimResult {
   /** Path to the trimmed file, or the original path when nothing was trimmed. */
   file: string
   trimmed: boolean
+  /** Seconds removed from the start (0 when not trimmed or mode excludes start). */
+  leadingSec: number
+  /** Seconds removed from the end (0 when not trimmed or mode excludes end). */
+  trailingSec: number
 }
 
 /** Injectable I/O so the orchestration is unit-testable without a real ffmpeg. */
@@ -78,21 +83,23 @@ export async function trimSilence(
   opts: SilenceFilterOpts,
   deps: TrimDeps
 ): Promise<TrimResult> {
+  const untouched = { file, trimmed: false as const, leadingSec: 0, trailingSec: 0 }
   const filter = silenceRemoveFilter(opts)
-  if (filter === null) return { file, trimmed: false } // mode 'none'
+  if (filter === null) return untouched // mode 'none'
 
   const stderr = await deps.detect(file, opts)
   const regions = parseSilenceRegions(stderr)
-  if (regions.length === 0) return { file, trimmed: false }
+  if (regions.length === 0) return untouched
 
   const duration = parseDurationSec(stderr)
   const shouldTrim = duration === null ? true : hasTrimmableSilence(regions, duration, opts.mode)
-  if (!shouldTrim) return { file, trimmed: false }
+  if (!shouldTrim) return untouched
 
   const bitrate = parseBitrateKbps(stderr) ?? FALLBACK_BITRATE_KBPS
   const output = `${file}.trim.mp3`
   await deps.encode(file, output, filter, bitrate)
-  return { file: output, trimmed: true }
+  const { leadingSec, trailingSec } = measureEdgeSilence(regions, duration, opts.mode)
+  return { file: output, trimmed: true, leadingSec, trailingSec }
 }
 
 /** Run ffmpeg, collecting stderr; resolves on close (callers check the code). */
