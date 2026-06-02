@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.17.0](https://github.com/filiphsps/plucker/compare/plucker-v0.16.0...plucker-v0.17.0) (2026-06-02)
+
+
+### Features
+
+* **app:** wire per-track pause state, context actions, and staged redownload ([4d7868a](https://github.com/filiphsps/plucker/commit/4d7868a828eccda1ffe5f52c26aa28711f459d73))
+* **console:** floating console window root component ([7ce6c18](https://github.com/filiphsps/plucker/commit/7ce6c1803e9f437cfebc8d345fd00dc8505eeb1a))
+* **console:** mount floating console root on #console route ([0d9fa75](https://github.com/filiphsps/plucker/commit/0d9fa75d5e3843877c877d0ec687dd79f1f00658))
+* **console:** styled tooltips on console toolbar buttons ([f578748](https://github.com/filiphsps/plucker/commit/f57874894c4ec3be269bffa11e2055e6ca9074eb))
+* **console:** title the floating console window "Console — Plucker" ([e85c0a8](https://github.com/filiphsps/plucker/commit/e85c0a87ad1a00eed065519a77629c3b18fd5d3f))
+* **console:** undock/redock wiring and mode-aware toggle in App ([9fd2967](https://github.com/filiphsps/plucker/commit/9fd29672cfe46387af359fe6c3be5fd8111a6cb9))
+* **deck:** slimmer transport deck, drop now-plucking block, left-align progress ([e106c83](https://github.com/filiphsps/plucker/commit/e106c833895057d9294dc14606371ece4e1ba6dd))
+* **download:** resolve-then-stage flow with editable, reorderable track list ([3e08adb](https://github.com/filiphsps/plucker/commit/3e08adb9ac0d3b8c94511273be4e0936b9cffdce))
+* **i18n:** console undock/dock/pin strings ([e90a190](https://github.com/filiphsps/plucker/commit/e90a1901b0dded521f492fac9e32479dad0f3674))
+* **ipc:** console undock/redock/pin/getState bridge ([ccd7b4d](https://github.com/filiphsps/plucker/commit/ccd7b4dd2264dd7ada0870db957361e34859bea4))
+* **ipc:** job:resolve, staged job:start, and per-track skip/pause/resume ([a719edd](https://github.com/filiphsps/plucker/commit/a719edd6f929d86dc83a0ccbaa0b7ad4b4ccf236))
+* **main:** add durable per-job checkpoint store ([9fe471c](https://github.com/filiphsps/plucker/commit/9fe471c2a24ca3525cc5a6fb64e4aa9921cb9a3b))
+* **main:** add resume partition/merge/synthesize helpers ([08b5062](https://github.com/filiphsps/plucker/commit/08b5062f4cbca2b557a6b1ac914b09c3f98f7292))
+* **main:** floating console window lifecycle and log broadcast ([7218663](https://github.com/filiphsps/plucker/commit/7218663f3baa32b4be2cb6e93c7a9c3ac855998d))
+* **main:** resume, retry-failed, and crash-recovery orchestration ([42b5b48](https://github.com/filiphsps/plucker/commit/42b5b4819b7d9fa354d0de6e02362ae40933d84a))
+* **menu:** add accelerators for new download, open url, retransform ([d8333ba](https://github.com/filiphsps/plucker/commit/d8333bafe8df9f9c00ebbec44c3e6bcfca14d4ce))
+* **menu:** add cache nav target and new-download/open-url IPC bridges ([86dde87](https://github.com/filiphsps/plucker/commit/86dde872ccb24ffe3273a5d7e7acd594db046dfb))
+* **menu:** full i18n catalog for custom app menu, drop Go key ([1d7ade9](https://github.com/filiphsps/plucker/commit/1d7ade9df8d6915a4e465491ad24a10e6cc8871a))
+* **menu:** per-track skip/pause/resume context-menu items ([2dea6bd](https://github.com/filiphsps/plucker/commit/2dea6bda3a3aab8d670924f629be63b09a789b23))
+* **menu:** render context menus via the native SwiftUI panel ([6091b99](https://github.com/filiphsps/plucker/commit/6091b997e99e53ceddc649ef3c75f984ff5db00d))
+* **menu:** replace built-in Electron menu with custom i18n template ([98533cd](https://github.com/filiphsps/plucker/commit/98533cd503f22cbdca7cd580b53e7b5a29e27f80))
+* **menu:** SF Symbol icons on every menu item via native addon ([7633643](https://github.com/filiphsps/plucker/commit/7633643f68c04c43a89cc9c6b0eaab1f493b7f71))
+* **menu:** wire cache nav, New Download and Open URL into the renderer ([a9e59f3](https://github.com/filiphsps/plucker/commit/a9e59f363a627cd12aca9a9d133fc05bb997e02a))
+* **native:** node-swift SwiftUI context-menu addon ([f88a1ef](https://github.com/filiphsps/plucker/commit/f88a1ef9ed8f382d52c67adc0c2c5d029e83aade))
+* **pipeline:** per-track skip, temp-dir cleanup, and job controls ([3cffaa9](https://github.com/filiphsps/plucker/commit/3cffaa93d99005e5c93b410f7947b7d635947465))
+* **pipeline:** persist per-track resume checkpoint during a job ([7734f0f](https://github.com/filiphsps/plucker/commit/7734f0f7ca9cb566a7c3cc95cdd37c1b3c72bf70))
+* **pipeline:** resolveJob and pre-resolved staged download source ([9bf849f](https://github.com/filiphsps/plucker/commit/9bf849fb58769e0ce79f800143916ad7af1ea7b0))
+* **preload:** expose resume / retry / interrupted-jobs IPC ([fe9144e](https://github.com/filiphsps/plucker/commit/fe9144e77963fe03b1724cc0fec20b8edf384a2e))
+* **renderer:** resume banner + history resume/retry affordances ([f786b88](https://github.com/filiphsps/plucker/commit/f786b8879f14dff0bd0b34c818a4e92d1aef080c))
+* **settings:** persist console dock mode and always-on-top ([91e5236](https://github.com/filiphsps/plucker/commit/91e52363d4ab337f8060b84e1084f0681dac0cf9))
+* **spawn:** keyed process groups with per-group pause/resume/kill ([f9a17e7](https://github.com/filiphsps/plucker/commit/f9a17e75e835e2bf58c639cb81b5f167dcb31958))
+* **staging:** pure remove/move reducer for the staging list ([b24ddec](https://github.com/filiphsps/plucker/commit/b24ddecfa2c5b7d98c73c03c336de88507183bd0))
+* **transforms:** thread per-track process group key into ffmpeg spawns ([78ee16a](https://github.com/filiphsps/plucker/commit/78ee16ac297aa64291f3e68178ac036ce8f135c6))
+* **types:** add job checkpoint types and interrupted outcome ([0d3b110](https://github.com/filiphsps/plucker/commit/0d3b11048e30888f7bb6fdcd0b234b38ee0d8527))
+* **ytdlp:** per-track temp-dir redirect and process group key ([4d9a6da](https://github.com/filiphsps/plucker/commit/4d9a6dafdcf5871c4e95a46c0fab8c9ff89500f5))
+
+
+### Bug Fixes
+
+* **build:** rename macOS helper CFBundleName to product name ([3e178d3](https://github.com/filiphsps/plucker/commit/3e178d363c4ca0904bb2e70fab0b621459ec6393))
+* **deck:** keep inline failed tally and update tests for slim layout ([53ff088](https://github.com/filiphsps/plucker/commit/53ff08842a5d120cc31b0ba37cf070d3f125ba95))
+* ignore native addons' Swift build output in prettier and eslint ([8a9d9d7](https://github.com/filiphsps/plucker/commit/8a9d9d775729e22d906b87703262a60cf7c4fc33))
+
 ## [0.16.0](https://github.com/filiphsps/plucker/compare/plucker-v0.15.1...plucker-v0.16.0) (2026-06-02)
 
 
