@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/filiphsps/plucker/compare/plucker-v0.9.1...plucker-v0.10.0) (2026-06-02)
+
+
+### Features
+
+* **transforms:** add trim-silence transform ([4fb3d87](https://github.com/filiphsps/plucker/commit/4fb3d8706a322542fc8a88aca32f05db30231ef5))
+
 ## [0.9.1](https://github.com/filiphsps/plucker/compare/plucker-v0.9.0...plucker-v0.9.1) (2026-06-02)
 
 
