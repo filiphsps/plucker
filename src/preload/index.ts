@@ -4,7 +4,6 @@ import type {
   Settings,
   JobProgress,
   JobStatus,
-  HistoryEntry,
   MenuNavTarget,
   TrackMetadata,
   Waveform,
@@ -17,7 +16,8 @@ import type {
   JobMeta,
   ConsoleWindowState
 } from '../shared/types'
-import type { TransformManifest } from '../shared/transforms'
+import type { TransformManifest, TransformInstance } from '../shared/transforms'
+import type { CollectionView, TrackDetail, ActivityEvent } from '../shared/library'
 import type { MenuAnchor, MenuDescriptor } from '../shared/context-menu'
 
 // Custom APIs for renderer
@@ -113,16 +113,41 @@ const api = {
   deleteCacheTrack: (hash: string): Promise<CachedTrack[]> =>
     ipcRenderer.invoke('cache:delete', hash),
   clearCache: (): Promise<CachedTrack[]> => ipcRenderer.invoke('cache:clear'),
-  // History
-  getHistory: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:get'),
-  removeHistoryEntry: (id: string, deleteFiles: boolean): Promise<HistoryEntry[]> =>
-    ipcRenderer.invoke('history:removeEntry', id, deleteFiles),
-  removeHistoryTrack: (id: string, index: number, deleteFile: boolean): Promise<HistoryEntry[]> =>
-    ipcRenderer.invoke('history:removeTrack', id, index, deleteFile),
-  onHistoryChanged: (cb: () => void): (() => void) => {
+  // Library (editor model)
+  getCollections: (): Promise<CollectionView[]> => ipcRenderer.invoke('library:getCollections'),
+  getLibraryTrack: (trackId: string): Promise<TrackDetail | null> =>
+    ipcRenderer.invoke('library:getTrack', trackId),
+  getActivity: (limit?: number): Promise<ActivityEvent[]> =>
+    ipcRenderer.invoke('library:getActivity', limit),
+  deleteLibraryTrack: (trackId: string): Promise<CollectionView[]> =>
+    ipcRenderer.invoke('library:deleteTrack', trackId),
+  deleteLibraryCollection: (id: string): Promise<CollectionView[]> =>
+    ipcRenderer.invoke('library:deleteCollection', id),
+  editTrack: (trackId: string, chain: TransformInstance[]): Promise<void> =>
+    ipcRenderer.invoke('library:edit', trackId, chain),
+  createBranch: (
+    trackId: string,
+    fromVersionId: string,
+    name: string
+  ): Promise<{ id: string; detail: TrackDetail | null }> =>
+    ipcRenderer.invoke('library:createBranch', trackId, fromVersionId, name),
+  switchBranch: (trackId: string, branchId: string): Promise<TrackDetail | null> =>
+    ipcRenderer.invoke('library:switchBranch', trackId, branchId),
+  renameBranch: (branchId: string, name: string): Promise<void> =>
+    ipcRenderer.invoke('library:renameBranch', branchId, name),
+  renameVersion: (versionId: string, label: string): Promise<void> =>
+    ipcRenderer.invoke('library:renameVersion', versionId, label),
+  exportLibraryTracks: (trackIds: string[], destFolder: string): Promise<string[]> =>
+    ipcRenderer.invoke('library:export', trackIds, destFolder),
+  onLibraryChanged: (cb: () => void): (() => void) => {
     const fn = (): void => cb()
-    ipcRenderer.on('history:changed', fn)
-    return () => ipcRenderer.removeListener('history:changed', fn)
+    ipcRenderer.on('library:changed', fn)
+    return () => ipcRenderer.removeListener('library:changed', fn)
+  },
+  onLibraryActivityChanged: (cb: () => void): (() => void) => {
+    const fn = (): void => cb()
+    ipcRenderer.on('library:activityChanged', fn)
+    return () => ipcRenderer.removeListener('library:activityChanged', fn)
   },
   // Interrupted / resumable jobs (crash, clean quit, or user cancel).
   listInterruptedJobs: (): Promise<
@@ -138,19 +163,10 @@ const api = {
     jobId: string
   ): Promise<{ jobId: string; title: string; done: number; total: number }[]> =>
     ipcRenderer.invoke('jobs:dismiss', jobId),
-  retryFailed: (entryId: string): Promise<void> => ipcRenderer.invoke('jobs:retryFailed', entryId),
   onInterruptedChanged: (cb: () => void): (() => void) => {
     const fn = (): void => cb()
     ipcRenderer.on('jobs:interruptedChanged', fn)
     return () => ipcRenderer.removeListener('jobs:interruptedChanged', fn)
-  },
-  // Re-run the enabled transform chain on already-downloaded tracks (no re-download).
-  retransform: (targets: { entryId: string; index: number }[]): Promise<void> =>
-    ipcRenderer.invoke('job:retransform', targets),
-  onRetransformSelection: (cb: () => void): (() => void) => {
-    const fn = (): void => cb()
-    ipcRenderer.on('menu:retransform-selection', fn)
-    return () => ipcRenderer.removeListener('menu:retransform-selection', fn)
   },
   // Application-menu navigation (Settings / Download / History).
   onMenuNavigate: (cb: (target: MenuNavTarget) => void): (() => void) => {
