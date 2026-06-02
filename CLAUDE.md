@@ -64,6 +64,20 @@ Releases are automated with **release-please** (`.github/workflows/release.yml`)
 
 Infer toolchain details (Node version, dependencies, scripts) from `package.json` rather than assuming.
 
+### Reusable utilities over per-file helpers
+
+Prefer a **shared, named, unit-tested utility** over an inline or per-file helper.
+The moment a helper (formatting, parsing, math, byte/size/time helpers, etc.) would
+be useful in more than one place — or is even plausibly reusable — extract it to a
+dedicated module rather than redefining a local `const fn = …` inside the file that
+first needs it.
+
+- Cross-process/UI-agnostic helpers go in **`src/shared/`** (e.g. `format-bytes.ts`);
+  main-only helpers in **`src/main/`**. Each gets a colocated `*.test.ts`.
+- One clear purpose per util, kebab-case filename, exported function in camelCase.
+- Don't copy-paste a helper into a second file — import the shared one. If you find
+  an existing inline helper while working nearby, lift it into a util.
+
 ### File naming
 
 Component files (and their tests) use **kebab-case**: `download-view.tsx`,
