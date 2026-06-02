@@ -74,7 +74,15 @@ function mergeDefaults(partial: unknown): Settings {
       isV2 && Array.isArray(p.transforms) ? (p.transforms as Settings['transforms']) : d.transforms,
     performance: { ...d.performance, ...(p.performance ?? {}) },
     updates: { ...d.updates, ...(p.updates ?? {}) },
-    developer: { ...d.developer, ...(p.developer ?? {}) }
+    developer: {
+      ...d.developer,
+      ...(p.developer ?? {}),
+      consoleWindow: {
+        ...d.developer.consoleWindow,
+        ...((p.developer as { consoleWindow?: Partial<Settings['developer']['consoleWindow']> })
+          ?.consoleWindow ?? {})
+      }
+    }
   }
 }
 

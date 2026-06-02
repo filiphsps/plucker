@@ -46,5 +46,5 @@ export const DEFAULT_SETTINGS: Settings = {
   transforms: DEFAULT_TRANSFORMS,
   performance: { parallel: 4, compressionLevel: 7, concurrentFragments: 4, priority: 'normal' },
   updates: { checkOnLaunch: true },
-  developer: { console: false }
+  developer: { console: false, consoleWindow: { mode: 'docked', alwaysOnTop: false } }
 }
