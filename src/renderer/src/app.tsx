@@ -7,6 +7,7 @@ import { TransportDeck } from './transport-deck'
 import { Header, type View } from './header'
 import { ConsoleDrawer } from './console-drawer'
 import { Page } from './ui/page'
+import { ResumeBanner, type InterruptedJob } from './resume-banner'
 import { applyLanguage } from './i18n'
 import { showContextMenu, type MenuItem } from './ui/context-menu'
 import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
@@ -33,6 +34,10 @@ export default function App(): React.JSX.Element {
   // shows everything from here on, so it mirrors the console scoped to this job.
   const logLen = useRef(0)
   const [jobLogStart, setJobLogStart] = useState(0)
+  // Interrupted (crash/quit/cancel) jobs offered for resume; dismissed ones are
+  // hidden for the session but stay in History.
+  const [interrupted, setInterrupted] = useState<InterruptedJob[]>([])
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     window.plucker.getSettings().then((s) => {
@@ -64,6 +69,16 @@ export default function App(): React.JSX.Element {
     )
     window.plucker.getLogTail().then((tail) => setLogEntries((prev) => (prev.length ? prev : tail)))
     return off
+  }, [])
+
+  // Interrupted jobs: load on mount and refresh whenever main signals a change
+  // (a job was cancelled, recovered on launch, resumed, or discarded).
+  useEffect(() => {
+    const load = (): void => {
+      window.plucker.listInterruptedJobs().then(setInterrupted)
+    }
+    load()
+    return window.plucker.onInterruptedChanged(load)
   }, [])
 
   // Toggle the console from the application menu (⌘J).
@@ -131,6 +146,15 @@ export default function App(): React.JSX.Element {
   const deckVisible = progress !== null && (running || jobActive)
   const overlayOpen = settingsOpen || cacheOpen
 
+  const visibleInterrupted = interrupted.filter((j) => !dismissed.has(j.jobId))
+  const handleResume = (jobId: string): void => {
+    setDismissed((prev) => new Set(prev).add(jobId))
+    window.plucker.resumeJob(jobId)
+  }
+  const handleDismissResume = (jobId: string): void => {
+    setDismissed((prev) => new Set(prev).add(jobId))
+  }
+
   return (
     <div
       className="flex h-screen flex-col bg-surface text-ink"
@@ -172,6 +196,12 @@ export default function App(): React.JSX.Element {
           setCacheOpen(false)
           setSettingsOpen(true)
         }}
+      />
+
+      <ResumeBanner
+        jobs={visibleInterrupted}
+        onResume={handleResume}
+        onDismiss={handleDismissResume}
       />
 
       <div className="min-h-0 flex-1">

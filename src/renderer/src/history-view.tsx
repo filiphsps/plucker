@@ -30,7 +30,11 @@ const OUTCOME_BADGE: Record<JobOutcome, { cls: string; labelKey: string; check?:
   },
   partial: { cls: 'border-warn/30 bg-warn/[0.08] text-warn', labelKey: 'history.outcomePartial' },
   failed: { cls: 'border-bad/30 bg-bad/[0.08] text-bad', labelKey: 'history.outcomeFailed' },
-  cancelled: { cls: 'border-line bg-raise text-ink-dim', labelKey: 'history.outcomeCancelled' }
+  cancelled: { cls: 'border-line bg-raise text-ink-dim', labelKey: 'history.outcomeCancelled' },
+  interrupted: {
+    cls: 'border-accent/30 bg-accent/[0.08] text-accent',
+    labelKey: 'history.outcomeInterrupted'
+  }
 }
 
 export function HistoryView({
@@ -388,6 +392,18 @@ export function HistoryView({
                   <RotateCw size={14} />
                   {t('actions.redownload')}
                 </button>
+                {entry.outcome === 'interrupted' && entry.jobId && (
+                  <button className={jbtn} onClick={() => window.plucker.resumeJob(entry.jobId!)}>
+                    <RotateCw size={14} />
+                    {t('resume.action')}
+                  </button>
+                )}
+                {entry.outcome === 'partial' && (
+                  <button className={jbtn} onClick={() => window.plucker.retryFailed(entry.id)}>
+                    <RotateCw size={14} />
+                    {t('resume.retryFailed')}
+                  </button>
+                )}
                 <Tooltip label={t(entryHasFiles ? 'actions.delete' : 'actions.clear')}>
                   <button
                     className={

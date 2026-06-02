@@ -66,12 +66,19 @@ export default {
     outcomePartial_other: '{{count}} FAILED',
     outcomeFailed: 'FAILED',
     outcomeCancelled: 'CANCELLED',
+    outcomeInterrupted: 'INTERRUPTED',
     colFile: 'File',
     missing: 'File missing',
     missingBadge: 'MISSING',
     retransformSkipped_one: 'Skipped {{count}} track (no file)',
     retransformSkipped_other: 'Skipped {{count}} tracks (no file)',
     retransformNone: 'No re-transformable tracks selected'
+  },
+  resume: {
+    banner: 'Resume “{{title}}” — {{done}} of {{total}} done?',
+    action: 'Resume',
+    dismiss: 'Dismiss',
+    retryFailed: 'Retry failed'
   },
   download: {
     urlLabel: 'Paste a YouTube playlist or video URL',

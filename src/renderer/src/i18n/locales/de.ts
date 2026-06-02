@@ -67,12 +67,19 @@ const de: typeof en = {
     outcomePartial_other: '{{count}} FEHLER',
     outcomeFailed: 'FEHLGESCHLAGEN',
     outcomeCancelled: 'ABGEBROCHEN',
+    outcomeInterrupted: 'UNTERBROCHEN',
     colFile: 'Datei',
     missing: 'Datei fehlt',
     missingBadge: 'FEHLT',
     retransformSkipped_one: '{{count}} Titel übersprungen (keine Datei)',
     retransformSkipped_other: '{{count}} Titel übersprungen (keine Datei)',
     retransformNone: 'Keine erneut transformierbaren Titel ausgewählt'
+  },
+  resume: {
+    banner: '„{{title}}“ fortsetzen — {{done}} von {{total}} fertig?',
+    action: 'Fortsetzen',
+    dismiss: 'Verwerfen',
+    retryFailed: 'Fehlgeschlagene wiederholen'
   },
   download: {
     urlLabel: 'YouTube-Playlist- oder Video-URL einfügen',
