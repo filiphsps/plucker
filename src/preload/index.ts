@@ -7,6 +7,7 @@ import type {
   HistoryEntry,
   MenuNavTarget,
   TrackMetadata,
+  Waveform,
   CachedTrack,
   TrackTags,
   LogEntry,
@@ -53,6 +54,8 @@ const api = {
   getCover: (file: string): Promise<string | null> => ipcRenderer.invoke('cover:get', file),
   getTrackMetadata: (file: string, hash?: string): Promise<TrackMetadata> =>
     ipcRenderer.invoke('metadata:get', file, hash),
+  getWaveform: (file: string, hash?: string): Promise<Waveform | null> =>
+    ipcRenderer.invoke('waveform:get', file, hash),
   filesExist: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke('files:exist', paths),
   // Metadata cache manager
   getCache: (): Promise<CachedTrack[]> => ipcRenderer.invoke('cache:list'),

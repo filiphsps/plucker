@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import '../../i18n'
 import { TrackDetail } from './track-detail'
-import type { TrackMetadata } from '../../../../shared/types'
+import type { TrackMetadata, Waveform } from '../../../../shared/types'
 
 const META: TrackMetadata = {
   tags: { artist: 'M83', album: 'Hurry Up', year: '2011' },
@@ -57,5 +57,22 @@ describe('TrackDetail', () => {
     expect(html).toContain('Audio read-only')
     // audio specs are still shown (read-only) in edit mode
     expect(html).toContain('320 kbps')
+  })
+
+  it('renders the waveform strip when a waveform is provided', () => {
+    const wf: Waveform = { peaks: Array.from({ length: 120 }, () => 0.5), durationSec: 243 }
+    const html = renderToStaticMarkup(<TrackDetail meta={META} waveform={wf} />)
+    expect(html).toContain('data-wave-bar')
+  })
+
+  it('omits the waveform in tag-edit mode', () => {
+    const wf: Waveform = { peaks: Array.from({ length: 120 }, () => 0.5), durationSec: 243 }
+    const html = renderToStaticMarkup(<TrackDetail meta={META} waveform={wf} editing />)
+    expect(html).not.toContain('data-wave-bar')
+  })
+
+  it('omits the waveform when none is provided', () => {
+    const html = renderToStaticMarkup(<TrackDetail meta={META} />)
+    expect(html).not.toContain('data-wave-bar')
   })
 })

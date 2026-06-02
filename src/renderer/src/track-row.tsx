@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Music, ChevronRight, ChevronDown, Check, X, AlertTriangle } from 'lucide-react'
-import type { TrackStatus, TrackMetadata, TrackTags } from '../../shared/types'
+import type { TrackStatus, TrackMetadata, TrackTags, Waveform } from '../../shared/types'
 import { TrackDetail, type TrackSource } from './ui/meta/track-detail'
 import { formatDuration, formatSpeed, formatElapsed } from './ui/meta/format'
 import { Tooltip } from './ui/tooltip'
@@ -94,6 +94,7 @@ export function TrackRow({
   const [open, setOpen] = useState(false)
   const [cover, setCover] = useState<{ key: string; url: string | null } | null>(null)
   const [fetched, setFetched] = useState<{ file: string; data: TrackMetadata } | null>(null)
+  const [waveform, setWaveform] = useState<{ file: string; data: Waveform } | null>(null)
 
   const isOpen = open || editing
 
@@ -125,6 +126,21 @@ export function TrackRow({
       live = false
     }
   }, [isOpen, track.file, track.hash, missing, fetched?.file, meta])
+
+  // Lazily fetch the waveform the first time the row is expanded (per file).
+  // Peaks are generated in main on the first call and cached by hash, so
+  // re-expanding is instant. A row that is never expanded never generates one.
+  useEffect(() => {
+    const file = track.file
+    if (!isOpen || missing || !file || waveform?.file === file) return
+    let live = true
+    window.plucker.getWaveform(file, track.hash).then((data) => {
+      if (live && data) setWaveform({ file, data })
+    })
+    return () => {
+      live = false
+    }
+  }, [isOpen, track.file, track.hash, missing, waveform?.file])
 
   const coverKey = track.file && !missing ? track.file : track.hash
   const coverUrl = cover && cover.key === coverKey ? cover.url : null
@@ -343,6 +359,8 @@ export function TrackRow({
             editing={editing}
             onSave={onSaveTags}
             onCancel={onCancelEdit}
+            waveform={waveform && waveform.file === track.file ? waveform.data : undefined}
+            onContextMenu={onContextMenu}
           />
         ))}
     </div>

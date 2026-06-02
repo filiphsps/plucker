@@ -17,6 +17,7 @@ function cacheWith(audio: AudioInfo | undefined): MetadataCache {
   return {
     read: vi.fn(() => (audio ? { audio } : null)),
     writeAudio: vi.fn(),
+    writeWaveform: vi.fn(),
     writeAutoTag: vi.fn(),
     writeTrack: vi.fn(),
     update: vi.fn(),

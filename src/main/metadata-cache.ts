@@ -1,11 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { TrackTags, AudioMeta, CacheTrackIdentity } from '../shared/types'
+import type { TrackTags, AudioMeta, CacheTrackIdentity, Waveform } from '../shared/types'
 
 /** Content-derived data cached per audio-content hash (tag-independent). */
 export interface CacheEntry {
   /** Technical audio properties probed once via ffmpeg (+ file size). */
   audio?: AudioMeta
+  /** Precomputed waveform peaks + duration, generated lazily on first expand. */
+  waveform?: Waveform
   /** MusicBrainz auto-tag enrichment result, reused to skip the network lookup. */
   mb?: TrackTags
   /** Last-known display identity for the track that produced this hash. */
@@ -23,6 +25,7 @@ export interface CacheRecord extends CacheEntry {
 export interface MetadataCache {
   read(hash: string): CacheEntry | null
   writeAudio(hash: string, audio: AudioMeta): void
+  writeWaveform(hash: string, waveform: Waveform): void
   writeAutoTag(hash: string, mb: TrackTags, cover?: Buffer): void
   writeTrack(hash: string, track: CacheTrackIdentity): void
   /** Merge corrected tags into the cached MusicBrainz block. */
@@ -81,6 +84,7 @@ export function createMetadataCache(dir: string): MetadataCache {
   return {
     read,
     writeAudio: (hash, audio) => merge(hash, { audio }),
+    writeWaveform: (hash, waveform) => merge(hash, { waveform }),
     writeAutoTag: (hash, mb, cover) => {
       merge(hash, { mb })
       if (cover) {

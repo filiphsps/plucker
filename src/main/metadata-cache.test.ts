@@ -25,6 +25,15 @@ describe('metadata cache', () => {
     expect(c.read(HASH)?.audio).toEqual({ codec: 'mp3', bitrateKbps: 320, durationSec: 200 })
   })
 
+  it('round-trips a waveform without clobbering audio', () => {
+    const c = createMetadataCache(dir)
+    c.writeAudio(HASH, { durationSec: 100 })
+    c.writeWaveform(HASH, { peaks: [0, 0.5, 1], durationSec: 100 })
+    const entry = c.read(HASH)
+    expect(entry?.waveform).toEqual({ peaks: [0, 0.5, 1], durationSec: 100 })
+    expect(entry?.audio?.durationSec).toBe(100)
+  })
+
   it('merges audio and auto-tag writes for the same hash without clobbering', () => {
     const c = createMetadataCache(dir)
     c.writeAutoTag(HASH, { artist: 'M83', title: 'Midnight City' })

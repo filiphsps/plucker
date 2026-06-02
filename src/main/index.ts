@@ -21,6 +21,7 @@ import { runJob } from './pipeline'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
+import { getWaveform, forWaveform } from './waveform'
 import { addEntry, removeEntry, removeTrack } from './history'
 import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
@@ -109,6 +110,11 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   // Track metadata (tags + technical audio, cache-first) and file-existence checks.
   ipcMain.handle('metadata:get', (_e, file: string, hash?: string) =>
     getTrackMetadata(file, hash, forBinaries(currentBin(), getMetaCache()))
+  )
+  // Waveform peaks for the expanded panel — generated lazily on first expand,
+  // cached per content hash, returns null when the file can't be decoded.
+  ipcMain.handle('waveform:get', (_e, file: string, hash?: string) =>
+    getWaveform(file, hash, forWaveform(currentBin(), getMetaCache()))
   )
   ipcMain.handle('files:exist', (_e, paths: string[]) => paths.map((p) => existsSync(p)))
 

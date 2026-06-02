@@ -78,3 +78,26 @@ body {
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* Waveform bars rise from the baseline with a per-bar stagger on mount. */
+@keyframes wave-rise {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.wave-bar {
+  transform-origin: center;
+  animation: wave-rise 260ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave-bar {
+    animation: none;
+  }
+}

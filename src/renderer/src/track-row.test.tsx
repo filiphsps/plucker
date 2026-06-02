@@ -50,4 +50,16 @@ describe('TrackRow', () => {
     expect(html).toContain('MISSING')
     expect(html).toContain('File missing')
   })
+
+  it('does not render a waveform while the row is collapsed', () => {
+    const html = renderToStaticMarkup(
+      <TrackRow
+        variant="history"
+        index={1}
+        track={{ title: 'Stratus', file: '/a.mp3', duration: '9:49' }}
+      />
+    )
+    // Collapsed by default → TrackDetail (and its waveform) is not mounted.
+    expect(html).not.toContain('data-wave-bar')
+  })
 })

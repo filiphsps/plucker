@@ -246,6 +246,14 @@ export interface TrackMetadata {
   audio: AudioMeta
 }
 
+/** Precomputed waveform peaks for the expanded-panel visualization. */
+export interface Waveform {
+  /** Normalized 0..1 peaks, one per rendered bar (length {@link WAVEFORM_BARS}). */
+  peaks: number[]
+  /** Total duration in seconds, carried for a future playhead + the tooltip. */
+  durationSec?: number
+}
+
 /** Last-known display identity of the track that produced a cache entry. */
 export interface CacheTrackIdentity {
   title?: string

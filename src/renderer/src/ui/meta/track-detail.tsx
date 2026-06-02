@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TrackMetadata, TrackTags } from '../../../../shared/types'
+import type { TrackMetadata, TrackTags, Waveform } from '../../../../shared/types'
 import { watchUrl as ytWatchUrl } from '../../../../shared/youtube-url'
 import { MetaField, MetaLink } from './meta-field'
 import { MetaStrip } from './meta-strip'
 import { MetaGrid } from './meta-grid'
+import { WaveformStrip } from './waveform-strip'
 import {
   formatBitrate,
   formatDuration,
@@ -53,7 +54,9 @@ export function TrackDetail({
   editing = false,
   onSave,
   onCancel,
-  onOpenExternal
+  onOpenExternal,
+  waveform,
+  onContextMenu
 }: {
   meta: TrackMetadata | null
   source?: TrackSource
@@ -64,6 +67,10 @@ export function TrackDetail({
   onSave?: (tags: TrackTags) => void
   onCancel?: () => void
   onOpenExternal?: (url: string) => void
+  /** Precomputed peaks; when present (and not editing) the strip is shown. */
+  waveform?: Waveform
+  /** Row context-menu handler, forwarded onto the waveform. */
+  onContextMenu?: (e: React.MouseEvent) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const open = onOpenExternal ?? ((url: string) => window.plucker.openExternal(url))
@@ -183,6 +190,14 @@ export function TrackDetail({
           )}
         </MetaGrid>
       </div>
+
+      {waveform && (
+        <WaveformStrip
+          peaks={waveform.peaks}
+          durationSec={waveform.durationSec}
+          onContextMenu={onContextMenu}
+        />
+      )}
     </div>
   )
 }
