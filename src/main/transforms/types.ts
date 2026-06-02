@@ -44,6 +44,8 @@ export interface TransformServices {
   bin: BinaryPaths
   fetch: typeof fetch
   signal?: AbortSignal
+  /** Process-group key (the track index) so per-track pause can freeze this track's ffmpeg. */
+  groupKey?: number
   log: TransformLog
   /** Report 0..1 progress within this transform's step (optional to call). */
   reportProgress: (fraction: number) => void

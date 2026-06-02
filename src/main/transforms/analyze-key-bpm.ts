@@ -79,6 +79,7 @@ export function buildAnalyzeDeps(
   log: TransformLog,
   ffmpegPath: string,
   signal: AbortSignal | undefined,
+  groupKey?: number,
   getEs: (onError?: (msg: string) => void) => EssentiaLike | null = getEssentia
 ): AnalyzeDeps {
   // Boot Essentia once; null means it failed to load and we transparently fall
@@ -86,7 +87,7 @@ export function buildAnalyzeDeps(
   const es = getEs((msg) => log.warn(msg))
   log.debug(`analysis engine: ${es ? 'essentia (wasm)' : 'fallback DSP'}`)
   return {
-    decode: (file, sr) => decodePcm(file, sr, ffmpegPcmDeps(ffmpegPath, signal)),
+    decode: (file, sr) => decodePcm(file, sr, ffmpegPcmDeps(ffmpegPath, signal, groupKey)),
     estimateKey: (pcm, sr) => {
       if (es) {
         try {
@@ -145,7 +146,7 @@ async function runAnalysis(
   return analyzeTrack(
     file,
     config,
-    buildAnalyzeDeps(services.log, services.bin.ffmpeg, services.signal)
+    buildAnalyzeDeps(services.log, services.bin.ffmpeg, services.signal, services.groupKey)
   )
 }
 

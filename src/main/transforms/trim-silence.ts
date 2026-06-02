@@ -68,7 +68,7 @@ export const trimSilenceTransform: TransformDefinition<TrimSilenceConfig> = {
     const result = await trimSilence(
       ctx.workingFile,
       config,
-      ffmpegTrimDeps(services.bin.ffmpeg, services.signal)
+      ffmpegTrimDeps(services.bin.ffmpeg, services.signal, services.groupKey)
     )
     const settings = `mode=${config.mode}, threshold ${config.thresholdDb}dB, min ${config.minDurationSec}s`
     if (result.trimmed) {

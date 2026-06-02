@@ -106,10 +106,11 @@ export async function trimSilence(
 function runFfmpeg(
   ffmpegPath: string,
   args: string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  groupKey?: number
 ): Promise<{ code: number | null; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawnManaged(ffmpegPath, args, {}, signal)
+    const child = spawnManaged(ffmpegPath, args, {}, signal, undefined, groupKey)
     let stderr = ''
     child.stderr.on('data', (d: Buffer) => {
       stderr += d.toString()
@@ -120,17 +121,22 @@ function runFfmpeg(
 }
 
 /** Real ffmpeg-backed deps for {@link trimSilence}. */
-export function ffmpegTrimDeps(ffmpegPath: string, signal?: AbortSignal): TrimDeps {
+export function ffmpegTrimDeps(
+  ffmpegPath: string,
+  signal?: AbortSignal,
+  groupKey?: number
+): TrimDeps {
   return {
     detect: async (file, opts) => {
-      const { stderr } = await runFfmpeg(ffmpegPath, detectArgs(file, opts), signal)
+      const { stderr } = await runFfmpeg(ffmpegPath, detectArgs(file, opts), signal, groupKey)
       return stderr
     },
     encode: async (input, output, filter, bitrateKbps) => {
       const { code, stderr } = await runFfmpeg(
         ffmpegPath,
         encodeArgs(input, output, filter, bitrateKbps),
-        signal
+        signal,
+        groupKey
       )
       if (code !== 0) throw new Error(`ffmpeg trim failed (code ${code}): ${stderr.trim()}`)
     }

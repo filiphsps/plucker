@@ -44,11 +44,15 @@ export async function decodePcm(
 }
 
 /** Real ffmpeg-backed deps for {@link decodePcm}. Collects stdout to a Buffer. */
-export function ffmpegPcmDeps(ffmpegPath: string, signal?: AbortSignal): PcmDeps {
+export function ffmpegPcmDeps(
+  ffmpegPath: string,
+  signal?: AbortSignal,
+  groupKey?: number
+): PcmDeps {
   return {
     run: (args) =>
       new Promise<Buffer>((resolve, reject) => {
-        const child = spawnManaged(ffmpegPath, args, {}, signal)
+        const child = spawnManaged(ffmpegPath, args, {}, signal, undefined, groupKey)
         const chunks: Buffer[] = []
         let stderr = ''
         child.stdout.on('data', (d: Buffer) => chunks.push(d))

@@ -52,7 +52,8 @@ export const squareCoverTransform: TransformDefinition<SquareCoverConfig> = {
     const media = services.media
     await squareCover(ctx.workingFile, {
       readCover: media ? (file) => media.readCover(file) : readCoverImage,
-      crop: (image, mime) => cropToSquare(services.bin.ffmpeg, image, mime, services.signal),
+      crop: (image, mime) =>
+        cropToSquare(services.bin.ffmpeg, image, mime, services.signal, services.groupKey),
       embed: media ? (file, image, mime) => media.embedCover(file, image, mime) : embedCover,
       log: (msg) => services.log.info(msg)
     })

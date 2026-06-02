@@ -42,14 +42,15 @@ export function cropToSquare(
   ffmpegPath: string,
   image: Buffer,
   mime: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  groupKey?: number
 ): Promise<{ image: Buffer; mime: string }> {
   const size = imageSize(image)
   if (size && size.width === size.height) return Promise.resolve({ image, mime })
 
   const outMime = isPng(mime) ? 'image/png' : 'image/jpeg'
   return new Promise((resolve, reject) => {
-    const child = spawnManaged(ffmpegPath, ffmpegCropArgs(mime), {}, signal)
+    const child = spawnManaged(ffmpegPath, ffmpegCropArgs(mime), {}, signal, undefined, groupKey)
     const chunks: Buffer[] = []
     let stderr = ''
     child.stdout.on('data', (d: Buffer) => chunks.push(d))
