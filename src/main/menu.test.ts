@@ -21,7 +21,6 @@ function actions(): MenuActions {
     navigate: vi.fn(),
     newDownload: vi.fn(),
     openUrl: vi.fn(),
-    retransform: vi.fn(),
     toggleConsole: vi.fn(),
     checkForUpdates: vi.fn(),
     viewReleases: vi.fn()
@@ -63,11 +62,10 @@ describe('buildMenuTemplate', () => {
     expect(a.navigate).toHaveBeenCalledWith('cache')
   })
 
-  it('binds the documented accelerators (retransform on Shift+R, reload on role default)', () => {
+  it('binds the documented accelerators (reload on role default)', () => {
     const t = buildMenuTemplate(ctx(), actions())
     const file = sub(find(t, 'File'))
     expect(find(file, 'New Download').accelerator).toBe('CmdOrCtrl+N')
-    expect(find(file, 'Re-run Transforms on Selection').accelerator).toBe('CmdOrCtrl+Shift+R')
     const view = sub(find(t, 'View'))
     expect(find(view, 'Reload').accelerator).toBeUndefined() // role default (CmdOrCtrl+R)
     expect(find(view, 'Force Reload').accelerator).toBeUndefined()
@@ -111,7 +109,6 @@ describe('buildMenuTemplate', () => {
     for (const [items, label] of [
       [file, 'New Download'],
       [file, 'Open URL…'],
-      [file, 'Re-run Transforms on Selection'],
       [file, 'Manage Cache…'],
       [view, 'Download'],
       [view, 'History'],

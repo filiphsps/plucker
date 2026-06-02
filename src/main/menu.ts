@@ -38,7 +38,6 @@ export interface MenuActions {
   navigate: (target: MenuNavTarget) => void
   newDownload: () => void
   openUrl: () => void
-  retransform: () => void
   toggleConsole: () => void
   checkForUpdates: () => void
   viewReleases: () => void
@@ -95,13 +94,6 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
         icon: ic('link'),
         accelerator: accelerators.openUrl,
         click: () => a.openUrl()
-      },
-      sep,
-      {
-        label: t.retransformSelection,
-        icon: ic('arrow.triangle.2.circlepath'),
-        accelerator: accelerators.retransform,
-        click: () => a.retransform()
       },
       sep,
       { label: t.manageCache, icon: ic('internaldrive'), click: () => a.navigate('cache') },
@@ -273,7 +265,6 @@ export function buildAppMenu(getWindow: GetWindow): void {
       navigate: (target) => send('menu:navigate', target),
       newDownload: () => send('menu:new-download'),
       openUrl: () => send('menu:open-url', clipboard.readText().trim()),
-      retransform: () => send('menu:retransform-selection'),
       toggleConsole: () => send('menu:toggle-console'),
       checkForUpdates: () => void checkForUpdates(getWindow, { silent: false }),
       viewReleases: () => void shell.openExternal(RELEASES_URL)

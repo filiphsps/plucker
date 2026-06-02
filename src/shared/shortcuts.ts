@@ -6,8 +6,7 @@
 export const ACCELERATORS = {
   toggleConsole: 'CmdOrCtrl+J',
   newDownload: 'CmdOrCtrl+N',
-  openUrl: 'CmdOrCtrl+Shift+N',
-  retransform: 'CmdOrCtrl+Shift+R'
+  openUrl: 'CmdOrCtrl+Shift+N'
 } as const
 
 export type AcceleratorName = keyof typeof ACCELERATORS

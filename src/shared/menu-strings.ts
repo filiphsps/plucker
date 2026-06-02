@@ -18,7 +18,6 @@ export const menu = {
     file: 'File',
     newDownload: 'New Download',
     openUrl: 'Open URL…',
-    retransformSelection: 'Re-run Transforms on Selection',
     manageCache: 'Manage Cache…',
     settings: 'Settings…',
     // Edit
@@ -58,7 +57,6 @@ export const menu = {
     file: 'Datei',
     newDownload: 'Neuer Download',
     openUrl: 'URL öffnen …',
-    retransformSelection: 'Transformationen für Auswahl erneut ausführen',
     manageCache: 'Cache verwalten …',
     settings: 'Einstellungen …',
     edit: 'Bearbeiten',
