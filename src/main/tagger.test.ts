@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import NodeID3 from 'node-id3'
-import { writeTrackTags, readTrackTags, embedCover } from './tagger'
+import { writeTrackTags, readTrackTags, embedCover, writeAnalysisTags } from './tagger'
 
 let dir: string
 let mp3: string
@@ -39,5 +39,23 @@ describe('tagger', () => {
     embedCover(mp3, png, 'image/png')
     const raw = NodeID3.read(mp3)
     expect(raw.image).toBeTruthy()
+  })
+})
+
+describe('writeAnalysisTags', () => {
+  it('writes initial key, BPM, and a CAMELOT TXXX frame', () => {
+    writeAnalysisTags(mp3, { key: 'Am', camelot: '8A', bpm: 124 })
+    const raw = NodeID3.read(mp3)
+    expect(raw.initialKey).toBe('Am')
+    expect(raw.bpm).toBe('124')
+    const txxx = (raw.userDefinedText ?? []).find((t) => t.description === 'CAMELOT')
+    expect(txxx?.value).toBe('8A')
+  })
+
+  it('writes only the provided fields and is a no-op when given nothing', () => {
+    expect(() => writeAnalysisTags(mp3, {})).not.toThrow()
+    writeAnalysisTags(mp3, { bpm: 90 })
+    expect(NodeID3.read(mp3).bpm).toBe('90')
+    expect(NodeID3.read(mp3).initialKey).toBeFalsy()
   })
 })

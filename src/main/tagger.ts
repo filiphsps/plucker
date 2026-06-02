@@ -49,6 +49,33 @@ export function readCoverImage(file: string): { image: Buffer; mime: string } | 
   return null
 }
 
+/** Key/tempo analysis results written to dedicated ID3 frames. */
+export interface AnalysisTags {
+  /** Musical key, e.g. "Am" — written to TKEY (initialKey). */
+  key?: string
+  /** Camelot wheel code, e.g. "8A" — written to a TXXX:CAMELOT frame. */
+  camelot?: string
+  /** Tempo in BPM — written to TBPM. */
+  bpm?: number
+}
+
+/**
+ * Write key/BPM analysis frames to an mp3, leaving all other tags untouched
+ * (partial NodeID3.update). Only the provided fields are written; an empty input
+ * is a no-op.
+ */
+export function writeAnalysisTags(file: string, analysis: AnalysisTags): void {
+  const id3: NodeID3.Tags = {}
+  if (analysis.key) id3.initialKey = analysis.key
+  if (typeof analysis.bpm === 'number') id3.bpm = String(analysis.bpm)
+  if (analysis.camelot) {
+    id3.userDefinedText = [{ description: 'CAMELOT', value: analysis.camelot }]
+  }
+  if (Object.keys(id3).length === 0) return
+  const res = NodeID3.update(id3, file)
+  if (res !== true) throw new Error(`Failed to write analysis tags: ${String(res)}`)
+}
+
 /** Read the embedded front cover as a data URL, or null if absent/unreadable. */
 export function readCoverDataUrl(file: string): string | null {
   try {
