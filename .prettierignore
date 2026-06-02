@@ -8,3 +8,6 @@ tsconfig.*.json
 
 # Specs, plans, and design docs are authored prose — keep prettier off them.
 .specs
+
+# Native addons' Swift build output (SwiftPM `.build`) — generated artifacts.
+native/**/.build

@@ -18,7 +18,9 @@ export default defineConfig(
       'scripts/**',
       'resources/**',
       'CHANGELOG.md',
-      '.specs/**'
+      '.specs/**',
+      // Native addons' Swift build output (SwiftPM `.build`) — generated artifacts.
+      'native/**/.build/**'
     ]
   },
   tseslint.configs.recommended,
