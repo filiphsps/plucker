@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/filiphsps/plucker/compare/plucker-v0.10.0...plucker-v0.10.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* **ci:** Delete temp uploads + caching ([27de6ed](https://github.com/filiphsps/plucker/commit/27de6edff4d3b6d7573f7899a0e1834c80301f7e))
+
 ## [0.10.0](https://github.com/filiphsps/plucker/compare/plucker-v0.9.1...plucker-v0.10.0) (2026-06-02)
 
 
