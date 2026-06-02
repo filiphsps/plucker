@@ -7,6 +7,7 @@ import {
   isOnScreen,
   loadWindowBounds,
   saveWindowBounds,
+  clearWindowBounds,
   type WindowBounds
 } from './window-state'
 
@@ -86,5 +87,16 @@ describe('load/save round-trip', () => {
     const file = join(dir, 'corrupt.json')
     writeFileSync(file, '{ not json')
     expect(loadWindowBounds(file)).toBeNull()
+  })
+
+  it('clearWindowBounds forgets persisted geometry', () => {
+    const file = join(dir, 'window-state.json')
+    saveWindowBounds(file, valid)
+    clearWindowBounds(file)
+    expect(loadWindowBounds(file)).toBeNull()
+  })
+
+  it('clearWindowBounds is a no-op when no file exists', () => {
+    expect(() => clearWindowBounds(join(dir, 'nope.json'))).not.toThrow()
   })
 })

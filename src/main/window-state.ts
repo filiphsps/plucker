@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, rmSync } from 'node:fs'
 
 /** Saved window geometry, persisted so a relaunch (incl. dev hot-restart) reopens in place. */
 export interface WindowBounds {
@@ -64,5 +64,18 @@ export function saveWindowBounds(file: string, bounds: WindowBounds): void {
     writeFileSync(file, JSON.stringify(bounds))
   } catch {
     /* best-effort: losing saved geometry just means the next launch centers */
+  }
+}
+
+/**
+ * Forget any persisted geometry so the next open falls back to defaults (centered).
+ * Swallows IO errors, including the file simply not existing. Used when docking the
+ * console: redocking resets its remembered floating position to null.
+ */
+export function clearWindowBounds(file: string): void {
+  try {
+    rmSync(file, { force: true })
+  } catch {
+    /* best-effort: a leftover state file just means the next launch reuses it */
   }
 }

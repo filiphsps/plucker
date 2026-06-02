@@ -16,7 +16,7 @@ import {
   migrateLegacyConfig,
   pluckerDir
 } from './settings'
-import { loadWindowBounds, saveWindowBounds, isOnScreen } from './window-state'
+import { loadWindowBounds, saveWindowBounds, clearWindowBounds, isOnScreen } from './window-state'
 import {
   log,
   addLogTransport,
@@ -554,6 +554,9 @@ function openConsoleWindow(getMain: () => BrowserWindow | null): void {
     // A user-initiated close (OS X button or the Dock control) redocks; an app/main
     // shutdown leaves the persisted mode as 'floating' so it reopens next launch.
     if (consoleRedockOnClose) {
+      // Docking forgets the floating geometry so the next undock opens fresh
+      // (centered) rather than restoring the last floating position.
+      clearWindowBounds(consoleWindowStatePath())
       setConsoleSettings({ mode: 'docked' })
       getMain()?.webContents.send('console:mode', 'docked')
     }
