@@ -7,6 +7,7 @@ describe('registry', () => {
     const r = buildRegistry()
     expect(r.get('auto-tag')?.type).toBe('auto-tag')
     expect(r.get('rename')?.type).toBe('rename')
+    expect(r.get('square-cover')?.type).toBe('square-cover')
   })
   it('catalog is serializable and omits run()', () => {
     const catalog = getCatalog()

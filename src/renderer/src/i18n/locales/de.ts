@@ -118,6 +118,7 @@ const de: typeof en = {
     saving: 'Datei wird gespeichert',
     'auto-tag': 'Auto-Tagging · MusicBrainz',
     rename: 'Datei wird umbenannt',
+    'square-cover': 'Cover wird quadratisch zugeschnitten',
     took: 'dauerte {{time}}'
   },
   settings: {
@@ -284,6 +285,11 @@ const de: typeof en = {
       fields: {
         template: 'Dateinamen-Vorlage – Platzhalter: {artist} {track} {title} {album} {year}'
       }
+    },
+    squareCover: {
+      label: 'Cover quadratisch zuschneiden',
+      description:
+        'Eingebettetes Cover mittig auf ein Quadrat zuschneiden und die längere Seite kürzen.'
     }
   }
 }

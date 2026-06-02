@@ -36,6 +36,19 @@ export function embedCover(file: string, image: Buffer, mime = 'image/jpeg'): vo
   if (res !== true) throw new Error(`Failed to embed cover: ${String(res)}`)
 }
 
+/** Read the embedded front cover as raw bytes + mime, or null if absent/unreadable. */
+export function readCoverImage(file: string): { image: Buffer; mime: string } | null {
+  try {
+    const img = NodeID3.read(file).image
+    if (img && typeof img !== 'string' && img.imageBuffer) {
+      return { image: Buffer.from(img.imageBuffer), mime: img.mime || 'image/jpeg' }
+    }
+  } catch {
+    // unreadable / no tags
+  }
+  return null
+}
+
 /** Read the embedded front cover as a data URL, or null if absent/unreadable. */
 export function readCoverDataUrl(file: string): string | null {
   try {

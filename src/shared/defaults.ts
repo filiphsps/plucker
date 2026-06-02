@@ -20,6 +20,12 @@ export const DEFAULT_TRANSFORMS: TransformInstance[] = [
     type: 'rename',
     enabled: true,
     config: { template: '{artist} - {track}. {title} - {album} ({year})' }
+  },
+  {
+    instanceId: 'square-cover-default',
+    type: 'square-cover',
+    enabled: true,
+    config: {}
   }
 ]
 

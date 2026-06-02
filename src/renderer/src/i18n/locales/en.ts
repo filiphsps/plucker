@@ -117,6 +117,7 @@ export default {
     saving: 'Saving file',
     'auto-tag': 'Auto-tagging · MusicBrainz',
     rename: 'Renaming file',
+    'square-cover': 'Squaring cover art',
     took: 'took {{time}}'
   },
   settings: {
@@ -282,6 +283,10 @@ export default {
       fields: {
         template: 'Filename template — tokens: {artist} {track} {title} {album} {year}'
       }
+    },
+    squareCover: {
+      label: 'Square cover art',
+      description: 'Center-crop the embedded cover to a square, trimming the longer side.'
     }
   }
 }

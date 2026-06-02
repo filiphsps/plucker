@@ -3,10 +3,12 @@ import type { TransformManifest } from '../../shared/transforms'
 import type { TransformDefinition } from './types'
 import { autoTagTransform } from './auto-tag'
 import { renameTransform } from './rename'
+import { squareCoverTransform } from './square-cover'
 
 const BUILTINS: TransformDefinition[] = [
   autoTagTransform as unknown as TransformDefinition,
-  renameTransform as unknown as TransformDefinition
+  renameTransform as unknown as TransformDefinition,
+  squareCoverTransform as unknown as TransformDefinition
 ]
 
 export function buildRegistry(): Map<string, TransformDefinition> {
