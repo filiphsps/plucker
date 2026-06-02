@@ -20,7 +20,11 @@ export default defineConfig(
       'CHANGELOG.md',
       '.specs/**',
       // Native addons' Swift build output (SwiftPM `.build`) — generated artifacts.
-      'native/**/.build/**'
+      'native/**/.build/**',
+      // Native addons' CommonJS entrypoints are thin hand-written loaders that must use
+      // `require()` to pull in the compiled `.node` binary and, being plain JS, can't
+      // carry TS return types — the TS rules don't apply. (Their `.d.ts` files still lint.)
+      'native/**/*.js'
     ]
   },
   tseslint.configs.recommended,
