@@ -8,6 +8,7 @@ import type {
   TrackProgress,
   HistoryTrack
 } from '../shared/types'
+import { watchUrl } from '../shared/youtube-url'
 import { sanitizeFileName } from './rename'
 import {
   buildDownloadArgs,
@@ -398,7 +399,6 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
 
     const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
-    const watchUrl = (id: string): string => `https://www.youtube.com/watch?v=${id}`
     // Prefer the flat-playlist entry URL; fall back to a watch URL (or, for a single
     // video job, the original URL) so a missing entry URL never blocks a download.
     const entryUrl = (e: PlaylistEntry): string =>

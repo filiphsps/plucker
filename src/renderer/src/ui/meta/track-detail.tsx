@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TrackMetadata, TrackTags } from '../../../../shared/types'
+import { watchUrl as ytWatchUrl } from '../../../../shared/youtube-url'
 import { MetaField, MetaLink } from './meta-field'
 import { MetaStrip } from './meta-strip'
 import { MetaGrid } from './meta-grid'
@@ -22,7 +23,7 @@ export interface TrackSource {
 
 function watchUrl(source?: TrackSource): string | undefined {
   if (source?.url) return source.url
-  return source?.videoId ? `https://www.youtube.com/watch?v=${source.videoId}` : undefined
+  return source?.videoId ? ytWatchUrl(source.videoId) : undefined
 }
 
 const LABEL =
