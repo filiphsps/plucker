@@ -140,15 +140,15 @@ needed.
 
 ## Error handling
 
-| Case | Behavior |
-| --- | --- |
-| `--cookies-from-browser` works (no perm error) | No prompt; proceed as today. |
-| Cookie permission error, user grants | Export → retry → downloads use temp file. |
-| Cookie permission error, user cancels | `SudoCancelledError` → job fails cleanly, history entry, no crash. |
+| Case                                                     | Behavior                                                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `--cookies-from-browser` works (no perm error)           | No prompt; proceed as today.                                                                                   |
+| Cookie permission error, user grants                     | Export → retry → downloads use temp file.                                                                      |
+| Cookie permission error, user cancels                    | `SudoCancelledError` → job fails cleanly, history entry, no crash.                                             |
 | Export runs as root but still can't read/decrypt cookies | yt-dlp stderr surfaced via the retry's thrown error (no infinite loop — escalation is attempted at most once). |
-| Abort during/after prompt | sudo-prompt cannot be aborted mid-dialog; we let it settle, then `finally` cleans the temp file. |
-| Non-darwin | No escalation path; direct `--cookies-from-browser`. |
-| Temp file always removed | `finally` → `cleanupCookieFile`. |
+| Abort during/after prompt                                | sudo-prompt cannot be aborted mid-dialog; we let it settle, then `finally` cleans the temp file.               |
+| Non-darwin                                               | No escalation path; direct `--cookies-from-browser`.                                                           |
+| Temp file always removed                                 | `finally` → `cleanupCookieFile`.                                                                               |
 
 ## Testing
 

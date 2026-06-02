@@ -101,6 +101,7 @@ git commit -m "build: add @vscode/sudo-prompt for privileged cookie access"
 ## Task 2: `src/main/sudo.ts` — elevated exec wrapper
 
 **Files:**
+
 - Create: `src/main/sudo.ts`
 - Test: `src/main/sudo.test.ts`
 
@@ -197,6 +198,7 @@ git commit -m "feat(sudo): add elevated exec wrapper with safe arg quoting"
 ## Task 3: `src/main/cookies.ts` — escalation policy + export command
 
 **Files:**
+
 - Create: `src/main/cookies.ts`
 - Test: `src/main/cookies.test.ts`
 
@@ -229,9 +231,9 @@ describe('isCookiePermissionError', () => {
     expect(isCookiePermissionError('ERROR: Could not copy Safari cookie database')).toBe(true)
   })
   it('matches a permission-denied cookie line', () => {
-    expect(isCookiePermissionError('ERROR: unable to open cookie database: Permission denied')).toBe(
-      true
-    )
+    expect(
+      isCookiePermissionError('ERROR: unable to open cookie database: Permission denied')
+    ).toBe(true)
   })
   it('does not match unrelated errors', () => {
     expect(isCookiePermissionError('ERROR: Video unavailable')).toBe(false)
@@ -383,6 +385,7 @@ git commit -m "feat(cookies): add escalation policy and privileged export comman
 ## Task 4: `buildDownloadArgs` — use the exported cookie file when present
 
 **Files:**
+
 - Modify: `src/main/ytdlp.ts` (`DownloadArgsInput`, cookie branch ~lines 5-17, 70-72)
 - Modify: `src/main/ytdlp.test.ts`
 
@@ -391,26 +394,26 @@ git commit -m "feat(cookies): add escalation policy and privileged export comman
 Append to `src/main/ytdlp.test.ts` inside `describe('buildDownloadArgs', …)`:
 
 ```ts
-  it('uses --cookies with the exported file and omits --cookies-from-browser', () => {
-    const s = { ...DEFAULT_SETTINGS, cookies: { source: 'safari' as const } }
-    const args = buildDownloadArgs({
-      url: 'u',
-      destFolder: '/o',
-      settings: s,
-      ffmpegPath: '/f',
-      cookieFile: '/tmp/c.txt'
-    })
-    expect(args).toContain('--cookies')
-    expect(args[args.indexOf('--cookies') + 1]).toBe('/tmp/c.txt')
-    expect(args).not.toContain('--cookies-from-browser')
+it('uses --cookies with the exported file and omits --cookies-from-browser', () => {
+  const s = { ...DEFAULT_SETTINGS, cookies: { source: 'safari' as const } }
+  const args = buildDownloadArgs({
+    url: 'u',
+    destFolder: '/o',
+    settings: s,
+    ffmpegPath: '/f',
+    cookieFile: '/tmp/c.txt'
   })
+  expect(args).toContain('--cookies')
+  expect(args[args.indexOf('--cookies') + 1]).toBe('/tmp/c.txt')
+  expect(args).not.toContain('--cookies-from-browser')
+})
 
-  it('falls back to --cookies-from-browser when no cookieFile is given', () => {
-    const s = { ...DEFAULT_SETTINGS, cookies: { source: 'safari' as const } }
-    const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })
-    expect(args).toContain('--cookies-from-browser')
-    expect(args).not.toContain('--cookies')
-  })
+it('falls back to --cookies-from-browser when no cookieFile is given', () => {
+  const s = { ...DEFAULT_SETTINGS, cookies: { source: 'safari' as const } }
+  const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })
+  expect(args).toContain('--cookies-from-browser')
+  expect(args).not.toContain('--cookies')
+})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -434,17 +437,17 @@ In `src/main/ytdlp.ts`, add the field to `DownloadArgsInput` (after `singleVideo
 Destructure it (line 27):
 
 ```ts
-  const { url, destFolder, settings, ffmpegPath, singleVideo, cookieFile } = input
+const { url, destFolder, settings, ffmpegPath, singleVideo, cookieFile } = input
 ```
 
 Replace the cookie branch (current lines 70-72):
 
 ```ts
-  if (cookieFile) {
-    args.push('--cookies', cookieFile)
-  } else if (settings.cookies.source !== 'none' && settings.cookies.source !== 'auto') {
-    args.push('--cookies-from-browser', settings.cookies.source)
-  }
+if (cookieFile) {
+  args.push('--cookies', cookieFile)
+} else if (settings.cookies.source !== 'none' && settings.cookies.source !== 'auto') {
+  args.push('--cookies-from-browser', settings.cookies.source)
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -486,12 +489,12 @@ export async function resolvePlaylist(
 In the `spawnManaged` call inside `resolvePlaylist`, insert `cookieArgs` before `url`:
 
 ```ts
-    const child = spawnManaged(
-      ytdlpPath,
-      ['--verbose', '--flat-playlist', '--dump-single-json', ...cookieArgs, url],
-      {},
-      signal
-    )
+const child = spawnManaged(
+  ytdlpPath,
+  ['--verbose', '--flat-playlist', '--dump-single-json', ...cookieArgs, url],
+  {},
+  signal
+)
 ```
 
 - [ ] **Step 3: Typecheck**
@@ -530,41 +533,41 @@ import {
 Replace the resolve block at the start of `runJob` (the `onStatus?.({ phase: 'resolving', key: 'launching' })` + `const job = await timed('resolve-playlist', …)` section, lines 304-318) with:
 
 ```ts
-  onStatus?.({ phase: 'resolving', key: 'launching' })
+onStatus?.({ phase: 'resolving', key: 'launching' })
 
-  let cookieFile: string | undefined
-  let cookieArgs: string[] = needsCookieEscalation(settings)
-    ? ['--cookies-from-browser', settings.cookies.source]
-    : []
+let cookieFile: string | undefined
+let cookieArgs: string[] = needsCookieEscalation(settings)
+  ? ['--cookies-from-browser', settings.cookies.source]
+  : []
 
-  const resolveOnce = (): Promise<ResolvedJob> =>
-    timed('resolve-playlist', 'pipeline', () =>
-      resolvePlaylist(
-        bin.ytdlp,
-        url,
-        (line) => {
-          onStatus?.({ phase: 'resolving', line })
-          log.debug('yt-dlp', line)
-        },
-        signal,
-        cookieArgs
-      )
+const resolveOnce = (): Promise<ResolvedJob> =>
+  timed('resolve-playlist', 'pipeline', () =>
+    resolvePlaylist(
+      bin.ytdlp,
+      url,
+      (line) => {
+        onStatus?.({ phase: 'resolving', line })
+        log.debug('yt-dlp', line)
+      },
+      signal,
+      cookieArgs
     )
+  )
 
-  let job: ResolvedJob
-  try {
+let job: ResolvedJob
+try {
+  job = await resolveOnce()
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err)
+  const aborted = signal?.aborted ?? false
+  if (!aborted && needsCookieEscalation(settings) && !cookieFile && isCookiePermissionError(msg)) {
+    cookieFile = await exportBrowserCookies(bin.ytdlp, settings.cookies.source, url)
+    cookieArgs = ['--cookies', cookieFile]
     job = await resolveOnce()
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    const aborted = signal?.aborted ?? false
-    if (!aborted && needsCookieEscalation(settings) && !cookieFile && isCookiePermissionError(msg)) {
-      cookieFile = await exportBrowserCookies(bin.ytdlp, settings.cookies.source, url)
-      cookieArgs = ['--cookies', cookieFile]
-      job = await resolveOnce()
-    } else {
-      throw err
-    }
+  } else {
+    throw err
   }
+}
 ```
 
 > `ResolvedJob` is already imported/defined in this file (see its `export interface ResolvedJob`). `job` is now `let` and assigned in both branches.
@@ -586,14 +589,14 @@ Indentation of the wrapped body can stay as-is (JS doesn't care); keep the diff 
 In `processEntry`, update the `buildDownloadArgs` call (lines 489-495):
 
 ```ts
-    const args = buildDownloadArgs({
-      url: entryUrl(entry),
-      destFolder: dest,
-      settings,
-      ffmpegPath: bin.ffmpeg,
-      singleVideo: true,
-      cookieFile
-    })
+const args = buildDownloadArgs({
+  url: entryUrl(entry),
+  destFolder: dest,
+  settings,
+  ffmpegPath: bin.ffmpeg,
+  singleVideo: true,
+  cookieFile
+})
 ```
 
 `cookieFile` is in scope because `processEntry` is a nested closure inside `runJob`.
