@@ -3,10 +3,14 @@ import type { TrackTags } from '../../shared/types'
 import type { ConfigField } from '../../shared/transforms'
 import type { TransformDefinition, TrackContext, TransformServices, TransformLog } from './types'
 import { parseTitle } from '../title-parser'
-import { selectBestMatch } from '../mb-select'
+import { selectBestMatch, selectVerifiedMatch } from '../mb-select'
 import { MusicBrainzClient } from '../musicbrainz'
 import { readTrackTags, embedCover } from '../tagger'
 import { timed } from '../bench'
+import type { SourceMetadata } from '../source-metadata'
+import { classifySource } from '../channel-classifier'
+import { fuseMetadata, fusedToTags } from '../metadata-fusion'
+import type { VerifyTarget } from '../mb-verify'
 
 export interface AutoTagConfig {
   primarySource: 'youtube' | 'musicbrainz'
@@ -92,22 +96,70 @@ export function mergeTags(
   }
 }
 
+/**
+ * source → classify → parse → fuse → flat TrackTags (the safe local baseline).
+ * Pure: no I/O, so it works identically on the download path (rich info.json)
+ * and the re-trigger path (source synthesized from the file's own tags).
+ */
+export function resolveLocalTags(
+  src: SourceMetadata,
+  rawTitle: string,
+  config: Pick<
+    AutoTagConfig,
+    | 'useStructuredMetadata'
+    | 'parseFeatured'
+    | 'featuredHandling'
+    | 'parseVersion'
+    | 'stripNoiseTokens'
+    | 'channelArtistFallback'
+  >
+): TrackTags {
+  const kind = classifySource(src)
+  const parsed = parseTitle(rawTitle, {
+    kind,
+    channelName: src.channel ?? src.uploader,
+    parseFeatured: config.parseFeatured,
+    parseVersion: config.parseVersion,
+    stripNoiseTokens: config.stripNoiseTokens
+  })
+  const fused = fuseMetadata(src, parsed, kind, {
+    useStructuredMetadata: config.useStructuredMetadata,
+    channelArtistFallback: config.channelArtistFallback
+  })
+  const tags = fusedToTags(fused)
+  // Featured-artist handling.
+  if (config.parseFeatured && parsed.featured?.length) {
+    if (config.featuredHandling === 'append-to-artist' && tags.artist) {
+      tags.artist = `${tags.artist} feat. ${parsed.featured.join(' & ')}`
+    } else if (config.featuredHandling === 'keep-in-title' && tags.title) {
+      tags.title = `${tags.title} (feat. ${parsed.featured.join(' & ')})`
+    } // 'drop' → leave them out
+  }
+  return tags
+}
+
 /** Look up MusicBrainz and return the enrichment tags + optional cover bytes. */
 export async function enrich(
   ytNorm: TrackTags,
   config: AutoTagConfig,
-  services: Pick<TransformServices, 'fetch' | 'log' | 'reportProgress'>
+  services: Pick<TransformServices, 'fetch' | 'log' | 'reportProgress'>,
+  target: VerifyTarget = {}
 ): Promise<{ tags: TrackTags; cover?: Buffer }> {
   if (!config.enrichWithMusicBrainz) {
-    services.log.debug('MusicBrainz enrichment disabled — using YouTube tags only')
+    services.log.debug('MusicBrainz enrichment disabled — using local tags only')
     return { tags: {} }
   }
   const mb = new MusicBrainzClient(MUSICBRAINZ_CONTACT, { fetchImpl: services.fetch })
   const search = await mb.searchRecording(ytNorm.artist ?? null, ytNorm.title ?? '')
-  const match = selectBestMatch(search, config.minMatchScore)
+  const match = config.requireVerifiedMatch
+    ? selectVerifiedMatch(search, config.minMatchScore, target, {
+        durationToleranceSec: config.durationToleranceSec,
+        nameSimilarityThreshold: config.nameSimilarityThreshold
+      })
+    : selectBestMatch(search, config.minMatchScore)
   if (!match) {
     services.log.info(
-      `no MusicBrainz match above score ${config.minMatchScore} — keeping YouTube tags`
+      `no verified MusicBrainz match (min score ${config.minMatchScore}) — keeping local tags`
     )
     return { tags: {} }
   }
@@ -145,7 +197,8 @@ export async function resolveAutoTag(
   ytNorm: TrackTags,
   config: AutoTagConfig,
   services: Pick<TransformServices, 'fetch' | 'log' | 'reportProgress' | 'cache'>,
-  hash: string | undefined
+  hash: string | undefined,
+  target: VerifyTarget = {}
 ): Promise<{ tags: TrackTags; cover?: Buffer }> {
   if (hash && services.cache) {
     const cached = services.cache.read(hash)
@@ -156,7 +209,9 @@ export async function resolveAutoTag(
     }
   }
   services.log.debug(`MusicBrainz lookup for "${ytNorm.artist ?? '?'} – ${ytNorm.title ?? '?'}"`)
-  const result = await timed('auto-tag-enrich', 'transform', () => enrich(ytNorm, config, services))
+  const result = await timed('auto-tag-enrich', 'transform', () =>
+    enrich(ytNorm, config, services, target)
+  )
   if (hash && services.cache) services.cache.writeAutoTag(hash, result.tags, result.cover)
   return result
 }
@@ -301,25 +356,35 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
   },
   async run(ctx: TrackContext, config: AutoTagConfig, services: TransformServices): Promise<void> {
     const ytTags = readTrackTags(ctx.workingFile)
-    const parsed = parseTitle(ctx.info.rawTitle || ytTags.title || '')
-    const ytNorm: TrackTags = {
-      ...ytTags,
-      artist: ytTags.artist || parsed.artist || undefined,
-      title: parsed.title || ytTags.title
+    // Prefer the info.json captured at download; on the re-trigger path (no
+    // sidecar) synthesize a source from the file's own tags so the same
+    // classify → parse → fuse pipeline still runs.
+    const src: SourceMetadata = ctx.info.source ?? {
+      artist: ytTags.artist,
+      track: ytTags.title,
+      album: ytTags.album
     }
-    // Set a safe baseline first so a skip-on-failure still yields YouTube tags.
-    ctx.tags = ytNorm
+    const local = resolveLocalTags(src, ctx.info.rawTitle || ytTags.title || '', config)
+    // Set a safe baseline first so a skip-on-failure still yields good local tags.
+    ctx.tags = { ...ytTags, ...local }
+
+    const target: VerifyTarget = {
+      durationSec: src.durationSec,
+      artist: local.artist,
+      title: local.title
+    }
     const { tags: mbTags, cover } = await resolveAutoTag(
-      ytNorm,
+      local,
       config,
       services,
-      ctx.info.contentHash
+      ctx.info.contentHash,
+      target
     )
     // A real album cover (MusicBrainz / Cover Art Archive) always replaces the
     // YouTube thumbnail, independent of `primarySource` — the thumbnail is only a
     // fallback when no other cover is available.
     if (cover) embedCover(ctx.workingFile, cover, 'image/jpeg')
-    ctx.tags = mergeTags(ytNorm, mbTags, config.primarySource)
+    ctx.tags = mergeTags(local, mbTags, config.primarySource)
     logTagSummary(ctx.tags, !!cover, config.primarySource, services.log)
   }
 }

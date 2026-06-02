@@ -44,8 +44,10 @@ export function verifyMatch(
     if (gap > opts.durationToleranceSec) {
       return { ok: false, reason: `duration off by ${Math.round(gap)}s` }
     }
-    if (artistSim < threshold) return { ok: false, reason: `artist mismatch (${artistSim.toFixed(2)})` }
-    if (titleSim < threshold) return { ok: false, reason: `title mismatch (${titleSim.toFixed(2)})` }
+    if (artistSim < threshold)
+      return { ok: false, reason: `artist mismatch (${artistSim.toFixed(2)})` }
+    if (titleSim < threshold)
+      return { ok: false, reason: `title mismatch (${titleSim.toFixed(2)})` }
     return { ok: true, reason: 'duration + names agree' }
   }
 

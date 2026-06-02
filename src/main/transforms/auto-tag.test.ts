@@ -1,6 +1,13 @@
 // src/main/transforms/auto-tag.test.ts
 import { describe, it, expect, vi } from 'vitest'
-import { mergeTags, enrich, resolveAutoTag, fetchCoverArt, type AutoTagConfig } from './auto-tag'
+import {
+  mergeTags,
+  enrich,
+  resolveAutoTag,
+  resolveLocalTags,
+  fetchCoverArt,
+  type AutoTagConfig
+} from './auto-tag'
 import { silentTransformLog } from './transform-logger'
 import type { MetadataCache } from '../metadata-cache'
 import type { TrackTags } from '../../shared/types'
@@ -281,5 +288,62 @@ describe('resolveAutoTag', () => {
       undefined
     )
     expect(out.tags.album).toBe('Real Album')
+  })
+})
+
+describe('resolveLocalTags (source → classify → parse → fuse)', () => {
+  const cfg = {
+    useStructuredMetadata: true,
+    parseFeatured: true,
+    featuredHandling: 'keep-in-title',
+    parseVersion: true,
+    stripNoiseTokens: true,
+    channelArtistFallback: 'official-only'
+  } as Pick<
+    AutoTagConfig,
+    | 'useStructuredMetadata'
+    | 'parseFeatured'
+    | 'featuredHandling'
+    | 'parseVersion'
+    | 'stripNoiseTokens'
+    | 'channelArtistFallback'
+  >
+
+  it('produces clean tags from a Topic source, ignoring the noisy raw title', () => {
+    const tags = resolveLocalTags(
+      {
+        artist: 'Daft Punk',
+        track: 'Da Funk',
+        album: 'Homework',
+        releaseYear: '1997',
+        uploader: 'Daft Punk - Topic'
+      },
+      'Daft Punk - Da Funk (Official Video) [HD]',
+      cfg
+    )
+    expect(tags).toMatchObject({
+      artist: 'Daft Punk',
+      title: 'Da Funk',
+      album: 'Homework',
+      year: '1997'
+    })
+  })
+
+  it('parses a generic "Artist - Title (Official Video)" with no structured fields', () => {
+    const tags = resolveLocalTags(
+      { channel: 'Some Uploader' },
+      'Some Artist - Cool Song (Official Music Video)',
+      cfg
+    )
+    expect(tags).toMatchObject({ artist: 'Some Artist', title: 'Cool Song' })
+  })
+
+  it('uses channel as artist for a title-only official-artist video', () => {
+    const tags = resolveLocalTags(
+      { channel: 'The Weeknd', artist: 'The Weeknd' },
+      'Blinding Lights',
+      { ...cfg, useStructuredMetadata: false }
+    )
+    expect(tags).toMatchObject({ artist: 'The Weeknd', title: 'Blinding Lights' })
   })
 })
