@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  better-sqlite3: d2ceeaac17578c12940cc9b918b8c65968b8fbae1093eb9deaaf2f11e23eb2ac
+
 importers:
 
   .:
@@ -31,7 +34,7 @@ importers:
         version: 9.3.2
       better-sqlite3:
         specifier: 12.10.0
-        version: 12.10.0
+        version: 12.10.0(patch_hash=d2ceeaac17578c12940cc9b918b8c65968b8fbae1093eb9deaaf2f11e23eb2ac)
       electron-updater:
         specifier: 6.8.3
         version: 6.8.3
@@ -4057,7 +4060,7 @@ snapshots:
 
   baseline-browser-mapping@2.10.33: {}
 
-  better-sqlite3@12.10.0:
+  better-sqlite3@12.10.0(patch_hash=d2ceeaac17578c12940cc9b918b8c65968b8fbae1093eb9deaaf2f11e23eb2ac):
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3

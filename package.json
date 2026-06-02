@@ -24,6 +24,7 @@
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
+    "pretest": "node scripts/ensure-better-sqlite3-abi.mjs",
     "test": "vitest run",
     "build:icon": "node scripts/build-icon.mjs",
     "dev:icon": "node scripts/build-icon.mjs --watch",
