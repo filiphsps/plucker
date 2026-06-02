@@ -34,6 +34,24 @@ describe('metadata cache', () => {
     expect(entry?.audio?.durationSec).toBe(100)
   })
 
+  it('invalidateWaveform drops the waveform but keeps audio and auto-tag blocks', () => {
+    const c = createMetadataCache(dir)
+    c.writeAutoTag(HASH, { artist: 'M83' })
+    c.writeAudio(HASH, { durationSec: 100 })
+    c.writeWaveform(HASH, { peaks: [0, 0.5, 1], durationSec: 100 })
+    c.invalidateWaveform(HASH)
+    const entry = c.read(HASH)
+    expect(entry?.waveform).toBeUndefined()
+    expect(entry?.audio?.durationSec).toBe(100)
+    expect(entry?.mb).toEqual({ artist: 'M83' })
+  })
+
+  it('invalidateWaveform is a no-op when nothing is cached', () => {
+    const c = createMetadataCache(dir)
+    expect(() => c.invalidateWaveform(HASH)).not.toThrow()
+    expect(c.read(HASH)).toBeNull()
+  })
+
   it('merges audio and auto-tag writes for the same hash without clobbering', () => {
     const c = createMetadataCache(dir)
     c.writeAutoTag(HASH, { artist: 'M83', title: 'Midnight City' })

@@ -35,6 +35,7 @@ function fakeCache(entry: { mb?: TrackTags } | null, cover: Buffer | null = null
     read: vi.fn(() => entry),
     writeAudio: vi.fn(),
     writeWaveform: vi.fn(),
+    invalidateWaveform: vi.fn(),
     writeAutoTag: vi.fn(),
     writeTrack: vi.fn(),
     update: vi.fn(),

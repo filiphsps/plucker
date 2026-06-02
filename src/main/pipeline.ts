@@ -593,26 +593,29 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
         return
       }
       if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
-      // Probe technical audio properties once and cache them by content hash;
-      // a cache hit (re-download of identical audio) skips the ffmpeg probe.
+      // Probe technical audio properties and cache them by content hash. The hash
+      // identifies the *source* audio, but the probe + waveform describe the
+      // *output*: a prior run on the same source (e.g. a re-transform with
+      // different trim settings) may have cached a different rendering under this
+      // same hash. Always re-probe the current output and drop the stale lazy
+      // waveform so the expanded panel never lags the file on disk.
       // Also record the track's display identity so the cache manager can list it.
       if (hash && deps.cache) {
-        if (!deps.cache.read(hash)?.audio) {
-          let sizeBytes: number | undefined
-          try {
-            sizeBytes = statSync(res.outputFile).size
-          } catch {
-            /* stat failed — leave size undefined */
-          }
-          t.stage = 'probing'
-          emit()
-          deps.cache.writeAudio(hash, {
-            ...(await timed('probe', 'pipeline', () =>
-              probeAudio(bin.ffmpeg, res.outputFile, trackSig)
-            )),
-            sizeBytes
-          })
+        let sizeBytes: number | undefined
+        try {
+          sizeBytes = statSync(res.outputFile).size
+        } catch {
+          /* stat failed — leave size undefined */
         }
+        t.stage = 'probing'
+        emit()
+        deps.cache.writeAudio(hash, {
+          ...(await timed('probe', 'pipeline', () =>
+            probeAudio(bin.ffmpeg, res.outputFile, trackSig)
+          )),
+          sizeBytes
+        })
+        deps.cache.invalidateWaveform(hash)
         deps.cache.writeTrack(hash, {
           title: res.tags.title ?? t.title,
           file: res.outputFile,

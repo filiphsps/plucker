@@ -26,6 +26,8 @@ export interface MetadataCache {
   read(hash: string): CacheEntry | null
   writeAudio(hash: string, audio: AudioMeta): void
   writeWaveform(hash: string, waveform: Waveform): void
+  /** Drop a cached waveform so the next read regenerates it from the file. */
+  invalidateWaveform(hash: string): void
   writeAutoTag(hash: string, mb: TrackTags, cover?: Buffer): void
   writeTrack(hash: string, track: CacheTrackIdentity): void
   /** Merge corrected tags into the cached MusicBrainz block. */
@@ -85,6 +87,14 @@ export function createMetadataCache(dir: string): MetadataCache {
     read,
     writeAudio: (hash, audio) => merge(hash, { audio }),
     writeWaveform: (hash, waveform) => merge(hash, { waveform }),
+    invalidateWaveform: (hash) => {
+      const entry = read(hash)
+      if (!entry?.waveform) return
+      const next = { ...entry, updatedAt: new Date().toISOString() }
+      delete next.waveform
+      ensureDir()
+      writeFileSync(jsonPath(hash), JSON.stringify(next), 'utf8')
+    },
     writeAutoTag: (hash, mb, cover) => {
       merge(hash, { mb })
       if (cover) {
