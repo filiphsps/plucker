@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/filiphsps/plucker/compare/plucker-v0.9.0...plucker-v0.9.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* **ci:** allow screenshot steps to fail without failing the release ([685eeb0](https://github.com/filiphsps/plucker/commit/685eeb05ba530425e64baac5e3f852d39d1064d9))
+* **ci:** run build-macos in parallel, depending only on release-please ([4ee423b](https://github.com/filiphsps/plucker/commit/4ee423b5f5d461633c89f55478019653081d93c7))
+
 ## [0.9.0](https://github.com/filiphsps/plucker/compare/plucker-v0.8.0...plucker-v0.9.0) (2026-06-02)
 
 
