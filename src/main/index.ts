@@ -72,6 +72,11 @@ app.setName('Plucker')
 installProcessErrorHandlers()
 
 let mainWindow: BrowserWindow | null = null
+let consoleWindow: BrowserWindow | null = null
+// When the console window is destroyed we normally redock (mode → docked). The app
+// shutdown / main-window-close path sets this false so a floating console is
+// remembered and reopens floating next launch.
+let consoleRedockOnClose = true
 let abort: AbortController | null = null
 /** Checkpoint id of the job currently running (download or resume), for resumability. */
 let activeJobId: string | null = null
@@ -103,10 +108,14 @@ function getMetaCache(): MetadataCache {
 let detachFileLog: (() => void) | null = null
 let detachIpcLog: (() => void) | null = null
 
-function applyConsoleLogging(getWindow: () => BrowserWindow | null): void {
+function applyConsoleLogging(): void {
   const enabled = !app.isPackaged || loadSettings().developer.console
   if (enabled && !detachIpcLog) {
-    detachIpcLog = addLogTransport((e) => getWindow()?.webContents.send('log:line', e))
+    detachIpcLog = addLogTransport((e) => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send('log:line', e)
+      }
+    })
   } else if (!enabled && detachIpcLog) {
     detachIpcLog()
     detachIpcLog = null
@@ -127,7 +136,9 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     saveSettings(settingsPath(), s)
     // Re-evaluate console logging (the developer flag may have flipped) and let the
     // renderer react live (show/hide the console button).
-    applyConsoleLogging(getWindow)
+    applyConsoleLogging()
+    // Disabling the developer console pulls down any floating console window too.
+    if (app.isPackaged && !loadSettings().developer.console) closeConsoleWindow()
     getWindow()?.webContents.send('settings:changed', s)
   })
   // URL history: scoped add/remove that mutate just the urlHistory list, so the command
@@ -152,6 +163,32 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   // Developer console: buffered tail (seeds the overlay on open) + reveal the log file.
   ipcMain.handle('log:tail', () => getLogTail())
   ipcMain.handle('log:reveal', () => shell.showItemInFolder(logPath()))
+
+  // Console docking: undock pops the console into its own floating window, redock
+  // closes it back into the in-app drawer, ⌘J-while-floating shows/hides it, and the
+  // pin keeps it above other windows. Mode + always-on-top persist in settings.
+  ipcMain.handle('console:undock', () => {
+    setConsoleSettings({ mode: 'floating' })
+    openConsoleWindow(getWindow)
+    getWindow()?.webContents.send('console:mode', 'floating')
+  })
+  ipcMain.handle('console:redock', () => closeConsoleWindow())
+  ipcMain.handle('console:toggleWindow', () => {
+    if (!consoleWindow) {
+      openConsoleWindow(getWindow)
+      return
+    }
+    if (consoleWindow.isVisible() && consoleWindow.isFocused()) consoleWindow.hide()
+    else {
+      consoleWindow.show()
+      consoleWindow.focus()
+    }
+  })
+  ipcMain.handle('console:alwaysOnTop', (_e, on: boolean) => {
+    consoleWindow?.setAlwaysOnTop(on)
+    setConsoleSettings({ alwaysOnTop: on })
+  })
+  ipcMain.handle('console:getState', () => loadSettings().developer.consoleWindow)
   ipcMain.handle('transforms:catalog', () => getCatalog())
   ipcMain.handle('dialog:chooseFolder', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
@@ -602,6 +639,74 @@ function windowStatePath(): string {
   return join(pluckerDir(), 'window-state.json')
 }
 
+/** Path of the persisted floating-console geometry under the plucker app-data dir. */
+function consoleWindowStatePath(): string {
+  return join(pluckerDir(), 'console-window-state.json')
+}
+
+/** Patch and persist the console-window preferences (mode / alwaysOnTop). */
+function setConsoleSettings(patch: Partial<Settings['developer']['consoleWindow']>): void {
+  const s = loadSettings()
+  const consoleWindowState = { ...s.developer.consoleWindow, ...patch }
+  saveSettings(settingsPath(), {
+    ...s,
+    developer: { ...s.developer, consoleWindow: consoleWindowState }
+  })
+}
+
+/** Create (or focus) the floating console window. */
+function openConsoleWindow(getMain: () => BrowserWindow | null): void {
+  if (consoleWindow) {
+    consoleWindow.show()
+    consoleWindow.focus()
+    return
+  }
+  const saved = loadWindowBounds(consoleWindowStatePath())
+  const onScreen =
+    saved && isOnScreen(saved, screen.getAllDisplays().map((d) => d.workArea)) ? saved : null
+  const alwaysOnTop = loadSettings().developer.consoleWindow.alwaysOnTop
+
+  const win = new BrowserWindow({
+    width: onScreen?.width ?? 560,
+    height: onScreen?.height ?? 440,
+    ...(onScreen ? { x: onScreen.x, y: onScreen.y } : {}),
+    show: false,
+    title: 'Console',
+    backgroundColor: '#0a0b0e',
+    alwaysOnTop,
+    autoHideMenuBar: true,
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false }
+  })
+  consoleWindow = win
+  consoleRedockOnClose = true
+
+  win.on('ready-to-show', () => win.show())
+  const persist = (): void => saveWindowBounds(consoleWindowStatePath(), win.getBounds())
+  win.on('moved', persist)
+  win.on('resized', persist)
+  win.on('close', persist)
+  win.on('closed', () => {
+    consoleWindow = null
+    // A user-initiated close (OS X button or the Dock control) redocks; an app/main
+    // shutdown leaves the persisted mode as 'floating' so it reopens next launch.
+    if (consoleRedockOnClose) {
+      setConsoleSettings({ mode: 'docked' })
+      getMain()?.webContents.send('console:mode', 'docked')
+    }
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#console`)
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'console' })
+  }
+}
+
+/** Close the floating console window if one is open. */
+function closeConsoleWindow(): void {
+  consoleWindow?.close()
+}
+
 /** Directory holding per-job resume checkpoints. */
 function jobsDir(): string {
   return join(pluckerDir(), 'jobs')
@@ -685,6 +790,13 @@ function createWindow(): void {
   win.on('resized', persistBounds)
   win.on('close', persistBounds)
 
+  // The floating console must not outlive the main window; keep the persisted mode
+  // (don't redock) so a remembered floating console reopens next launch.
+  win.on('close', () => {
+    consoleRedockOnClose = false
+    closeConsoleWindow()
+  })
+
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -742,8 +854,14 @@ app.whenReady().then(() => {
   createWindow()
 
   // Attach the file + live-stream log transports if the console is enabled.
-  applyConsoleLogging(() => mainWindow)
+  applyConsoleLogging()
   log.info('app', `Plucker ${appVersion} ready`)
+
+  // Reopen the console floating if that's how the user left it (and the feature is on).
+  const consoleEnabled = !app.isPackaged || loadSettings().developer.console
+  if (consoleEnabled && loadSettings().developer.consoleWindow.mode === 'floating') {
+    openConsoleWindow(() => mainWindow)
+  }
 
   // Surface any job that was interrupted by a crash/quit as a resumable entry.
   recoverInterruptedJobs()
@@ -772,6 +890,8 @@ app.on('window-all-closed', () => {
 // Force-kill any in-flight yt-dlp/ffmpeg subprocesses when the app exits, so a
 // download in progress can never leave orphaned processes running afterwards.
 app.on('before-quit', () => {
+  // Closing the console during shutdown must not reset its remembered floating mode.
+  consoleRedockOnClose = false
   abort?.abort()
   killAllChildren()
   terminateAnalyzeClient()
