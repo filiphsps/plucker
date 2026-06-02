@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdirSync, existsSync, readFileSync, rmSync, statSync, renameSync, copyFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
@@ -606,7 +606,26 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
         emit()
         return
       }
-      if (res.outputFile !== filePath && existsSync(filePath)) rmSync(filePath, { force: true })
+      // The Library captures the raw download (pre-chain) as the version-graph root.
+      // When a chain actually ran (and rewrote the file), preserve the raw out of the
+      // destination folder into a temp path that main ingests into the content store
+      // during fold; otherwise just drop it as before.
+      const appliedChain = enabled.map((i) => ({ type: i.type, config: i.config }))
+      let rawFile: string | undefined
+      if (res.outputFile !== filePath && existsSync(filePath)) {
+        if (appliedChain.length > 0) {
+          rawFile = join(tmpdir(), `plucker-raw-${randomUUID()}.mp3`)
+          try {
+            renameSync(filePath, rawFile)
+          } catch {
+            // Cross-device rename (temp dir on a different volume): fall back to copy.
+            copyFileSync(filePath, rawFile)
+            rmSync(filePath, { force: true })
+          }
+        } else {
+          rmSync(filePath, { force: true })
+        }
+      }
       // Probe technical audio properties and cache them by content hash. The hash
       // identifies the *source* audio, but the probe + waveform describe the
       // *output*: a prior run on the same source (e.g. a re-transform with
@@ -652,7 +671,8 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
         album: res.tags.album,
         year: res.tags.year,
         videoId,
-        hash
+        hash,
+        ...(rawFile ? { rawFile, appliedChain } : {})
       }
       log.info('app', `track done: ${t.title}`)
       emit()

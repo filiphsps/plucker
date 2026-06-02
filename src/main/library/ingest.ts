@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs'
 import type { JobResult } from '../pipeline'
 import type { Repo } from './repo'
 import type { ContentStore } from './content-store'
@@ -64,6 +65,9 @@ export function foldJobResultIntoLibrary(
       repo.insertBranch({ id: branchId, trackId, name: 'main', tipVersionId: childId })
       repo.refBlob(rootBlob, store)
       repo.refBlob(finalBlob, store)
+      // The raw file is a throwaway temp the worker preserved only for this capture;
+      // its bytes now live in the content store, so reclaim the temp.
+      rmSync(t.rawFile, { force: true })
     } else {
       // fallback: single root version (no raw captured)
       const versionId = clock.idGen()
