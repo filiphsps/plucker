@@ -14,6 +14,7 @@ import type {
   UpdateState,
   ResolvedJob,
   StartJobRequest,
+  JobMeta,
   ConsoleWindowState
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
@@ -41,31 +42,43 @@ const api = {
   // Resolve a URL to its entries without downloading (drives the staging list).
   resolveJob: (url: string): Promise<ResolvedJob> => ipcRenderer.invoke('job:resolve', url),
   // Start a download of a curated, reordered entry list confirmed in staging.
-  startDownload: (req: StartJobRequest): Promise<void> => ipcRenderer.invoke('job:start', req),
-  cancel: (): Promise<void> => ipcRenderer.invoke('job:cancel'),
-  pause: (): Promise<void> => ipcRenderer.invoke('job:pause'),
-  resume: (): Promise<void> => ipcRenderer.invoke('job:resume'),
-  // Per-track controls for the live job.
-  skipTrack: (index: number): Promise<void> => ipcRenderer.invoke('job:skipTrack', index),
-  pauseTrack: (index: number): Promise<void> => ipcRenderer.invoke('job:pauseTrack', index),
-  resumeTrack: (index: number): Promise<void> => ipcRenderer.invoke('job:resumeTrack', index),
-  onTrackPaused: (cb: (index: number, paused: boolean) => void): (() => void) => {
-    const fn = (_: unknown, index: number, paused: boolean): void => cb(index, paused)
+  // Resolves to the new job's id so the renderer can address its controls.
+  startDownload: (req: StartJobRequest): Promise<string> => ipcRenderer.invoke('job:start', req),
+  cancel: (jobId: string): Promise<void> => ipcRenderer.invoke('job:cancel', jobId),
+  pause: (jobId: string): Promise<void> => ipcRenderer.invoke('job:pause', jobId),
+  resume: (jobId: string): Promise<void> => ipcRenderer.invoke('job:resume', jobId),
+  // Per-track controls for a specific job.
+  skipTrack: (jobId: string, index: number): Promise<void> =>
+    ipcRenderer.invoke('job:skipTrack', jobId, index),
+  pauseTrack: (jobId: string, index: number): Promise<void> =>
+    ipcRenderer.invoke('job:pauseTrack', jobId, index),
+  resumeTrack: (jobId: string, index: number): Promise<void> =>
+    ipcRenderer.invoke('job:resumeTrack', jobId, index),
+  // Current roster of jobs (running + queued).
+  jobsList: (): Promise<JobMeta[]> => ipcRenderer.invoke('jobs:list'),
+  onJobsChanged: (cb: (roster: JobMeta[]) => void): (() => void) => {
+    const fn = (_: unknown, roster: JobMeta[]): void => cb(roster)
+    ipcRenderer.on('jobs:listChanged', fn)
+    return () => ipcRenderer.removeListener('jobs:listChanged', fn)
+  },
+  onTrackPaused: (cb: (jobId: string, index: number, paused: boolean) => void): (() => void) => {
+    const fn = (_: unknown, jobId: string, index: number, paused: boolean): void =>
+      cb(jobId, index, paused)
     ipcRenderer.on('job:trackPaused', fn)
     return () => ipcRenderer.removeListener('job:trackPaused', fn)
   },
-  onPaused: (cb: (paused: boolean) => void): (() => void) => {
-    const fn = (_: unknown, paused: boolean): void => cb(paused)
+  onPaused: (cb: (jobId: string, paused: boolean) => void): (() => void) => {
+    const fn = (_: unknown, jobId: string, paused: boolean): void => cb(jobId, paused)
     ipcRenderer.on('job:paused', fn)
     return () => ipcRenderer.removeListener('job:paused', fn)
   },
-  onProgress: (cb: (p: JobProgress) => void): (() => void) => {
-    const fn = (_: unknown, p: JobProgress): void => cb(p)
+  onProgress: (cb: (jobId: string, p: JobProgress) => void): (() => void) => {
+    const fn = (_: unknown, jobId: string, p: JobProgress): void => cb(jobId, p)
     ipcRenderer.on('job:progress', fn)
     return () => ipcRenderer.removeListener('job:progress', fn)
   },
-  onStatus: (cb: (s: JobStatus) => void): (() => void) => {
-    const fn = (_: unknown, s: JobStatus): void => cb(s)
+  onStatus: (cb: (jobId: string, s: JobStatus) => void): (() => void) => {
+    const fn = (_: unknown, jobId: string, s: JobStatus): void => cb(jobId, s)
     ipcRenderer.on('job:status', fn)
     return () => ipcRenderer.removeListener('job:status', fn)
   },
