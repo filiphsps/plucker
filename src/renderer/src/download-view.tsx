@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, X } from 'lucide-react'
-import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
+import { ChevronDown, ChevronUp, Download, X } from 'lucide-react'
+import type { JobProgress, JobStatus, LogEntry, PlaylistEntry } from '../../shared/types'
 import { isSupportedUrl } from '../../shared/url-providers'
 import { TrackRow } from './track-row'
 import { showContextMenu } from './ui/context-menu'
@@ -9,18 +9,84 @@ import { trackRowMenuItems } from './track-row-menu'
 import { statusColumnWidth } from './status-column'
 import { ResolvePanel } from './resolve-panel'
 import { UrlSuggestions } from './ui/url-suggestions'
+import { removeEntry, moveEntry } from './staging-list'
 
 /** Track statuses that mean a job is still working and the command bar must stay locked. */
 const ACTIVE_STATUSES: ReadonlySet<string> = new Set(['queued', 'downloading', 'transforming'])
+
+/** A resolved-but-not-started job awaiting the user's Start click. */
+interface StagedJob {
+  url: string
+  title: string
+  kind: 'playlist' | 'video'
+  entries: PlaylistEntry[]
+  /** Reuse a specific output folder (history redownload). */
+  folderOverride?: string
+}
+
+/** One row in the staging list: reorder + remove before the job starts. */
+function StagedRow({
+  entry,
+  pos,
+  count,
+  onRemove,
+  onMove
+}: {
+  entry: PlaylistEntry
+  pos: number
+  count: number
+  onRemove: () => void
+  onMove: (to: number) => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <div className="flex items-center gap-3 border-b border-line py-2 pl-4 pr-3 text-[12px]">
+      <span className="w-[22px] font-mono text-ink-faint">{pos + 1}</span>
+      <span className="flex-1 truncate text-ink">{entry.title}</span>
+      <button
+        type="button"
+        aria-label={t('download.moveUp')}
+        title={t('download.moveUp')}
+        disabled={pos === 0}
+        onClick={() => onMove(pos - 1)}
+        className="rounded p-1 text-ink-faint transition-colors hover:bg-raise hover:text-ink disabled:opacity-30"
+      >
+        <ChevronUp size={14} />
+      </button>
+      <button
+        type="button"
+        aria-label={t('download.moveDown')}
+        title={t('download.moveDown')}
+        disabled={pos === count - 1}
+        onClick={() => onMove(pos + 1)}
+        className="rounded p-1 text-ink-faint transition-colors hover:bg-raise hover:text-ink disabled:opacity-30"
+      >
+        <ChevronDown size={14} />
+      </button>
+      <button
+        type="button"
+        aria-label={t('download.removeTrack')}
+        title={t('download.removeTrack')}
+        onClick={onRemove}
+        className="rounded p-1 text-ink-faint transition-colors hover:bg-raise hover:text-bad"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  )
+}
 
 export function DownloadView({
   progress,
   statusLog,
   resolveLog,
   urlHistory,
+  trackPaused,
+  redownloadRequest,
   onRunningChange,
   onStart,
-  onClear
+  onClear,
+  onRedownloadConsumed
 }: {
   progress: JobProgress | null
   /** Resolving trigger: non-null while a job is starting, null once tracks arrive. */
@@ -29,30 +95,38 @@ export function DownloadView({
   resolveLog: LogEntry[]
   /** Past download URLs (most-recent-first) for the suggestions dropdown. */
   urlHistory: string[]
+  /** Per-track paused state for the live job (index → paused). */
+  trackPaused: Record<number, boolean>
+  /** A history redownload request to auto-resolve into the staging list. */
+  redownloadRequest?: { url: string; folder: string } | null
   onRunningChange: (running: boolean) => void
   onStart: () => void
   /** Reset the page back to its empty state (clears progress + resolve log). */
   onClear: () => void
+  /** Signal that a redownload request has been consumed (clear it upstream). */
+  onRedownloadConsumed?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const statusWidth = statusColumnWidth(t)
   const inputRef = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState('')
+  const [resolving, setResolving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [focused, setFocused] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
+  const [staged, setStaged] = useState<StagedJob | null>(null)
 
   const trimmed = url.trim()
   // The job is "active" (and the bar locked) while resolving or while any track is
-  // still queued/downloading/transforming. Finished/failed/skipped jobs unlock.
-  const resolving = statusLog !== null && progress === null
+  // still queued/downloading/transforming. Staging keeps the bar editable.
   const downloading = progress?.tracks.some((tr) => ACTIVE_STATUSES.has(tr.status)) ?? false
   const locked = resolving || downloading
 
   const valid = isSupportedUrl(trimmed)
   const invalid = trimmed.length > 0 && !valid && !locked
-  const hasContent = progress !== null || statusLog !== null || trimmed.length > 0
+  const hasContent =
+    progress !== null || statusLog !== null || staged !== null || trimmed.length > 0
 
   // Suggestions: filter history by case-insensitive substring. Hidden until the
   // input has at least one character so the dropdown doesn't show on empty focus.
@@ -70,32 +144,66 @@ export function DownloadView({
     return () => window.removeEventListener('focus', focus)
   }, [])
 
-  /** Persist a valid URL to history; called on blur and on submit. */
-  function commit(): void {
-    if (valid) void window.plucker.addUrlHistory(trimmed)
+  /** Resolve a URL into the staging list (no download yet). */
+  async function resolve(targetUrl: string, folderOverride?: string): Promise<void> {
+    const u = targetUrl.trim()
+    if (!isSupportedUrl(u) || locked) return
+    setUrl(u) // reflect the resolved URL in the bar (e.g. a history redownload)
+    void window.plucker.addUrlHistory(u)
+    setDismissed(true)
+    setResolving(true)
+    onStart() // clears prior progress + seeds the resolve-log window
+    try {
+      const job = await window.plucker.resolveJob(u)
+      setStaged({ url: u, title: job.title, kind: job.kind, entries: job.entries, folderOverride })
+    } catch {
+      // Resolve errors surface in the ResolvePanel via job:status.
+    } finally {
+      setResolving(false)
+    }
   }
 
-  async function start(): Promise<void> {
-    if (!valid || locked) return
-    commit()
-    setDismissed(true)
+  /** Start the curated, reordered staged job. */
+  async function startStaged(): Promise<void> {
+    if (!staged || staged.entries.length === 0) return
+    const req = {
+      url: staged.url,
+      title: staged.title,
+      kind: staged.kind,
+      entries: staged.entries,
+      folderOverride: staged.folderOverride
+    }
+    // Hand off to the live job; the resolve panel covers the brief gap until the
+    // first progress frame arrives and the track list takes over.
+    setStaged(null)
     setBusy(true)
     onRunningChange(true)
-    onStart()
     try {
-      await window.plucker.startDownload(trimmed)
+      await window.plucker.startDownload(req)
     } catch {
-      // Resolve/start errors are surfaced in the ResolvePanel via job:status.
+      // Start errors surface in the ResolvePanel via job:status.
     } finally {
       setBusy(false)
       onRunningChange(false)
     }
   }
 
+  // Auto-resolve a history redownload request into the staging list. This is a
+  // one-shot reaction to an external signal (a new request object), so kicking
+  // off the resolve here — which updates state — is intentional.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  useEffect(() => {
+    if (!redownloadRequest) return
+    void resolve(redownloadRequest.url, redownloadRequest.folder)
+    onRedownloadConsumed?.()
+  }, [redownloadRequest])
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+
   function clear(): void {
     if (locked) return
     setUrl('')
     setHighlighted(-1)
+    setStaged(null)
     onClear()
   }
 
@@ -110,7 +218,7 @@ export function DownloadView({
       if (showSuggestions && clampedHighlight >= 0) {
         selectSuggestion(matches[clampedHighlight])
       } else {
-        void start()
+        void resolve(trimmed)
       }
     } else if (e.key === 'ArrowDown' && showSuggestions) {
       e.preventDefault()
@@ -168,7 +276,7 @@ export function DownloadView({
               }}
               onBlur={() => {
                 setFocused(false)
-                commit()
+                if (valid) void window.plucker.addUrlHistory(trimmed)
               }}
               onKeyDown={onKeyDown}
               placeholder={t('download.urlPlaceholder')}
@@ -199,12 +307,12 @@ export function DownloadView({
           )}
         </div>
         <button
-          onClick={start}
+          onClick={() => void resolve(trimmed)}
           disabled={busy || locked || !valid}
           className="flex h-9 items-center gap-[7px] rounded-[7px] bg-accent px-[22px] text-[13px] font-semibold text-white disabled:opacity-50"
         >
           <Download size={15} strokeWidth={2.2} />
-          {busy || locked ? t('download.plucking') : t('download.pluck')}
+          {resolving ? t('download.plucking') : t('download.pluck')}
         </button>
       </div>
 
@@ -237,10 +345,17 @@ export function DownloadView({
                     trackRowMenuItems({
                       t,
                       variant: 'download',
-                      track: tr,
+                      track: {
+                        ...tr,
+                        status: tr.status,
+                        paused: trackPaused[tr.index] ?? false
+                      },
                       missing: false,
                       failed: tr.status === 'failed',
-                      onReveal: () => tr.file && window.plucker.revealFile(tr.file)
+                      onReveal: () => tr.file && window.plucker.revealFile(tr.file),
+                      onSkip: () => void window.plucker.skipTrack(tr.index),
+                      onPause: () => void window.plucker.pauseTrack(tr.index),
+                      onResume: () => void window.plucker.resumeTrack(tr.index)
                     })
                   )
                 }}
@@ -248,7 +363,39 @@ export function DownloadView({
             ))}
           </div>
         </>
-      ) : statusLog !== null ? (
+      ) : staged ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2">
+            <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+              {staged.title} · {t('download.tracks', { count: staged.entries.length })}
+            </span>
+            <button
+              onClick={startStaged}
+              disabled={busy || staged.entries.length === 0}
+              className="flex h-8 shrink-0 items-center gap-2 rounded-[7px] bg-accent px-4 text-[12px] font-semibold text-white disabled:opacity-50"
+            >
+              <Download size={14} strokeWidth={2.2} />
+              {t('download.startDownload')}
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
+            {staged.entries.map((e, pos) => (
+              <StagedRow
+                key={e.videoId + ':' + pos}
+                entry={e}
+                pos={pos}
+                count={staged.entries.length}
+                onRemove={() =>
+                  setStaged((s) => (s ? { ...s, entries: removeEntry(s.entries, pos) } : s))
+                }
+                onMove={(to) =>
+                  setStaged((s) => (s ? { ...s, entries: moveEntry(s.entries, pos, to) } : s))
+                }
+              />
+            ))}
+          </div>
+        </div>
+      ) : statusLog !== null || resolving ? (
         <ResolvePanel entries={resolveLog} />
       ) : (
         <div className="flex flex-1 items-center justify-center text-ink-faint">

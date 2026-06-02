@@ -94,6 +94,11 @@ export default {
     colSource: 'Source',
     colDest: 'Destination',
     emptyHint: 'Paste a playlist or video URL above and press Pluck.',
+    startDownload: 'Start download',
+    stagedHint: 'Review the list, remove or reorder tracks, then start.',
+    removeTrack: 'Remove from list',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
     tracks_one: '{{count}} track',
     tracks_other: '{{count}} tracks'
   },

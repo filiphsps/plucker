@@ -95,6 +95,11 @@ const de: typeof en = {
     colSource: 'Quelle',
     colDest: 'Ziel',
     emptyHint: 'Füge oben eine Playlist- oder Video-URL ein und klicke auf Laden.',
+    startDownload: 'Download starten',
+    stagedHint: 'Liste prüfen, Titel entfernen oder umsortieren, dann starten.',
+    removeTrack: 'Aus Liste entfernen',
+    moveUp: 'Nach oben',
+    moveDown: 'Nach unten',
     tracks_one: '{{count}} Titel',
     tracks_other: '{{count}} Titel'
   },
