@@ -51,6 +51,23 @@ describe('TrackRow', () => {
     expect(html).toContain('File missing')
   })
 
+  it('applies the accent highlight when selected', () => {
+    const plain = renderToStaticMarkup(
+      <TrackRow variant="history" index={1} track={{ title: 'Stratus', file: '/a.mp3' }} />
+    )
+    const selected = renderToStaticMarkup(
+      <TrackRow
+        variant="history"
+        index={1}
+        track={{ title: 'Stratus', file: '/a.mp3' }}
+        selected
+        onSelect={() => {}}
+      />
+    )
+    expect(plain).not.toContain('bg-accent-dim')
+    expect(selected).toContain('bg-accent-dim')
+  })
+
   it('does not render a waveform while the row is collapsed', () => {
     const html = renderToStaticMarkup(
       <TrackRow

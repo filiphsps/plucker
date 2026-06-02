@@ -65,6 +65,9 @@ export function TrackRow({
   active = false,
   missing = false,
   editing = false,
+  selected = false,
+  onSelect,
+  onActivate,
   onSaveTags,
   onCancelEdit,
   onContextMenu
@@ -84,6 +87,15 @@ export function TrackRow({
   missing?: boolean
   /** Render the expanded panel in tag-edit mode (cache variant). */
   editing?: boolean
+  /** Render this row as selected (history multi-select). */
+  selected?: boolean
+  /**
+   * Row-body click handler enabling selection. When provided, the title stops
+   * acting as a reveal button so the click bubbles up to select instead.
+   */
+  onSelect?: (e: React.MouseEvent) => void
+  /** Double-click handler (history selection mode reveals the file). */
+  onActivate?: () => void
   onSaveTags?: (tags: TrackTags) => void
   onCancelEdit?: () => void
   /** Native right-click handler for the row (built by the parent view). */
@@ -231,7 +243,8 @@ export function TrackRow({
     </div>
   )
 
-  const highlight = (variant === 'download' && active) || (variant === 'cache' && editing)
+  const highlight =
+    (variant === 'download' && active) || (variant === 'cache' && editing) || selected
   const qualityText = resolvedMeta?.audio.bitrateKbps
     ? `${resolvedMeta.audio.bitrateKbps} · ${(resolvedMeta.audio.codec ?? 'mp3').toUpperCase()}`
     : '—'
@@ -254,10 +267,21 @@ export function TrackRow({
           : 'hover:bg-white/[0.018]')
       }
     >
-      <div className="group flex h-12 items-center gap-3 pl-1.5 pr-4" onContextMenu={onContextMenu}>
+      <div
+        className={
+          'group flex h-12 items-center gap-3 pl-1.5 pr-4 ' +
+          (onSelect ? 'cursor-default select-none' : '')
+        }
+        onContextMenu={onContextMenu}
+        onClick={onSelect}
+        onDoubleClick={onActivate}
+      >
         <button
           aria-label="expand"
-          onClick={() => setOpen((v) => !v)}
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen((v) => !v)
+          }}
           className="flex h-12 w-[30px] items-center justify-center text-ink-faint hover:text-ink"
         >
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -267,31 +291,44 @@ export function TrackRow({
         </span>
         {/* On a failed track the red X carries the error code (or message) as a tooltip. */}
         {failed && errorText ? <Tooltip label={errorText}>{coverBox}</Tooltip> : coverBox}
-        <button
-          type="button"
-          disabled={!track.file || missing}
-          onClick={() => track.file && window.plucker.revealFile(track.file)}
-          className="min-w-0 flex-1 text-left disabled:cursor-default"
-        >
-          <div
-            className={
-              'truncate text-[13px] font-medium ' +
-              (failed || missing ? 'text-ink-dim' : 'text-ink')
-            }
-          >
-            {track.title}
-          </div>
-          {subtitle && (
-            <div
-              className={
-                'truncate text-[11px] ' +
-                (failed ? 'text-bad' : missing ? 'text-warn' : 'text-ink-dim')
-              }
+        {((): React.JSX.Element => {
+          const inner = (
+            <>
+              <div
+                className={
+                  'truncate text-[13px] font-medium ' +
+                  (failed || missing ? 'text-ink-dim' : 'text-ink')
+                }
+              >
+                {track.title}
+              </div>
+              {subtitle && (
+                <div
+                  className={
+                    'truncate text-[11px] ' +
+                    (failed ? 'text-bad' : missing ? 'text-warn' : 'text-ink-dim')
+                  }
+                >
+                  {subtitle}
+                </div>
+              )}
+            </>
+          )
+          // In selection mode the title is inert text — the row click selects,
+          // and a double-click (onActivate) reveals. Otherwise it's the reveal button.
+          return onSelect ? (
+            <div className="min-w-0 flex-1 text-left">{inner}</div>
+          ) : (
+            <button
+              type="button"
+              disabled={!track.file || missing}
+              onClick={() => track.file && window.plucker.revealFile(track.file)}
+              className="min-w-0 flex-1 text-left disabled:cursor-default"
             >
-              {subtitle}
-            </div>
-          )}
-        </button>
+              {inner}
+            </button>
+          )
+        })()}
 
         {variant === 'download' ? (
           <>
@@ -322,6 +359,10 @@ export function TrackRow({
                   (variant === 'cache' ? 'w-[64px]' : 'w-[84px]') +
                   (editing ? ' opacity-100' : ' opacity-0 group-hover:opacity-100')
                 }
+                // Actions run their own handlers; never let the click bubble up
+                // to the row's selection handler.
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
               >
                 {actions}
               </div>
