@@ -139,6 +139,7 @@ export default function App(): React.JSX.Element {
       <Header
         view={view}
         settingsActive={settingsOpen}
+        cacheActive={cacheOpen}
         consoleAvailable={consoleAvailable}
         consoleOpen={consoleOpen}
         onToggleConsole={() => setConsoleOpen((v) => !v)}

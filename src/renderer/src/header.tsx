@@ -17,6 +17,7 @@ export function Header({
   onNavigate,
   onOpenSettings,
   settingsActive = false,
+  cacheActive = false,
   consoleAvailable = false,
   consoleOpen = false,
   onToggleConsole
@@ -25,6 +26,8 @@ export function Header({
   onNavigate: (v: View) => void
   onOpenSettings: () => void
   settingsActive?: boolean
+  /** Cache overlay is showing; no nav tab should appear active. */
+  cacheActive?: boolean
   /** Show the console toggle (dev mode or enabled in settings). */
   consoleAvailable?: boolean
   consoleOpen?: boolean
@@ -33,7 +36,7 @@ export function Header({
   const { t } = useTranslation()
 
   const tab = (v: View, label: string, Icon: LucideIcon): React.JSX.Element => {
-    const on = view === v && !settingsActive
+    const on = view === v && !settingsActive && !cacheActive
     return (
       <button
         onClick={() => onNavigate(v)}
