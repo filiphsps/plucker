@@ -3,6 +3,13 @@ import SwiftUI
 
 /// Owns the panel stack (root + submenu flyouts) and bridges the async JS call to a
 /// SwiftUI selection. Single-flight: a second popup() dismisses the first.
+/// Hosting view that accepts the first click into a non-key window. Our panel is a
+/// non-activating, non-key panel, so without this AppKit treats the first click as a
+/// window-activation click and swallows it — menu items would intermittently ignore taps.
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 @MainActor
 final class ContextMenuController {
     static let shared = ContextMenuController()
@@ -57,7 +64,7 @@ final class ContextMenuController {
             }
         )
 
-        let hosting = NSHostingView(rootView: root)
+        let hosting = FirstMouseHostingView(rootView: root)
         hosting.translatesAutoresizingMaskIntoConstraints = false
         let size = hosting.fittingSize
 
@@ -166,7 +173,10 @@ final class ContextMenuController {
             guard let self else { return event }
             if self.panels.contains(where: { $0 === event.window }) { return event }
             self.dismiss(selecting: nil)
-            return nil
+            // Pass right-clicks through so a fresh context menu can open immediately on the
+            // dismissing click — swallowing it (return nil) ate every other right-click and
+            // made re-opening unreliable. Left/other clicks are consumed, like a real menu.
+            return event.type == .rightMouseDown ? event : nil
         }
 
         let key = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
