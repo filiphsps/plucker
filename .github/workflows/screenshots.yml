@@ -1,11 +1,13 @@
 name: screenshots
 
-# On-demand preview: build the app on macOS, render the UI screenshots, and
-# upload them as artifacts so they can be reviewed before a release refreshes
-# the committed images in .github/img/. (The release workflow regenerates and
-# commits these automatically — this is just for previewing.)
+# On-demand refresh: build the app on macOS, render the UI screenshots, and
+# commit the regenerated images back to .github/img/ on the current branch.
+# The [skip ci] tag on the commit keeps this from re-triggering CI.
 on:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   screenshots:
@@ -30,8 +32,16 @@ jobs:
 
       - run: pnpm build:screenshots
 
-      - uses: actions/upload-artifact@v7
-        with:
-          name: screenshots
-          path: .github/img/*.png
-          if-no-files-found: error
+      # Commit the regenerated screenshots back to .github/img/ on the current
+      # branch. [skip ci] prevents this commit from re-triggering CI.
+      - name: Commit screenshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/img/*.png
+          if git diff --staged --quiet; then
+            echo "screenshots: no changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(screenshots): refresh UI screenshots [skip ci]"
+          git push
