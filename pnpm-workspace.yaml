@@ -2,6 +2,10 @@
 # dependency in package.json stays pinned. Renovate then owns version bumps.
 saveExact: true
 
+# Native binding packages (Swift / N-API). Built on demand, not on root install.
+packages:
+  - native/*
+
 allowBuilds:
   electron: true
   electron-winstaller: true
