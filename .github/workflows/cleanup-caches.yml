@@ -1,0 +1,33 @@
+name: cleanup-caches
+
+# GitHub Actions caches are scoped to the branch that created them, and a PR's
+# caches live under refs/pull/<n>/merge. Once the PR closes (merged or not) those
+# caches are unused — delete them so they don't sit against the repo's 10 GB cache
+# budget and evict caches that master still wants. (Time-based eviction would get
+# there eventually; this just reclaims the space immediately.)
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete caches for the closed PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          ids=$(gh cache list --ref "$REF" --limit 100 --json id --jq '.[].id')
+          if [ -z "$ids" ]; then
+            echo "No caches scoped to $REF."
+            exit 0
+          fi
+          for id in $ids; do
+            gh cache delete "$id" && echo "deleted cache $id"
+          done

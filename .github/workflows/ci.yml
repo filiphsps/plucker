@@ -19,11 +19,30 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Electron's postinstall downloads the platform binary to ~/.cache/electron;
+      # cache it (keyed on the lockfile) so reinstalls skip the download.
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-electron-
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm lint
 
       - run: pnpm test
+
+      # Cache the Playwright browser download (keyed on the lockfile's playwright
+      # version). On a hit, `playwright install` finds the browser already present,
+      # so only the apt system libs (--with-deps) are (re)installed.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-playwright-
 
       # The app icon is generated (not committed) by `pnpm build` via Playwright,
       # so the browser + its Linux system libraries must be present first.

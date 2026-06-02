@@ -48,7 +48,27 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Electron + electron-builder download their binaries/tools to ~/Library/Caches;
+      # cache them (keyed on the lockfile) so reinstalls and packaging skip the fetch.
+      - name: Cache Electron & builder
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-electron-
+
       - run: pnpm install --frozen-lockfile
+
+      # Cache the Playwright browser download (keyed on the lockfile's playwright
+      # version) so it isn't re-fetched every run.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-playwright-
 
       # build:icon (part of `pnpm run build`) renders the icon via Playwright Chromium.
       - run: pnpm exec playwright install chromium
@@ -105,6 +125,15 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Electron downloads its binary to ~/Library/Caches/electron during install;
+      # cache it (keyed on the lockfile) so the screenshot build's install is faster.
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-electron-
+
       - run: pnpm install --frozen-lockfile
 
       # Merge the two per-arch latest-mac.yml slices into one. Start from arm64 as the
@@ -120,7 +149,17 @@ jobs:
           yq -i '.files += load("latest-mac-x64.yml").files' latest-mac-arm64.yml
           cp latest-mac-arm64.yml latest-mac.yml
           gh release upload "$TAG" latest-mac.yml --clobber
-          gh release delete-asset "$TAG" latest-mac-arm64.yml latest-mac-x64.yml -y
+          gh release delete-asset "$TAG" latest-mac-arm64.yml -y
+          gh release delete-asset "$TAG" latest-mac-x64.yml -y
+
+      # Cache the Playwright browser download (keyed on the lockfile's playwright
+      # version) so it isn't re-fetched every run.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-playwright-
 
       # The screenshot pass drives Playwright Chromium (also used by build:icon).
       - run: pnpm exec playwright install chromium
