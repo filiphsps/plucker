@@ -89,6 +89,14 @@ const api = {
     ipcRenderer.on('history:changed', fn)
     return () => ipcRenderer.removeListener('history:changed', fn)
   },
+  // Re-run the enabled transform chain on already-downloaded tracks (no re-download).
+  retransform: (targets: { entryId: string; index: number }[]): Promise<void> =>
+    ipcRenderer.invoke('job:retransform', targets),
+  onRetransformSelection: (cb: () => void): (() => void) => {
+    const fn = (): void => cb()
+    ipcRenderer.on('menu:retransform-selection', fn)
+    return () => ipcRenderer.removeListener('menu:retransform-selection', fn)
+  },
   // Application-menu navigation (Settings / Download / History).
   onMenuNavigate: (cb: (target: MenuNavTarget) => void): (() => void) => {
     const fn = (_: unknown, target: MenuNavTarget): void => cb(target)

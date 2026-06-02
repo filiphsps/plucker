@@ -18,12 +18,13 @@ import {
 import { log, addLogTransport, getLogTail, installProcessErrorHandlers } from './log'
 import { createFileTransport } from './log-file'
 import { binaryPaths, type BinaryPaths } from './binaries'
-import { runJob } from './pipeline'
+import { runJob, runPipeline } from './pipeline'
+import { buildRetransformSource, type RetransformTarget } from './retransform-source'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { getWaveform, forWaveform } from './waveform'
-import { addEntry, entryFiles, removeEntry, removeTrack } from './history'
+import { addEntry, entryFiles, removeEntry, removeTrack, updateTrack } from './history'
 import { addUrl, removeUrl } from '../shared/url-history'
 import { killAllChildren, pauseAllChildren, resumeAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
@@ -290,6 +291,71 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
         log.info('app', 'job cancelled')
       }
       throw err
+    }
+  })
+
+  ipcMain.handle('job:retransform', async (_e, targets: RetransformTarget[]) => {
+    const fresh = loadSettings()
+    // Resolve each target to a concrete file from current history (status 'done'
+    // + a real path). Anything else is dropped — the renderer already filtered,
+    // this is the trust-but-verify backstop.
+    const resolved: RetransformTarget[] = []
+    for (const tgt of targets) {
+      const track = fresh.history.find((h) => h.id === tgt.entryId)?.tracks[tgt.index]
+      if (track?.status === 'done' && track.file) {
+        resolved.push({ ...tgt, file: track.file, title: track.title, videoId: track.videoId })
+      }
+    }
+    if (resolved.length === 0) return
+
+    // A fresh run always starts unpaused; clear any lingering paused state.
+    resumeAllChildren()
+    getWindow()?.webContents.send('job:paused', false)
+    abort = new AbortController()
+    try {
+      const result = await runPipeline(buildRetransformSource(resolved), {
+        bin: currentBin(),
+        settings: fresh,
+        homeBase: expandHome(fresh.downloads.baseFolder),
+        cache: getMetaCache(),
+        onProgress: (p) => {
+          const win = getWindow()
+          win?.webContents.send('job:progress', p)
+          win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
+        },
+        signal: abort.signal
+      })
+      getWindow()?.setProgressBar(-1)
+
+      // Fold each successfully re-transformed track back into history in place.
+      // result.tracks is index-aligned with `resolved`. Skip non-done results so a
+      // failed transform never clobbers a still-intact original.
+      const latest = loadSettings()
+      let history = latest.history
+      result.tracks.forEach((tk, i) => {
+        if (tk.status !== 'done') return
+        const tgt = resolved[i]
+        history = updateTrack(history, tgt.entryId, tgt.index, {
+          file: tk.file,
+          title: tk.title,
+          artist: tk.artist,
+          album: tk.album,
+          year: tk.year,
+          hash: tk.hash
+        })
+      })
+      saveSettings(settingsPath(), { ...latest, history })
+      getWindow()?.webContents.send('history:changed')
+    } catch (err) {
+      getWindow()?.setProgressBar(-1)
+      const cancelled = abort?.signal.aborted ?? false
+      if (!cancelled) {
+        const message = err instanceof Error ? err.message : String(err)
+        log.error('app', 'retransform failed:', err)
+        getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
+      } else {
+        log.info('app', 'retransform cancelled')
+      }
     }
   })
 }
