@@ -3,6 +3,9 @@ productName: Plucker
 # store skips the extra archive compression pass: faster release builds for a
 # marginally larger artifact — the DMG is already zlib-compressed (UDZO) below.
 compression: store
+# Rewrites the macOS Helper bundles' CFBundleName (which electron-builder leaves as
+# the upstream "Electron Helper (...)") to match productName. See the script header.
+afterPack: scripts/after-pack.mjs
 directories:
   buildResources: build
 files:
