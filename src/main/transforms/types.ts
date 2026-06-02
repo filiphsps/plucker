@@ -73,6 +73,13 @@ export interface TransformDefinition<C = Record<string, unknown>> {
   descriptionKey: string
   allowMultiple: boolean
   failureMode: 'fatal' | 'skip'
+  /**
+   * True when re-running this transform on the same input blob always yields the
+   * same bytes (no network/clock/random). Used by the Library to decide whether a
+   * cold version can be recomputed (replayed) or must stay materialized. `auto-tag`
+   * is the only `false` — it fetches tags/cover from the network.
+   */
+  deterministicGivenInput: boolean
   configSchema: ConfigField[]
   defaultConfig: C
   run(ctx: TrackContext, config: C, services: TransformServices): Promise<void>

@@ -42,6 +42,7 @@ export const squareCoverTransform: TransformDefinition<SquareCoverConfig> = {
   descriptionKey: 'transforms.squareCover.description',
   allowMultiple: false,
   failureMode: 'skip',
+  deterministicGivenInput: true,
   configSchema: CONFIG_SCHEMA,
   defaultConfig: {},
   async run(

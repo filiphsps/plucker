@@ -23,6 +23,7 @@ const renamer: TransformDefinition = {
   descriptionKey: '',
   allowMultiple: true,
   failureMode: 'skip',
+  deterministicGivenInput: true,
   configSchema: [],
   defaultConfig: {},
   async run(ctx) {
@@ -36,6 +37,7 @@ const fatalBoom: TransformDefinition = {
   descriptionKey: '',
   allowMultiple: true,
   failureMode: 'fatal',
+  deterministicGivenInput: true,
   configSchema: [],
   defaultConfig: {},
   async run() {

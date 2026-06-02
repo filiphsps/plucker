@@ -54,6 +54,7 @@ export const trimSilenceTransform: TransformDefinition<TrimSilenceConfig> = {
   descriptionKey: 'transforms.trimSilence.description',
   allowMultiple: true,
   failureMode: 'skip',
+  deterministicGivenInput: true,
   configSchema: CONFIG_SCHEMA,
   defaultConfig: { mode: 'both', thresholdDb: -90, minDurationSec: 0.1 },
   async run(

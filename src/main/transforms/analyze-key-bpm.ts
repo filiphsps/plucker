@@ -195,6 +195,7 @@ export const analyzeKeyBpmTransform: TransformDefinition<AnalyzeKeyBpmConfig> = 
   descriptionKey: 'transforms.analyzeKeyBpm.description',
   allowMultiple: false,
   failureMode: 'skip',
+  deterministicGivenInput: true,
   configSchema: CONFIG_SCHEMA,
   defaultConfig: { detectKey: true, detectBpm: true, minBpm: 70, maxBpm: 180 },
   async run(

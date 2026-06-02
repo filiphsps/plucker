@@ -336,6 +336,7 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
   descriptionKey: 'transforms.autoTag.description',
   allowMultiple: false,
   failureMode: 'skip',
+  deterministicGivenInput: false,
   configSchema: CONFIG_SCHEMA,
   defaultConfig: {
     primarySource: 'youtube',

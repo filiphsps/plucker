@@ -23,6 +23,7 @@ export const renameTransform: TransformDefinition<RenameConfig> = {
   descriptionKey: 'transforms.rename.description',
   allowMultiple: false,
   failureMode: 'skip',
+  deterministicGivenInput: true,
   configSchema: CONFIG_SCHEMA,
   defaultConfig: { template: '{artist} - {track}. {title} - {album} ({year})' },
   async run(ctx: TrackContext, config: RenameConfig, services: TransformServices): Promise<void> {
