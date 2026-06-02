@@ -18,6 +18,22 @@ export function TransformsSection({
   t: (key: string) => string
 }): React.JSX.Element {
   const [open, setOpen] = useState<string | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+
+  const endDrag = (): void => {
+    setDragId(null)
+    setDragIndex(null)
+    setOverIndex(null)
+  }
+  const drop = (): void => {
+    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
+      onChange(move(instances, dragIndex, overIndex))
+    }
+    endDrag()
+  }
+
   const byType = (type: string): TransformManifest | undefined =>
     catalog.find((m) => m.type === type)
   const newId = (): string => crypto.randomUUID()
@@ -36,10 +52,39 @@ export function TransformsSection({
         const isOpen = expandable && open === inst.instanceId
         const Custom = transformConfigComponents[inst.type]
         const toggle = (): void => setOpen(isOpen ? null : inst.instanceId)
+        const isDragging = dragId === inst.instanceId
+        const isOver = overIndex === idx && dragIndex !== null && dragIndex !== idx
         return (
-          <div key={inst.instanceId} className="border-b border-line2">
+          <div
+            key={inst.instanceId}
+            draggable={isDragging}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move'
+              setDragIndex(idx)
+            }}
+            onDragOver={(e) => {
+              if (dragIndex === null) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              if (overIndex !== idx) setOverIndex(idx)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              drop()
+            }}
+            onDragEnd={endDrag}
+            className={
+              'border-b border-line2' +
+              (isDragging ? ' opacity-50' : '') +
+              (isOver ? ' bg-raise' : '')
+            }
+          >
             <div className="flex items-center gap-[11px] px-3.5 py-[11px]">
-              <span className="flex cursor-grab text-ink-faint">
+              <span
+                className="flex cursor-grab text-ink-faint active:cursor-grabbing"
+                onMouseDown={() => setDragId(inst.instanceId)}
+                onMouseUp={() => setDragId(null)}
+              >
                 <GripVertical size={14} />
               </span>
               <span className="w-4 font-mono text-[10px] text-ink-faint">{idx + 1}</span>
