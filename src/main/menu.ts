@@ -1,11 +1,14 @@
 // Builds the native application menu as a fully custom template. Every label comes from
 // our i18n catalog (src/shared/menu-strings.ts); leaf items keep `role:` so macOS still
-// provides correct native behavior (edit semantics, services, window management) while
-// we own placement, labels, accelerators, and icons. Every menu *item* carries an SF
-// Symbol icon rendered by the native addon (top-level bar titles are text-only on macOS
-// — a platform constraint). `buildMenuTemplate` is pure and testable; `buildAppMenu`
-// resolves language/platform/settings, wires the action callbacks, and supplies the
-// icon resolver. Icons must be primed once via `primeMenuIcons()` before the first build.
+// provides correct native behavior (edit semantics, services, window management) while we
+// own placement, labels, accelerators, and icons. Following macOS convention (Safari,
+// VS Code, Ghostty), SF Symbol icons appear only on Plucker-specific *action* commands —
+// New Download, Open URL…, Re-run Transforms, Manage Cache…, the two primary destinations,
+// Toggle Console, View Releases. Standard system items (About, Settings, Quit, the Edit
+// roles, window/zoom, etc.) stay text-only, as do the top-level bar titles (a platform
+// constraint). `buildMenuTemplate` is pure and testable; `buildAppMenu` resolves
+// language/platform/settings, wires the action callbacks, and supplies the icon resolver.
+// Icons must be primed once via `primeMenuIcons()` before the first build.
 import { app, Menu, shell, clipboard, nativeImage, type MenuItemConstructorOptions } from 'electron'
 import { menu as MENU, type MenuLang, type MenuStrings } from '../shared/menu-strings'
 import { ACCELERATORS } from '../shared/shortcuts'
@@ -45,36 +48,36 @@ export interface MenuActions {
 export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemConstructorOptions[] {
   const { t, isMac, appName, devToolsAvailable, consoleAvailable, accelerators } = ctx
   const sep: MenuItemConstructorOptions = { type: 'separator' }
+  // Icons go only on Plucker-specific action commands (see file header). Standard
+  // system items are intentionally left icon-less to match native macOS apps.
   const ic = (symbol: string): MenuItemConstructorOptions['icon'] | undefined =>
     ctx.resolveIcon?.(symbol)
 
   const settingsItem: MenuItemConstructorOptions = {
     label: t.settings,
-    icon: ic('gearshape'),
     accelerator: 'CmdOrCtrl+,',
     click: () => a.navigate('settings')
   }
   const checkForUpdatesItem: MenuItemConstructorOptions = {
     label: t.checkForUpdates,
-    icon: ic('arrow.down.circle'),
     click: () => a.checkForUpdates()
   }
 
   const appMenu: MenuItemConstructorOptions = {
     label: appName,
     submenu: [
-      { role: 'about', label: t.about, icon: ic('info.circle') },
+      { role: 'about', label: t.about },
       checkForUpdatesItem,
       sep,
       settingsItem,
       sep,
-      { role: 'services', label: t.services, icon: ic('square.grid.2x2') },
+      { role: 'services', label: t.services },
       sep,
-      { role: 'hide', label: t.hide, icon: ic('eye.slash') },
-      { role: 'hideOthers', label: t.hideOthers, icon: ic('eye.slash.fill') },
-      { role: 'unhide', label: t.unhide, icon: ic('eye') },
+      { role: 'hide', label: t.hide },
+      { role: 'hideOthers', label: t.hideOthers },
+      { role: 'unhide', label: t.unhide },
       sep,
-      { role: 'quit', label: t.quit, icon: ic('power') }
+      { role: 'quit', label: t.quit }
     ]
   }
 
@@ -109,13 +112,13 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
   const editMenu: MenuItemConstructorOptions = {
     label: t.edit,
     submenu: [
-      { role: 'undo', label: t.undo, icon: ic('arrow.uturn.backward') },
-      { role: 'redo', label: t.redo, icon: ic('arrow.uturn.forward') },
+      { role: 'undo', label: t.undo },
+      { role: 'redo', label: t.redo },
       sep,
-      { role: 'cut', label: t.cut, icon: ic('scissors') },
-      { role: 'copy', label: t.copy, icon: ic('doc.on.doc') },
-      { role: 'paste', label: t.paste, icon: ic('clipboard') },
-      { role: 'selectAll', label: t.selectAll, icon: ic('checkmark.circle') }
+      { role: 'cut', label: t.cut },
+      { role: 'copy', label: t.copy },
+      { role: 'paste', label: t.paste },
+      { role: 'selectAll', label: t.selectAll }
     ]
   }
 
@@ -124,9 +127,9 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
   const devGroup: MenuItemConstructorOptions[] = devToolsAvailable
     ? [
         sep,
-        { role: 'reload', label: t.reload, icon: ic('arrow.clockwise') },
-        { role: 'forceReload', label: t.forceReload, icon: ic('arrow.clockwise.circle') },
-        { role: 'toggleDevTools', label: t.toggleDevTools, icon: ic('hammer') }
+        { role: 'reload', label: t.reload },
+        { role: 'forceReload', label: t.forceReload },
+        { role: 'toggleDevTools', label: t.toggleDevTools }
       ]
     : []
   const consoleGroup: MenuItemConstructorOptions[] = consoleAvailable
@@ -159,29 +162,21 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
       ...devGroup,
       ...consoleGroup,
       sep,
-      {
-        role: 'togglefullscreen',
-        label: t.enterFullScreen,
-        icon: ic('arrow.up.left.and.arrow.down.right')
-      }
+      { role: 'togglefullscreen', label: t.enterFullScreen }
     ]
   }
 
   const windowMenu: MenuItemConstructorOptions = {
     label: t.window,
     submenu: [
-      { role: 'minimize', label: t.minimize, icon: ic('minus.circle') },
-      { role: 'zoom', label: t.zoom, icon: ic('plus.magnifyingglass') },
+      { role: 'minimize', label: t.minimize },
+      { role: 'zoom', label: t.zoom },
       // `role: 'window'` makes Electron append the live window list (main + floating
       // console) on macOS.
       ...(isMac
         ? [
             sep,
-            {
-              role: 'front',
-              label: t.bringAllToFront,
-              icon: ic('square.on.square')
-            } as MenuItemConstructorOptions,
+            { role: 'front', label: t.bringAllToFront } as MenuItemConstructorOptions,
             sep,
             { role: 'window' } as MenuItemConstructorOptions
           ]

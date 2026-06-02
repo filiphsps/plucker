@@ -98,25 +98,47 @@ describe('buildMenuTemplate', () => {
     expect(find(edit, 'Paste').role).toBe('paste')
   })
 
-  it('attaches an icon to every labelled item when an icon resolver is provided', () => {
-    const seen: string[] = []
-    const resolveIcon = (s: string): string => {
-      seen.push(s)
-      return `icon:${s}`
-    }
+  it('puts icons only on Plucker-specific action commands, not standard system items', () => {
+    const resolveIcon = (s: string): string => `icon:${s}`
     const t = buildMenuTemplate(ctx({ resolveIcon }), actions())
-    const leaves = t.flatMap((top) =>
-      sub(top).filter((i) => i.type !== 'separator' && i.role !== 'window')
-    )
-    expect(leaves.length).toBeGreaterThan(0)
-    for (const item of leaves) expect(item.icon, item.label).toBeDefined()
-    // Spot-check the mapping covers app-specific commands and standard roles alike.
-    expect(seen).toEqual(expect.arrayContaining(['gearshape', 'terminal', 'scissors', 'link']))
+    const app = sub(find(t, 'Plucker'))
+    const file = sub(find(t, 'File'))
+    const edit = sub(find(t, 'Edit'))
+    const view = sub(find(t, 'View'))
+    const help = sub(find(t, 'Help'))
+
+    // App-specific commands get icons.
+    for (const [items, label] of [
+      [file, 'New Download'],
+      [file, 'Open URL…'],
+      [file, 'Re-run Transforms on Selection'],
+      [file, 'Manage Cache…'],
+      [view, 'Download'],
+      [view, 'History'],
+      [view, 'Toggle Console'],
+      [help, 'View Releases']
+    ] as const) {
+      expect(find(items, label).icon, label).toBeDefined()
+    }
+
+    // Standard system items stay text-only — even though a resolver is available.
+    for (const [items, label] of [
+      [app, 'About Plucker'],
+      [app, 'Check for Updates…'],
+      [app, 'Settings…'],
+      [app, 'Quit Plucker'],
+      [edit, 'Copy'],
+      [edit, 'Paste'],
+      [view, 'Reload'],
+      [view, 'Enter Full Screen']
+    ] as const) {
+      expect(find(items, label).icon, label).toBeUndefined()
+    }
   })
 
-  it('omits icons when no resolver is provided', () => {
+  it('omits all icons when no resolver is provided', () => {
     const t = buildMenuTemplate(ctx(), actions())
     expect(find(sub(find(t, 'File')), 'New Download').icon).toBeUndefined()
-    expect(find(sub(find(t, 'Edit')), 'Copy').icon).toBeUndefined()
+    expect(find(sub(find(t, 'View')), 'Download').icon).toBeUndefined()
   })
 })
