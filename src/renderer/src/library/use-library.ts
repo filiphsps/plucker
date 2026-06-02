@@ -10,8 +10,13 @@ export function useLibrary(): {
     setCollections(await window.plucker.getCollections())
   }, [])
   useEffect(() => {
-    void refresh()
-    return window.plucker.onLibraryChanged(() => void refresh())
-  }, [refresh])
+    // Subscribe first, then fetch in the callback path so the effect body itself does
+    // not synchronously setState (which would trigger cascading renders).
+    const off = window.plucker.onLibraryChanged(() => {
+      void window.plucker.getCollections().then(setCollections)
+    })
+    void window.plucker.getCollections().then(setCollections)
+    return off
+  }, [])
   return { collections, refresh }
 }

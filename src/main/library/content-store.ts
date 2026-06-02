@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, renameSync, writeFileSync, rmSync, existsSync, statSync } from 'node:fs'
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+  statSync
+} from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
@@ -9,13 +17,23 @@ export interface StoredBlob {
   size: number
 }
 
+export interface ContentStore {
+  root: string
+  pathFor: (hash: string) => string
+  has: (hash: string) => boolean
+  read: (hash: string) => Buffer
+  put: (sourceFile: string) => StoredBlob
+  remove: (hash: string) => void
+  sizeOf: (hash: string) => number
+}
+
 /**
  * Content-addressed blob store. Blobs are keyed by the **full-file** SHA-256 (so two
  * versions differing only in ID3 tags are distinct files) and sharded by the first two
  * hex chars. `put` is atomic: it stages a copy in a sibling tmp dir, fsync-free rename
  * into place (same filesystem), and is idempotent for identical content.
  */
-export function createContentStore(root: string) {
+export function createContentStore(root: string): ContentStore {
   mkdirSync(root, { recursive: true })
   const tmp = join(root, '.tmp')
   mkdirSync(tmp, { recursive: true })
@@ -48,5 +66,3 @@ export function createContentStore(root: string) {
     }
   }
 }
-
-export type ContentStore = ReturnType<typeof createContentStore>

@@ -7,7 +7,15 @@ import type { TrackDetail } from '../../../shared/library'
 const detail: TrackDetail = {
   instance: { id: 't1', collectionId: 'c1', orderIndex: 1, title: 'Song A', activeBranchId: 'b1' },
   versions: [
-    { id: 'v1', trackId: 't1', parentId: null, blobHash: 'h1', recipe: { steps: [] }, materialized: true, createdAt: 't1' }
+    {
+      id: 'v1',
+      trackId: 't1',
+      parentId: null,
+      blobHash: 'h1',
+      recipe: { steps: [] },
+      materialized: true,
+      createdAt: 't1'
+    }
   ],
   branches: [
     { id: 'b1', trackId: 't1', name: 'main', tipVersionId: 'v1' },

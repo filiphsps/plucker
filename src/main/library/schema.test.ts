@@ -9,7 +9,7 @@ describe('schema migration', () => {
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .all()
-      .map((r: any) => r.name)
+      .map((r) => (r as { name: string }).name)
     for (const t of ['activity', 'blobs', 'branches', 'collections', 'track_instances', 'versions'])
       expect(tables).toContain(t)
     expect(db.pragma('foreign_keys', { simple: true }) as number).toBe(1)

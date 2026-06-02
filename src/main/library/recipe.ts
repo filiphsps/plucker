@@ -31,12 +31,23 @@ export async function replayChain(
   index = 1
 ): Promise<string> {
   const instances: TransformInstance[] = recipe.steps.map((s, i) => ({
-    instanceId: `${s.type}-${i}`, type: s.type, enabled: true, config: s.config
+    instanceId: `${s.type}-${i}`,
+    type: s.type,
+    enabled: true,
+    config: s.config
   }))
   const result = await runTransformChain(
-    parentFile, destFolder,
-    { index, rawTitle: recipe.resolved?.tags?.title ?? basename(parentFile), sourceFile: parentFile },
-    instances, registry, services, () => {}
+    parentFile,
+    destFolder,
+    {
+      index,
+      rawTitle: recipe.resolved?.tags?.title ?? basename(parentFile),
+      sourceFile: parentFile
+    },
+    instances,
+    registry,
+    services,
+    () => {}
   )
   if (result.failed) throw new Error(`replay failed: ${result.reason}`)
   return result.outputFile

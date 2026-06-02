@@ -24,11 +24,18 @@ export function collectGarbage(repo: Repo, store: ContentStore): GcReport {
     if (shard === '.tmp' || shard.startsWith('.')) continue
     const shardDir = join(store.root, shard)
     let files: string[] = []
-    try { files = readdirSync(shardDir) } catch { continue }
+    try {
+      files = readdirSync(shardDir)
+    } catch {
+      continue
+    }
     for (const file of files) {
       const hash = file.replace(/\.mp3$/i, '')
       const row = repo.getBlob(hash)
-      if (!row || row.refcount <= 0) { store.remove(hash); report.removedFiles.push(hash) }
+      if (!row || row.refcount <= 0) {
+        store.remove(hash)
+        report.removedFiles.push(hash)
+      }
     }
   }
 
@@ -36,7 +43,9 @@ export function collectGarbage(repo: Repo, store: ContentStore): GcReport {
   const rows = repo.db.prepare('SELECT hash FROM blobs').all() as Array<{ hash: string }>
   for (const { hash } of rows) {
     if (store.has(hash)) continue
-    const versions = repo.db.prepare('SELECT id FROM versions WHERE blob_hash=?').all(hash) as Array<{ id: string }>
+    const versions = repo.db
+      .prepare('SELECT id FROM versions WHERE blob_hash=?')
+      .all(hash) as Array<{ id: string }>
     for (const { id } of versions) {
       repo.setVersionBlob(id, null, false)
       report.demoted.push(id)

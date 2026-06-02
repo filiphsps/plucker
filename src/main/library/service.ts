@@ -29,7 +29,29 @@ export interface LibraryDeps {
   perPlaylistSubfolder?: () => boolean
 }
 
-export function createLibraryService(deps: LibraryDeps) {
+export interface LibraryService {
+  listCollections: () => CollectionView[]
+  getTrack: (trackId: string) => TrackDetail | null
+  listActivity: (limit?: number) => ActivityEvent[]
+  ingestJobResult: (jobId: string, result: JobResult) => string
+  deleteTrack: (trackId: string) => void
+  deleteCollection: (collectionId: string) => void
+  edit: (trackId: string, chain: TransformInstance[]) => Promise<void>
+  foldEditResult: (args: {
+    trackId: string
+    branchId: string
+    parentVersionId: string
+    chainSteps: { type: string; config: Record<string, unknown> }[]
+    result: JobResult
+  }) => void
+  createBranch: (trackId: string, fromVersionId: string, name: string) => string
+  switchBranch: (trackId: string, branchId: string) => void
+  renameBranch: (branchId: string, name: string) => void
+  renameVersion: (versionId: string, label: string) => void
+  exportTracks: (trackIds: string[], destFolder: string) => Promise<string[]>
+}
+
+export function createLibraryService(deps: LibraryDeps): LibraryService {
   const { repo, store, emit } = deps
   const clock = { idGen: () => randomUUID(), now: () => new Date().toISOString() }
 
@@ -37,7 +59,9 @@ export function createLibraryService(deps: LibraryDeps) {
     repo.listCollections().map((c) => ({
       ...c,
       tracks: repo.listTracks(c.id).map((t) => ({
-        id: t.id, title: t.title, orderIndex: t.orderIndex,
+        id: t.id,
+        title: t.title,
+        orderIndex: t.orderIndex,
         currentVersionId: repo.getBranch(t.activeBranchId)!.tipVersionId
       }))
     }))
@@ -65,15 +89,29 @@ export function createLibraryService(deps: LibraryDeps) {
     deleteTrack(trackId: string): void {
       const t = repo.getTrack(trackId)
       repo.deleteTrack(trackId, store)
-      if (t) repo.insertActivity({ id: clock.idGen(), type: 'deleted', ts: clock.now(), summary: `Deleted track “${t.title}”` })
-      emit('library:changed'); emit('library:activityChanged')
+      if (t)
+        repo.insertActivity({
+          id: clock.idGen(),
+          type: 'deleted',
+          ts: clock.now(),
+          summary: `Deleted track “${t.title}”`
+        })
+      emit('library:changed')
+      emit('library:activityChanged')
     },
 
     deleteCollection(collectionId: string): void {
       const c = repo.getCollection(collectionId)
       repo.deleteCollection(collectionId, store)
-      if (c) repo.insertActivity({ id: clock.idGen(), type: 'deleted', ts: clock.now(), summary: `Deleted “${c.title}”` })
-      emit('library:changed'); emit('library:activityChanged')
+      if (c)
+        repo.insertActivity({
+          id: clock.idGen(),
+          type: 'deleted',
+          ts: clock.now(),
+          summary: `Deleted “${c.title}”`
+        })
+      emit('library:changed')
+      emit('library:activityChanged')
     },
 
     /** Start an edit job: materialize the branch tip, run `chain`, fold into a child version. */
@@ -83,7 +121,11 @@ export function createLibraryService(deps: LibraryDeps) {
       const branch = repo.getBranch(track.activeBranchId)!
       const sourceFile = await deps.materialize!(branch.tipVersionId)
       await deps.dispatchEdit!({
-        trackId, branchId: branch.id, parentVersionId: branch.tipVersionId, sourceFile, chain
+        trackId,
+        branchId: branch.id,
+        parentVersionId: branch.tipVersionId,
+        sourceFile,
+        chain
       })
       // foldEditResult is called by index.ts when the job completes.
     },
@@ -98,18 +140,27 @@ export function createLibraryService(deps: LibraryDeps) {
     }): void {
       const track = repo.getTrack(args.trackId)
       const finished = args.result.tracks.find((t) => t.status === 'done' && t.file)
-      if (!track || !finished?.file) { emit('library:changed'); return }
+      if (!track || !finished?.file) {
+        emit('library:changed')
+        return
+      }
       const blob = store.put(finished.file)
       const versionId = clock.idGen()
       repo.insertVersion({
-        id: versionId, trackId: args.trackId, parentId: args.parentVersionId, blobHash: blob.hash,
-        materialized: true, createdAt: clock.now(),
+        id: versionId,
+        trackId: args.trackId,
+        parentId: args.parentVersionId,
+        blobHash: blob.hash,
+        materialized: true,
+        createdAt: clock.now(),
         recipe: {
           steps: args.chainSteps,
           resolved: {
             tags: {
-              artist: finished.artist, album: finished.album,
-              year: finished.year, title: finished.title
+              artist: finished.artist,
+              album: finished.album,
+              year: finished.year,
+              title: finished.title
             }
           }
         }
@@ -117,10 +168,15 @@ export function createLibraryService(deps: LibraryDeps) {
       repo.refBlob(blob, store)
       repo.setBranchTip(args.branchId, versionId)
       repo.insertActivity({
-        id: clock.idGen(), type: 'edited', ts: clock.now(), trackId: args.trackId, versionId,
+        id: clock.idGen(),
+        type: 'edited',
+        ts: clock.now(),
+        trackId: args.trackId,
+        versionId,
         summary: `Edited “${track.title}”`
       })
-      emit('library:changed'); emit('library:activityChanged')
+      emit('library:changed')
+      emit('library:activityChanged')
     },
 
     /** Fork a new named branch off any version and make it active. Returns its id. */
@@ -128,16 +184,30 @@ export function createLibraryService(deps: LibraryDeps) {
       const branchId = clock.idGen()
       repo.insertBranch({ id: branchId, trackId, name, tipVersionId: fromVersionId })
       repo.setActiveBranch(trackId, branchId)
-      repo.insertActivity({ id: clock.idGen(), type: 'branched', ts: clock.now(), trackId, summary: `Branched “${name}”` })
-      emit('library:changed'); emit('library:activityChanged')
+      repo.insertActivity({
+        id: clock.idGen(),
+        type: 'branched',
+        ts: clock.now(),
+        trackId,
+        summary: `Branched “${name}”`
+      })
+      emit('library:changed')
+      emit('library:activityChanged')
       return branchId
     },
     /** Make another branch active for a track. */
     switchBranch(trackId: string, branchId: string): void {
       repo.setActiveBranch(trackId, branchId)
       const b = repo.getBranch(branchId)
-      repo.insertActivity({ id: clock.idGen(), type: 'switched', ts: clock.now(), trackId, summary: `Switched to “${b?.name ?? branchId}”` })
-      emit('library:changed'); emit('library:activityChanged')
+      repo.insertActivity({
+        id: clock.idGen(),
+        type: 'switched',
+        ts: clock.now(),
+        trackId,
+        summary: `Switched to “${b?.name ?? branchId}”`
+      })
+      emit('library:changed')
+      emit('library:activityChanged')
     },
     renameBranch(branchId: string, name: string): void {
       repo.setBranchName(branchId, name)
@@ -152,10 +222,14 @@ export function createLibraryService(deps: LibraryDeps) {
     async exportTracks(trackIds: string[], destFolder: string): Promise<string[]> {
       const written = await exportTracksToFolder(
         { repo, materialize: deps.materialize!, buildName: deps.buildName! },
-        trackIds, destFolder, { perPlaylistSubfolder: deps.perPlaylistSubfolder?.() ?? false }
+        trackIds,
+        destFolder,
+        { perPlaylistSubfolder: deps.perPlaylistSubfolder?.() ?? false }
       )
       repo.insertActivity({
-        id: clock.idGen(), type: 'exported', ts: clock.now(),
+        id: clock.idGen(),
+        type: 'exported',
+        ts: clock.now(),
         summary: `Exported ${written.length} track${written.length === 1 ? '' : 's'} to ${destFolder}`
       })
       emit('library:activityChanged')
@@ -163,5 +237,3 @@ export function createLibraryService(deps: LibraryDeps) {
     }
   }
 }
-
-export type LibraryService = ReturnType<typeof createLibraryService>

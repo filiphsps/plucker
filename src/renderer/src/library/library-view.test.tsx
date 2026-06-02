@@ -5,8 +5,13 @@ import { LibraryView } from './library-view'
 import type { CollectionView } from '../../../shared/library'
 
 const collections: CollectionView[] = [
-  { id: 'c1', kind: 'playlist', title: 'Road Trip', createdAt: 't',
-    tracks: [{ id: 't1', title: 'Song A', orderIndex: 1, currentVersionId: 'v1' }] }
+  {
+    id: 'c1',
+    kind: 'playlist',
+    title: 'Road Trip',
+    createdAt: 't',
+    tracks: [{ id: 't1', title: 'Song A', orderIndex: 1, currentVersionId: 'v1' }]
+  }
 ]
 
 describe('LibraryView', () => {

@@ -5,7 +5,12 @@ import { ActivityLog } from './activity-log'
 import type { ActivityEvent } from '../../../shared/library'
 
 const events: ActivityEvent[] = [
-  { id: 'a1', type: 'ingested', ts: '2026-06-02T10:00:00.000Z', summary: 'Downloaded “Mix” (3 tracks)' },
+  {
+    id: 'a1',
+    type: 'ingested',
+    ts: '2026-06-02T10:00:00.000Z',
+    summary: 'Downloaded “Mix” (3 tracks)'
+  },
   { id: 'a2', type: 'deleted', ts: '2026-06-02T11:00:00.000Z', summary: 'Deleted track “Song A”' }
 ]
 

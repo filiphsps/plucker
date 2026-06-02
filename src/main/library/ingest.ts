@@ -28,7 +28,11 @@ export function foldJobResultIntoLibrary(
   const kind: CollectionKind = result.kind === 'playlist' ? 'playlist' : 'single'
   const collectionId = clock.idGen()
   repo.insertCollection({
-    id: collectionId, kind, title: result.title, sourceUrl: result.url, createdAt: clock.now()
+    id: collectionId,
+    kind,
+    title: result.title,
+    sourceUrl: result.url,
+    createdAt: clock.now()
   })
 
   let order = 0
@@ -44,15 +48,30 @@ export function foldJobResultIntoLibrary(
       const rootId = clock.idGen()
       const childId = clock.idGen()
       repo.insertTrack({
-        id: trackId, collectionId, sourceVideoId: t.videoId, sourceUrl: result.url,
-        sourceAudioHash: t.hash, orderIndex: order, title: t.title, activeBranchId: branchId
+        id: trackId,
+        collectionId,
+        sourceVideoId: t.videoId,
+        sourceUrl: result.url,
+        sourceAudioHash: t.hash,
+        orderIndex: order,
+        title: t.title,
+        activeBranchId: branchId
       })
       repo.insertVersion({
-        id: rootId, trackId, parentId: null, blobHash: rootBlob.hash, recipe: { steps: [] },
-        materialized: true, createdAt: clock.now()
+        id: rootId,
+        trackId,
+        parentId: null,
+        blobHash: rootBlob.hash,
+        recipe: { steps: [] },
+        materialized: true,
+        createdAt: clock.now()
       })
       repo.insertVersion({
-        id: childId, trackId, parentId: rootId, blobHash: finalBlob.hash, materialized: true,
+        id: childId,
+        trackId,
+        parentId: rootId,
+        blobHash: finalBlob.hash,
+        materialized: true,
         createdAt: clock.now(),
         recipe: {
           steps: t.appliedChain,
@@ -72,12 +91,23 @@ export function foldJobResultIntoLibrary(
       // fallback: single root version (no raw captured)
       const versionId = clock.idGen()
       repo.insertTrack({
-        id: trackId, collectionId, sourceVideoId: t.videoId, sourceUrl: result.url,
-        sourceAudioHash: t.hash, orderIndex: order, title: t.title, activeBranchId: branchId
+        id: trackId,
+        collectionId,
+        sourceVideoId: t.videoId,
+        sourceUrl: result.url,
+        sourceAudioHash: t.hash,
+        orderIndex: order,
+        title: t.title,
+        activeBranchId: branchId
       })
       repo.insertVersion({
-        id: versionId, trackId, parentId: null, blobHash: finalBlob.hash, recipe: { steps: [] },
-        materialized: true, createdAt: clock.now()
+        id: versionId,
+        trackId,
+        parentId: null,
+        blobHash: finalBlob.hash,
+        recipe: { steps: [] },
+        materialized: true,
+        createdAt: clock.now()
       })
       repo.insertBranch({ id: branchId, trackId, name: 'main', tipVersionId: versionId })
       repo.refBlob(finalBlob, store)
@@ -85,8 +115,11 @@ export function foldJobResultIntoLibrary(
   }
 
   repo.insertActivity({
-    id: clock.idGen(), type: 'ingested', ts: clock.now(),
-    collectionId, summary: `Downloaded “${result.title}” (${order} track${order === 1 ? '' : 's'})`
+    id: clock.idGen(),
+    type: 'ingested',
+    ts: clock.now(),
+    collectionId,
+    summary: `Downloaded “${result.title}” (${order} track${order === 1 ? '' : 's'})`
   })
   return collectionId
 }

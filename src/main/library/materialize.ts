@@ -15,7 +15,12 @@ export interface MaterializerDeps {
   lruCapacity?: number
 }
 
-export function createMaterializer(deps: MaterializerDeps) {
+export interface Materializer {
+  /** Ensure a version's blob exists on disk; recompute it if cold. Returns the file path. */
+  ensureMaterialized: (versionId: string) => Promise<string>
+}
+
+export function createMaterializer(deps: MaterializerDeps): Materializer {
   const { repo, store, registry, services } = deps
   const capacity = deps.lruCapacity ?? 8
   const lru: string[] = [] // version ids, most-recent last
@@ -45,7 +50,10 @@ export function createMaterializer(deps: MaterializerDeps) {
   const evictIfNeeded = (): void => {
     if (lru.length <= capacity) return
     const tips = new Set(
-      repo.db.prepare('SELECT tip_version_id AS id FROM branches').all().map((r: any) => r.id as string)
+      repo.db
+        .prepare('SELECT tip_version_id AS id FROM branches')
+        .all()
+        .map((r) => (r as { id: string }).id)
     )
     for (let i = 0; i < lru.length; i++) {
       const v = repo.getVersion(lru[i])
@@ -58,7 +66,6 @@ export function createMaterializer(deps: MaterializerDeps) {
   }
 
   return {
-    /** Ensure a version's blob exists on disk; recompute it if cold. Returns the file path. */
     async ensureMaterialized(versionId: string): Promise<string> {
       const v = repo.getVersion(versionId)
       if (!v) throw new Error(`unknown version ${versionId}`)
@@ -81,5 +88,3 @@ export function createMaterializer(deps: MaterializerDeps) {
     }
   }
 }
-
-export type Materializer = ReturnType<typeof createMaterializer>

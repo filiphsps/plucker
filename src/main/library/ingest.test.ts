@@ -11,23 +11,41 @@ import type { JobResult } from '../pipeline'
 
 let dir: string
 let seq = 0
-const ids = () => `id${seq++}`
-const now = () => '2026-06-02T00:00:00.000Z'
-beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'plucker-ingest-')); seq = 0 })
+const ids = (): string => `id${seq++}`
+const now = (): string => '2026-06-02T00:00:00.000Z'
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'plucker-ingest-'))
+  seq = 0
+})
 afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
 function fileWith(content: string): string {
-  const f = join(dir, `${Math.random()}.mp3`); writeFileSync(f, content); return f
+  const f = join(dir, `${Math.random()}.mp3`)
+  writeFileSync(f, content)
+  return f
 }
 
 describe('foldJobResultIntoLibrary', () => {
   it('creates a playlist collection with one track+version+branch per done track', () => {
-    const db = new Database(':memory:'); migrate(db)
-    const repo = createRepo(db); const store = createContentStore(join(dir, 'blobs'))
+    const db = new Database(':memory:')
+    migrate(db)
+    const repo = createRepo(db)
+    const store = createContentStore(join(dir, 'blobs'))
     const result: JobResult = {
-      title: 'My Mix', folder: dir, url: 'http://list', kind: 'playlist', outcome: 'completed',
+      title: 'My Mix',
+      folder: dir,
+      url: 'http://list',
+      kind: 'playlist',
+      outcome: 'completed',
       tracks: [
-        { title: 'One', status: 'done', file: fileWith('a'), videoId: 'v1', hash: 'h1', artist: 'AA' },
+        {
+          title: 'One',
+          status: 'done',
+          file: fileWith('a'),
+          videoId: 'v1',
+          hash: 'h1',
+          artist: 'AA'
+        },
         { title: 'Two', status: 'failed', reason: 'nope' }
       ]
     }
@@ -45,10 +63,16 @@ describe('foldJobResultIntoLibrary', () => {
   })
 
   it('a single-video job becomes a `single` collection', () => {
-    const db = new Database(':memory:'); migrate(db)
-    const repo = createRepo(db); const store = createContentStore(join(dir, 'blobs'))
+    const db = new Database(':memory:')
+    migrate(db)
+    const repo = createRepo(db)
+    const store = createContentStore(join(dir, 'blobs'))
     const result: JobResult = {
-      title: 'Solo', folder: dir, url: 'http://watch', kind: 'video', outcome: 'completed',
+      title: 'Solo',
+      folder: dir,
+      url: 'http://watch',
+      kind: 'video',
+      outcome: 'completed',
       tracks: [{ title: 'Solo', status: 'done', file: fileWith('b'), videoId: 'v9', hash: 'h9' }]
     }
     foldJobResultIntoLibrary(repo, store, { idGen: ids, now }, 'job2', result)
@@ -56,10 +80,16 @@ describe('foldJobResultIntoLibrary', () => {
   })
 
   it('appends an `ingested` activity event', () => {
-    const db = new Database(':memory:'); migrate(db)
-    const repo = createRepo(db); const store = createContentStore(join(dir, 'blobs'))
+    const db = new Database(':memory:')
+    migrate(db)
+    const repo = createRepo(db)
+    const store = createContentStore(join(dir, 'blobs'))
     const result: JobResult = {
-      title: 'X', folder: dir, url: 'u', kind: 'video', outcome: 'completed',
+      title: 'X',
+      folder: dir,
+      url: 'u',
+      kind: 'video',
+      outcome: 'completed',
       tracks: [{ title: 'X', status: 'done', file: fileWith('c') }]
     }
     foldJobResultIntoLibrary(repo, store, { idGen: ids, now }, 'job3', result)
@@ -67,13 +97,29 @@ describe('foldJobResultIntoLibrary', () => {
   })
 
   it('builds a raw root + default-chain child when rawFile + appliedChain are present', () => {
-    const db = new Database(':memory:'); migrate(db)
-    const repo = createRepo(db); const store = createContentStore(join(dir, 'blobs'))
-    const raw = fileWith('raw-audio'); const finalF = fileWith('tagged-audio')
+    const db = new Database(':memory:')
+    migrate(db)
+    const repo = createRepo(db)
+    const store = createContentStore(join(dir, 'blobs'))
+    const raw = fileWith('raw-audio')
+    const finalF = fileWith('tagged-audio')
     const result: JobResult = {
-      title: 'X', folder: dir, url: 'u', kind: 'video', outcome: 'completed',
-      tracks: [{ title: 'X', status: 'done', file: finalF, rawFile: raw,
-        appliedChain: [{ type: 'auto-tag', config: {} }], artist: 'A', hash: 'h' }]
+      title: 'X',
+      folder: dir,
+      url: 'u',
+      kind: 'video',
+      outcome: 'completed',
+      tracks: [
+        {
+          title: 'X',
+          status: 'done',
+          file: finalF,
+          rawFile: raw,
+          appliedChain: [{ type: 'auto-tag', config: {} }],
+          artist: 'A',
+          hash: 'h'
+        }
+      ]
     }
     foldJobResultIntoLibrary(repo, store, { idGen: ids, now }, 'job1', result)
     const track = repo.listTracks(repo.listCollections()[0].id)[0]
