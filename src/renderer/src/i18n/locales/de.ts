@@ -6,9 +6,27 @@ const de: typeof en = {
   app: {
     settings: 'Einstellungen'
   },
+  common: {
+    delete: 'Löschen',
+    back: 'Zurück'
+  },
+  library: {
+    empty: 'Deine Bibliothek ist leer — lade etwas herunter, um zu starten.',
+    kind: { playlist: 'Playlist', album: 'Album', single: 'Einzeltitel' },
+    applyTransforms: 'Transformationen anwenden',
+    export: 'Exportieren',
+    exportAll: 'Alle exportieren',
+    exportDone: '{{count}} Titel exportiert',
+    branchFrom: 'Hier verzweigen',
+    branchNamePrompt: 'Benenne den neuen Branch',
+    cold: 'Wird beim Öffnen neu berechnet'
+  },
+  activity: {
+    empty: 'Noch keine Aktivität.'
+  },
   nav: {
     download: 'Laden',
-    history: 'Verlauf'
+    history: 'Bibliothek'
   },
   actions: {
     redownload: 'Erneut laden',

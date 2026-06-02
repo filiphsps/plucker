@@ -5,9 +5,27 @@ export default {
   app: {
     settings: 'Settings'
   },
+  common: {
+    delete: 'Delete',
+    back: 'Back'
+  },
+  library: {
+    empty: 'Your library is empty — download something to get started.',
+    kind: { playlist: 'Playlist', album: 'Album', single: 'Single' },
+    applyTransforms: 'Apply transforms',
+    export: 'Export',
+    exportAll: 'Export all',
+    exportDone: 'Exported {{count}} track(s)',
+    branchFrom: 'Branch from here',
+    branchNamePrompt: 'Name the new branch',
+    cold: 'Recomputes on open'
+  },
+  activity: {
+    empty: 'No activity yet.'
+  },
   nav: {
     download: 'Download',
-    history: 'History'
+    history: 'Library'
   },
   actions: {
     redownload: 'Redownload',
