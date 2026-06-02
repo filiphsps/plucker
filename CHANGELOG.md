@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.19.0](https://github.com/filiphsps/plucker/compare/plucker-v0.18.0...plucker-v0.19.0) (2026-06-02)
+
+
+### Features
+
+* **main:** add job pool scheduler with budget distribution and queue ([198d2c1](https://github.com/filiphsps/plucker/commit/198d2c18c2d0ef51d90122abce4522fe1288619f))
+* **main:** route all jobs through the worker pool, keyed by jobId ([ea5caee](https://github.com/filiphsps/plucker/commit/ea5caee4e6a0fc747f643468e792f26b8ce59dc2))
+* **preload:** thread jobId through job controls and events ([93e7cf9](https://github.com/filiphsps/plucker/commit/93e7cf990d4a065740a299958d89f29b511c5759))
+* **renderer:** keep job rail visible while any finished job remains ([5552999](https://github.com/filiphsps/plucker/commit/555299919d9ee65e9db16eafc37b515d877eb26d))
+* **renderer:** master-detail multi-job download UI with job rail ([0da7849](https://github.com/filiphsps/plucker/commit/0da78494dce31ca77c4bf5f846bc5350f0104044))
+* **renderer:** resizable job rail, keep finished jobs, hide rail when empty ([a041e2e](https://github.com/filiphsps/plucker/commit/a041e2e1ab71074effaa749ce5aeeee4f5fcc68e))
+* **renderer:** show job rail for a single multi-track playlist ([2451fed](https://github.com/filiphsps/plucker/commit/2451fedf70f16d82316241fb20e18a81ee80d3f4))
+* **ui:** add dynamic status bar with online/offline indicator ([54a3eb0](https://github.com/filiphsps/plucker/commit/54a3eb03a20bd4e6e469696c9f38f2ecb741fd8f))
+* **workers:** add job-client main-side worker handle ([df8d02c](https://github.com/filiphsps/plucker/commit/df8d02c442a7e0913e3096a47b73d1a08cd02c5c))
+* **workers:** add job-worker wire protocol types ([c204ed2](https://github.com/filiphsps/plucker/commit/c204ed29d3e5391526952d9506dca85339a337da))
+* **workers:** add self-contained job worker entry ([dbe8435](https://github.com/filiphsps/plucker/commit/dbe8435f165d21b6ee54469b038780ad28f3ba22))
+* **workers:** wire production job-worker factory ([7f20d4f](https://github.com/filiphsps/plucker/commit/7f20d4f0de3f8397b4b3f75231d7458ce5d8197a))
+
 ## [0.18.0](https://github.com/filiphsps/plucker/compare/plucker-v0.17.0...plucker-v0.18.0) (2026-06-02)
 
 
