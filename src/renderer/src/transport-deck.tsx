@@ -1,6 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Music, Pause, Play, X } from 'lucide-react'
+import { Pause, Play, X } from 'lucide-react'
 import type { JobProgress } from '../../shared/types'
 import { formatSpeed } from './ui/meta/format'
 
@@ -37,9 +37,6 @@ export function TransportDeck({
   onCancel: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const active =
-    progress.tracks.find((x) => x.status === 'downloading' || x.status === 'transforming') ??
-    progress.tracks.find((x) => x.status === 'queued')
   // Count every terminal track (done, failed or skipped) toward the total so the
   // counter reaches the total even when some tracks fail, instead of stalling.
   const processed = progress.tracks.filter(
@@ -51,57 +48,40 @@ export function TransportDeck({
     (sum, x) => sum + (x.status === 'downloading' ? (x.speedBytesPerSec ?? 0) : 0),
     0
   )
-  const subtitle = [active?.artist, active?.album].filter(Boolean).join(' · ')
 
   return (
-    <div className="flex h-[92px] items-center gap-4 border-t border-line bg-panel px-[18px]">
-      <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[7px] border border-line bg-[#23272e] text-ink-faint">
-        <Music size={20} />
-      </div>
-      <div className="w-[220px]">
-        <div className="font-mono text-[9px] tracking-[1.5px] text-ink-faint">
-          {t('deck.nowPlucking')}
-        </div>
-        <div className="mt-0.5 truncate text-[15px] font-semibold text-[#e7ebef]">
-          {active?.title ?? '—'}
-        </div>
-        <div className="truncate font-mono text-[11px] text-accent">{subtitle}</div>
-      </div>
-      <div className="flex flex-1 flex-col gap-1.5">
-        <Meter value={progress.overall} />
-        <div className="flex justify-between font-mono text-[9px] tracking-[0.5px] text-ink-faint">
-          <span>{t('deck.jobProgress')}</span>
-          {totalSpeed > 0 && <span className="text-accent">{formatSpeed(totalSpeed)}</span>}
-          <span>{Math.round(progress.overall * 100)}%</span>
-        </div>
-      </div>
-      <div className="text-right">
-        <div className="font-mono text-2xl font-semibold leading-none tnum text-accent">
+    <div className="flex h-12 items-center gap-4 border-t border-line bg-panel px-[18px]">
+      {/* left: counter + progress bar + sublabels, all left-aligned */}
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <span className="shrink-0 font-mono text-sm font-semibold leading-none tnum text-accent">
           {processed}/{progress.total}
-        </div>
-        <div className="mt-1 font-mono text-[9px] tracking-[1.5px] text-ink-faint">
-          {t('deck.tracks')}
-        </div>
-        {failed > 0 && (
-          <div className="mt-1 font-mono text-[9px] tracking-[1.5px] text-bad">
-            {t('deck.failed', { count: failed })}
+          {failed > 0 && <span className="ml-1.5 text-bad">·&nbsp;{failed}</span>}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <Meter value={progress.overall} />
+          <div className="flex gap-3 font-mono text-[9px] tracking-[0.5px] text-ink-faint">
+            <span>{Math.round(progress.overall * 100)}%</span>
+            {totalSpeed > 0 && <span className="text-accent">{formatSpeed(totalSpeed)}</span>}
           </div>
-        )}
+        </div>
       </div>
-      <button
-        onClick={onTogglePause}
-        aria-label={paused ? t('download.resume') : t('download.pause')}
-        className="flex h-10 w-10 items-center justify-center rounded-md border border-line bg-raise text-accent"
-      >
-        {paused ? <Play size={15} /> : <Pause size={15} />}
-      </button>
-      <button
-        onClick={onCancel}
-        aria-label={t('download.cancel')}
-        className="flex h-10 w-10 items-center justify-center rounded-md border border-line bg-raise text-bad"
-      >
-        <X size={15} />
-      </button>
+      {/* right: transport actions */}
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          onClick={onTogglePause}
+          aria-label={paused ? t('download.resume') : t('download.pause')}
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-line bg-raise text-accent"
+        >
+          {paused ? <Play size={14} /> : <Pause size={14} />}
+        </button>
+        <button
+          onClick={onCancel}
+          aria-label={t('download.cancel')}
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-line bg-raise text-bad"
+        >
+          <X size={14} />
+        </button>
+      </div>
     </div>
   )
 }
