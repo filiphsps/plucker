@@ -82,6 +82,10 @@ const de: typeof en = {
     dismiss: 'Verwerfen',
     retryFailed: 'Fehlgeschlagene wiederholen'
   },
+  statusBar: {
+    offline: 'Offline',
+    online: 'Wieder online'
+  },
   download: {
     urlLabel: 'YouTube-Playlist- oder Video-URL einfügen',
     urlPlaceholder: 'https://youtube.com/playlist…',

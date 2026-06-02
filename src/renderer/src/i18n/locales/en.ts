@@ -81,6 +81,10 @@ export default {
     dismiss: 'Dismiss',
     retryFailed: 'Retry failed'
   },
+  statusBar: {
+    offline: 'Offline',
+    online: 'Back online'
+  },
   download: {
     urlLabel: 'Paste a YouTube playlist or video URL',
     urlPlaceholder: 'https://youtube.com/playlist…',
