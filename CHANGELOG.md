@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.15.0](https://github.com/filiphsps/plucker/compare/plucker-v0.14.1...plucker-v0.15.0) (2026-06-02)
+
+
+### Features
+
+* **analyze-key-bpm:** detect key & BPM with Essentia (WASM), TS fallback ([13a3c67](https://github.com/filiphsps/plucker/commit/13a3c672be796c9194d8965a67f65df17d5f7380))
+* **auto-tag:** expose parsing/fusion/verification settings ([dcdc331](https://github.com/filiphsps/plucker/commit/dcdc3310b2bd62b41834c782d440b6e8c6f2bd15))
+* **auto-tag:** orchestrate source-aware extraction with verified matching ([a6f0bc6](https://github.com/filiphsps/plucker/commit/a6f0bc6921f410da734c642661cd57e51ba1b1af))
+* **history:** add updateTrack for in-place track patches ([cc8270a](https://github.com/filiphsps/plucker/commit/cc8270a12df863d06a90d4655a3bb9173b5551c7))
+* **history:** collapse/expand playlists, collapsed by default outside latest 3 ([2369b40](https://github.com/filiphsps/plucker/commit/2369b401eb0b3ee5a2785146da94c10d1e45dc78))
+* **history:** job:retransform handler + preload API ([60b668e](https://github.com/filiphsps/plucker/commit/60b668e2ed332193617fc9c5061e2552e1b7e61b))
+* **history:** re-run transforms on selection from the context menu ([07f942d](https://github.com/filiphsps/plucker/commit/07f942d7c2f0cc793c6ccf481f75f43a91546295))
+* **menu:** re-run transforms on the history selection from the app menu ([1d603b5](https://github.com/filiphsps/plucker/commit/1d603b53d4cc455e878f43e3b0488c2af891c8e0))
+* **metadata:** add token-set string similarity util ([1e7d557](https://github.com/filiphsps/plucker/commit/1e7d557ad3c28a515abccedff336d054b3be1203))
+* **metadata:** capture full info.json into SourceMetadata ([9b6afc3](https://github.com/filiphsps/plucker/commit/9b6afc3d2076dd47e3531b123b4e2bf24988af84))
+* **metadata:** classify video source by channel/uploader ([fb7bd1e](https://github.com/filiphsps/plucker/commit/fb7bd1e0c2630d4cbd94d1507b0509f9504a880a))
+* **metadata:** fuse source + parsed signals with per-field confidence ([43f4c79](https://github.com/filiphsps/plucker/commit/43f4c799fcb8f34a1eba12558a71690451f56759))
+* **metadata:** pass full info.json source metadata into transform chain ([898976c](https://github.com/filiphsps/plucker/commit/898976cf62c384db74c2e8b279cba531d31a52c3))
+* **metadata:** source-aware title parser with feat/version extraction ([d784283](https://github.com/filiphsps/plucker/commit/d7842838203e43ff2a9d386829633c2e88012eb2))
+* **metadata:** verified MusicBrainz selection via duration + name gate ([0d76761](https://github.com/filiphsps/plucker/commit/0d7676172a24d0ae8c63bcd56a40588dcf57d9bf))
+* **pipeline:** add RetransformSource for already-downloaded files ([3793b4a](https://github.com/filiphsps/plucker/commit/3793b4ab021280c752027962f717e1f7ac6eaf09))
+
+
+### Performance Improvements
+
+* **history:** memoize track rows and stabilize list keys ([ab38ebd](https://github.com/filiphsps/plucker/commit/ab38ebde0c8288da450ddb98f07b90037147cb59))
+
 ## [0.14.1](https://github.com/filiphsps/plucker/compare/plucker-v0.14.0...plucker-v0.14.1) (2026-06-02)
 
 
