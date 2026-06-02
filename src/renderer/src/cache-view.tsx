@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Search, Trash2, Pencil, ChevronLeft } from 'lucide-react'
 import type { CachedTrack, TrackTags } from '../../shared/types'
 import { TrackRow } from './track-row'
+import { VirtualList } from './ui/virtual-list'
 import { showContextMenu } from './ui/context-menu'
 import { trackRowMenuItems } from './track-row-menu'
 import { formatBytes } from './ui/meta/format'
@@ -126,8 +127,11 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
             <span className="w-[64px]" />
           </div>
 
-          <div
+          <VirtualList
             className="min-h-0 flex-1 overflow-auto"
+            items={filtered}
+            getKey={(it) => it.hash}
+            estimateSize={48}
             onContextMenu={(e) => {
               if (e.defaultPrevented) return
               e.preventDefault()
@@ -141,12 +145,11 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
               ])
             }}
           >
-            {filtered.map((it, i) => {
+            {(it, i) => {
               const row = rowData.get(it.hash)!
               const missing = row.missing
               return (
                 <TrackRow
-                  key={it.hash}
                   variant="cache"
                   index={i + 1}
                   track={row.track}
@@ -195,8 +198,8 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
                   }
                 />
               )
-            })}
-          </div>
+            }}
+          </VirtualList>
         </>
       )}
     </div>

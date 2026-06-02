@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Folder, RotateCw, Trash2, X, Search, Check, ChevronDown, ChevronRight } from 'lucide-react'
 import type { HistoryEntry, HistoryTrack, JobOutcome } from '../../shared/types'
 import { TrackRow } from './track-row'
+import { VirtualList } from './ui/virtual-list'
 import { watchUrl } from '../../shared/youtube-url'
 import { showContextMenu } from './ui/context-menu'
 import { trackRowMenuItems } from './track-row-menu'
@@ -285,210 +286,217 @@ export function HistoryView({
     'flex h-[30px] items-center gap-1.5 rounded-md border border-line bg-raise px-2.5 text-[12px] text-ink-dim hover:text-ink'
 
   return (
-    <div className="h-full overflow-auto p-4">
-      <div className="mb-4 flex h-[34px] items-center gap-2.5 rounded-[7px] border border-line bg-[#0a0b0e] px-3 text-ink-faint">
-        <Search size={14} />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('history.search')}
-          className="h-full w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-faint"
-        />
+    <div className="flex h-full flex-col">
+      <div className="px-4 pt-4">
+        <div className="flex h-[34px] items-center gap-2.5 rounded-[7px] border border-line bg-[#0a0b0e] px-3 text-ink-faint">
+          <Search size={14} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('history.search')}
+            className="h-full w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-faint"
+          />
+        </div>
+
+        {notice && (
+          <div className="mt-4 rounded-md border border-line bg-raise px-3 py-1.5 text-[12px] text-ink-dim">
+            {notice}
+          </div>
+        )}
       </div>
 
-      {notice && (
-        <div className="mb-3 rounded-md border border-line bg-raise px-3 py-1.5 text-[12px] text-ink-dim">
-          {notice}
-        </div>
-      )}
-
-      {filtered.map((entry) => {
-        const statusCounts = countByStatus(entry.tracks)
-        const failed = statusCounts.failed
-        const badge = OUTCOME_BADGE[entry.outcome]
-        // No real files anywhere in the entry → deleting removes nothing on
-        // disk, so the action reads as "clear" rather than "delete".
-        const entryHasFiles = entry.tracks.some(deletable)
-        // Only multi-track playlists fold — a single track has nothing to hide.
-        const collapsible = entry.tracks.length > 1
-        const collapsed = collapsible && isCollapsed(entry.id)
-        return (
-          <div
-            key={entry.id}
-            className="mb-3.5 overflow-hidden rounded-[10px] border border-line bg-panel2"
-          >
-            <div
-              className={
-                'flex items-center gap-3 bg-panel px-3.5 py-[11px]' +
-                (collapsed ? '' : ' border-b border-line')
-              }
-              onContextMenu={(e) => {
-                e.preventDefault()
-                void showContextMenu(
-                  historyCardMenuItems({
-                    t,
-                    url: entry.url,
-                    onOpenFolder: () => window.plucker.openFolder(entry.folder),
-                    onRedownload: () => redownload(entry.url, entry.folder),
-                    onDelete: () => deleteEntry(entry.id, entryHasFiles)
-                  })
-                )
-              }}
-            >
-              {collapsible ? (
-                <Tooltip label={t(collapsed ? 'actions.expand' : 'actions.collapse')}>
-                  <button
-                    onClick={() => toggleCollapsed(entry.id)}
-                    aria-expanded={!collapsed}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink"
-                  >
-                    {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </Tooltip>
-              ) : (
-                // Single-track entries have no collapse control — reserve the same
-                // width so their ring and title line up with collapsible headers.
-                <span className="h-7 w-7 shrink-0" aria-hidden="true" />
-              )}
-              <Tooltip
-                label={SEGMENT_ORDER.filter((s) => statusCounts[s] > 0)
-                  .map((s) => `${statusCounts[s]} ${t(`status.${s}`)}`)
-                  .join(' · ')}
-              >
-                <OutcomeRing tracks={entry.tracks} />
-              </Tooltip>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold text-[#e7ebef]">
-                  {entry.title}
-                </div>
-                <div className="mt-[3px] font-mono text-[10.5px] tracking-[0.3px] text-ink-faint">
-                  {new Date(entry.completedAt).toLocaleString()} ·{' '}
-                  {t('download.tracks', { count: entry.tracks.length })}
-                </div>
-                {entry.reason && (
-                  <div
-                    className="mt-[3px] truncate font-mono text-[10.5px] text-bad"
-                    title={entry.reason}
-                  >
-                    {entry.reason}
-                  </div>
-                )}
-              </div>
-              <span
+      <VirtualList
+        className="min-h-0 flex-1 overflow-auto px-4 pb-4 pt-4"
+        items={filtered}
+        getKey={(entry) => entry.id}
+        estimateSize={72}
+        gap={14}
+      >
+        {(entry) => {
+          const statusCounts = countByStatus(entry.tracks)
+          const failed = statusCounts.failed
+          const badge = OUTCOME_BADGE[entry.outcome]
+          // No real files anywhere in the entry → deleting removes nothing on
+          // disk, so the action reads as "clear" rather than "delete".
+          const entryHasFiles = entry.tracks.some(deletable)
+          // Only multi-track playlists fold — a single track has nothing to hide.
+          const collapsible = entry.tracks.length > 1
+          const collapsed = collapsible && isCollapsed(entry.id)
+          return (
+            <div className="overflow-hidden rounded-[10px] border border-line bg-panel2">
+              <div
                 className={
-                  'flex items-center gap-1.5 rounded-md border px-[7px] py-[3px] font-mono text-[10px] ' +
-                  badge.cls
+                  'flex items-center gap-3 bg-panel px-3.5 py-[11px]' +
+                  (collapsed ? '' : ' border-b border-line')
                 }
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  void showContextMenu(
+                    historyCardMenuItems({
+                      t,
+                      url: entry.url,
+                      onOpenFolder: () => window.plucker.openFolder(entry.folder),
+                      onRedownload: () => redownload(entry.url, entry.folder),
+                      onDelete: () => deleteEntry(entry.id, entryHasFiles)
+                    })
+                  )
+                }}
               >
-                {badge.check && <Check size={11} strokeWidth={3} />}
-                {t(badge.labelKey as never, { count: failed })}
-              </span>
-              <div className="flex gap-1.5">
-                <button className={jbtn} onClick={() => window.plucker.openFolder(entry.folder)}>
-                  <Folder size={14} />
-                  {t('actions.openFolder')}
-                </button>
-                <button className={jbtn} onClick={() => redownload(entry.url, entry.folder)}>
-                  <RotateCw size={14} />
-                  {t('actions.redownload')}
-                </button>
-                {entry.outcome === 'interrupted' && entry.jobId && (
-                  <button className={jbtn} onClick={() => window.plucker.resumeJob(entry.jobId!)}>
-                    <RotateCw size={14} />
-                    {t('resume.action')}
-                  </button>
+                {collapsible ? (
+                  <Tooltip label={t(collapsed ? 'actions.expand' : 'actions.collapse')}>
+                    <button
+                      onClick={() => toggleCollapsed(entry.id)}
+                      aria-expanded={!collapsed}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink"
+                    >
+                      {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </Tooltip>
+                ) : (
+                  // Single-track entries have no collapse control — reserve the same
+                  // width so their ring and title line up with collapsible headers.
+                  <span className="h-7 w-7 shrink-0" aria-hidden="true" />
                 )}
-                {entry.outcome === 'partial' && (
-                  <button className={jbtn} onClick={() => window.plucker.retryFailed(entry.id)}>
-                    <RotateCw size={14} />
-                    {t('resume.retryFailed')}
-                  </button>
-                )}
-                <Tooltip label={t(entryHasFiles ? 'actions.delete' : 'actions.clear')}>
-                  <button
-                    className={
-                      jbtn +
-                      ' w-[30px] justify-center px-0' +
-                      (entryHasFiles ? ' hover:border-bad/40 hover:text-bad' : '')
-                    }
-                    onClick={() => deleteEntry(entry.id, entryHasFiles)}
-                  >
-                    {entryHasFiles ? <Trash2 size={14} /> : <X size={14} />}
-                  </button>
+                <Tooltip
+                  label={SEGMENT_ORDER.filter((s) => statusCounts[s] > 0)
+                    .map((s) => `${statusCounts[s]} ${t(`status.${s}`)}`)
+                    .join(' · ')}
+                >
+                  <OutcomeRing tracks={entry.tracks} />
                 </Tooltip>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-semibold text-[#e7ebef]">
+                    {entry.title}
+                  </div>
+                  <div className="mt-[3px] font-mono text-[10.5px] tracking-[0.3px] text-ink-faint">
+                    {new Date(entry.completedAt).toLocaleString()} ·{' '}
+                    {t('download.tracks', { count: entry.tracks.length })}
+                  </div>
+                  {entry.reason && (
+                    <div
+                      className="mt-[3px] truncate font-mono text-[10.5px] text-bad"
+                      title={entry.reason}
+                    >
+                      {entry.reason}
+                    </div>
+                  )}
+                </div>
+                <span
+                  className={
+                    'flex items-center gap-1.5 rounded-md border px-[7px] py-[3px] font-mono text-[10px] ' +
+                    badge.cls
+                  }
+                >
+                  {badge.check && <Check size={11} strokeWidth={3} />}
+                  {t(badge.labelKey as never, { count: failed })}
+                </span>
+                <div className="flex gap-1.5">
+                  <button className={jbtn} onClick={() => window.plucker.openFolder(entry.folder)}>
+                    <Folder size={14} />
+                    {t('actions.openFolder')}
+                  </button>
+                  <button className={jbtn} onClick={() => redownload(entry.url, entry.folder)}>
+                    <RotateCw size={14} />
+                    {t('actions.redownload')}
+                  </button>
+                  {entry.outcome === 'interrupted' && entry.jobId && (
+                    <button className={jbtn} onClick={() => window.plucker.resumeJob(entry.jobId!)}>
+                      <RotateCw size={14} />
+                      {t('resume.action')}
+                    </button>
+                  )}
+                  {entry.outcome === 'partial' && (
+                    <button className={jbtn} onClick={() => window.plucker.retryFailed(entry.id)}>
+                      <RotateCw size={14} />
+                      {t('resume.retryFailed')}
+                    </button>
+                  )}
+                  <Tooltip label={t(entryHasFiles ? 'actions.delete' : 'actions.clear')}>
+                    <button
+                      className={
+                        jbtn +
+                        ' w-[30px] justify-center px-0' +
+                        (entryHasFiles ? ' hover:border-bad/40 hover:text-bad' : '')
+                      }
+                      onClick={() => deleteEntry(entry.id, entryHasFiles)}
+                    >
+                      {entryHasFiles ? <Trash2 size={14} /> : <X size={14} />}
+                    </button>
+                  </Tooltip>
+                </div>
               </div>
-            </div>
 
-            {!collapsed &&
-              entry.tracks.map((tk, i) => {
-                const key = trackKey(entry.id, i)
-                const isMissing = !!tk.file && missing.has(tk.file)
-                const canDelete = deletable(tk)
-                return (
-                  <TrackRow
-                    key={trackRowKey(tk, entry.id, i)}
-                    variant="history"
-                    index={i + 1}
-                    track={tk}
-                    missing={isMissing}
-                    selected={selected.has(key)}
-                    onSelect={(e) => onRowSelect(key, e)}
-                    onActivate={() => tk.file && !isMissing && window.plucker.revealFile(tk.file)}
-                    source={{ videoId: tk.videoId, downloadedAt: entry.completedAt }}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      void showContextMenu(
-                        trackRowMenuItems({
-                          t,
-                          variant: 'history',
-                          track: tk,
-                          missing: isMissing,
-                          failed: tk.status === 'failed',
-                          onReveal: () => revealTargets(targetsFor(selected, key)),
-                          onRedownload: () => void redownloadTargets(targetsFor(selected, key)),
-                          onRetransform: () => void retransformTargets(targetsFor(selected, key)),
-                          onDelete: () => void deleteTargets(targetsFor(selected, key))
-                        })
-                      )
-                    }}
-                    actions={
-                      <>
-                        {tk.file && (
-                          <Tooltip label={t('actions.reveal')}>
+              {!collapsed &&
+                entry.tracks.map((tk, i) => {
+                  const key = trackKey(entry.id, i)
+                  const isMissing = !!tk.file && missing.has(tk.file)
+                  const canDelete = deletable(tk)
+                  return (
+                    <TrackRow
+                      key={trackRowKey(tk, entry.id, i)}
+                      variant="history"
+                      index={i + 1}
+                      track={tk}
+                      missing={isMissing}
+                      selected={selected.has(key)}
+                      onSelect={(e) => onRowSelect(key, e)}
+                      onActivate={() => tk.file && !isMissing && window.plucker.revealFile(tk.file)}
+                      source={{ videoId: tk.videoId, downloadedAt: entry.completedAt }}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        void showContextMenu(
+                          trackRowMenuItems({
+                            t,
+                            variant: 'history',
+                            track: tk,
+                            missing: isMissing,
+                            failed: tk.status === 'failed',
+                            onReveal: () => revealTargets(targetsFor(selected, key)),
+                            onRedownload: () => void redownloadTargets(targetsFor(selected, key)),
+                            onRetransform: () => void retransformTargets(targetsFor(selected, key)),
+                            onDelete: () => void deleteTargets(targetsFor(selected, key))
+                          })
+                        )
+                      }}
+                      actions={
+                        <>
+                          {tk.file && (
+                            <Tooltip label={t('actions.reveal')}>
+                              <button
+                                className={ra}
+                                onClick={() => revealTargets(targetsFor(selected, key))}
+                              >
+                                <Folder size={15} />
+                              </button>
+                            </Tooltip>
+                          )}
+                          {tk.videoId && (
+                            <Tooltip label={t('actions.redownload')}>
+                              <button
+                                className={ra}
+                                onClick={() => void redownloadTargets(targetsFor(selected, key))}
+                              >
+                                <RotateCw size={15} />
+                              </button>
+                            </Tooltip>
+                          )}
+                          <Tooltip label={t(canDelete ? 'actions.delete' : 'actions.clear')}>
                             <button
-                              className={ra}
-                              onClick={() => revealTargets(targetsFor(selected, key))}
+                              className={ra + (canDelete ? ' hover:text-bad' : '')}
+                              onClick={() => void deleteTargets(targetsFor(selected, key))}
                             >
-                              <Folder size={15} />
+                              {canDelete ? <Trash2 size={15} /> : <X size={15} />}
                             </button>
                           </Tooltip>
-                        )}
-                        {tk.videoId && (
-                          <Tooltip label={t('actions.redownload')}>
-                            <button
-                              className={ra}
-                              onClick={() => void redownloadTargets(targetsFor(selected, key))}
-                            >
-                              <RotateCw size={15} />
-                            </button>
-                          </Tooltip>
-                        )}
-                        <Tooltip label={t(canDelete ? 'actions.delete' : 'actions.clear')}>
-                          <button
-                            className={ra + (canDelete ? ' hover:text-bad' : '')}
-                            onClick={() => void deleteTargets(targetsFor(selected, key))}
-                          >
-                            {canDelete ? <Trash2 size={15} /> : <X size={15} />}
-                          </button>
-                        </Tooltip>
-                      </>
-                    }
-                  />
-                )
-              })}
-          </div>
-        )
-      })}
+                        </>
+                      }
+                    />
+                  )
+                })}
+            </div>
+          )
+        }}
+      </VirtualList>
     </div>
   )
 }

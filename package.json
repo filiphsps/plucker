@@ -43,6 +43,7 @@
     "@fontsource/geist": "5.2.9",
     "@fontsource/geist-mono": "5.2.8",
     "@plucker/native-context-menu": "workspace:*",
+    "@tanstack/react-virtual": "3.13.26",
     "@vscode/sudo-prompt": "9.3.2",
     "electron-updater": "6.8.3",
     "essentia.js": "0.1.3",

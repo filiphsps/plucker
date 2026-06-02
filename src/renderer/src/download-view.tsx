@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Download, X } from 'lucide-react'
 import type { JobProgress, JobStatus, LogEntry, PlaylistEntry } from '../../shared/types'
 import { isSupportedUrl } from '../../shared/url-providers'
 import { TrackRow } from './track-row'
+import { VirtualList } from './ui/virtual-list'
 import { showContextMenu } from './ui/context-menu'
 import { trackRowMenuItems } from './track-row-menu'
 import { statusColumnWidth } from './status-column'
@@ -353,10 +354,14 @@ export function DownloadView({
             </span>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
-            {progress.tracks.map((tr) => (
+          <VirtualList
+            className="min-h-0 flex-1 overflow-auto"
+            items={progress.tracks}
+            getKey={(tr) => tr.index}
+            estimateSize={48}
+          >
+            {(tr) => (
               <TrackRow
-                key={tr.index}
                 variant="download"
                 index={tr.index}
                 track={tr}
@@ -384,8 +389,8 @@ export function DownloadView({
                   )
                 }}
               />
-            ))}
-          </div>
+            )}
+          </VirtualList>
         </>
       ) : staged ? (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -402,10 +407,14 @@ export function DownloadView({
               {t('download.startDownload')}
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto">
-            {staged.entries.map((e, pos) => (
+          <VirtualList
+            className="min-h-0 flex-1 overflow-auto"
+            items={staged.entries}
+            getKey={(e, pos) => e.videoId + ':' + pos}
+            estimateSize={33}
+          >
+            {(e, pos) => (
               <StagedRow
-                key={e.videoId + ':' + pos}
                 entry={e}
                 pos={pos}
                 count={staged.entries.length}
@@ -416,8 +425,8 @@ export function DownloadView({
                   setStaged((s) => (s ? { ...s, entries: moveEntry(s.entries, pos, to) } : s))
                 }
               />
-            ))}
-          </div>
+            )}
+          </VirtualList>
         </div>
       ) : statusLog !== null || resolving ? (
         <ResolvePanel entries={resolveLog} />
