@@ -28,6 +28,18 @@ import {
   type RunJobDeps
 } from './pipeline'
 import { buildRetransformSource, type RetransformTarget } from './retransform-source'
+import {
+  createCheckpointSink,
+  listCheckpoints,
+  deleteCheckpoint,
+  readCheckpoint
+} from './job-checkpoint'
+import {
+  partitionCheckpoint,
+  mergeResumed,
+  outcomeFromTracks,
+  synthesizeEntry
+} from './resume-merge'
 import { getAnalyzeClient, terminateAnalyzeClient } from './workers/analyze-host'
 import { getMediaClient, terminateMediaClient } from './workers/media-host'
 import { getCatalog } from './transforms/registry'
@@ -47,7 +59,8 @@ import type {
   HistoryEntry,
   CachedTrack,
   TrackTags,
-  StartJobRequest
+  StartJobRequest,
+  JobCheckpoint
 } from '../shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel
@@ -60,6 +73,8 @@ installProcessErrorHandlers()
 
 let mainWindow: BrowserWindow | null = null
 let abort: AbortController | null = null
+/** Checkpoint id of the job currently running (download or resume), for resumability. */
+let activeJobId: string | null = null
 let metaCache: MetadataCache | null = null
 /** Per-track controls for the live job, set by runPipeline via onControls. */
 let jobControls: JobControls | null = null
@@ -273,6 +288,8 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     resumeAllChildren()
     getWindow()?.webContents.send('job:paused', false)
     abort = new AbortController()
+    activeJobId = randomUUID()
+    const sink = createCheckpointSink(jobsDir(), activeJobId, () => Date.now())
     // Reuse the cookie file exported while resolving this exact URL (if any).
     const cookieFile = pendingResolve?.url === req.url ? pendingResolve.cookieFile : undefined
     pendingResolve = null
@@ -284,6 +301,7 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       analyze: (file, config) =>
         getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
       media: getMediaClient(),
+      checkpoint: sink,
       onProgress: (p) => {
         const win = getWindow()
         win?.webContents.send('job:progress', p)
@@ -302,20 +320,25 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
 
       // Record every resolved job — including all-failed and cancelled ones —
       // so the user always sees the outcome. (Re-load fresh so we don't clobber
-      // edits made during the run.)
+      // edits made during the run.) A user cancel becomes a resumable `interrupted`
+      // entry; a genuine finish has nothing to resume.
+      const cancelled = abort?.signal.aborted ?? false
       const entry: HistoryEntry = {
         id: randomUUID(),
+        jobId: activeJobId ?? undefined,
         url: result.url,
         title: result.title,
         folder: result.folder,
         kind: result.kind,
         completedAt: new Date().toISOString(),
-        outcome: result.outcome,
+        outcome: cancelled ? 'interrupted' : result.outcome,
         tracks: result.tracks
       }
       const fresh = loadSettings()
       saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
       getWindow()?.webContents.send('history:changed')
+      if (!cancelled && activeJobId) deleteCheckpoint(jobsDir(), activeJobId)
+      if (cancelled) getWindow()?.webContents.send('jobs:interruptedChanged')
     } catch (err) {
       getWindow()?.setProgressBar(-1)
       const cancelled = abort?.signal.aborted ?? false
@@ -338,6 +361,10 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
       getWindow()?.webContents.send('history:changed')
 
+      // A job that threw before producing a result left no useful checkpoint to
+      // resume (resolution typically failed before any track ran) — drop it.
+      if (activeJobId) deleteCheckpoint(jobsDir(), activeJobId)
+
       // Don't flash a red error panel for a deliberate cancellation.
       if (!cancelled) {
         log.error('app', 'job failed:', err)
@@ -348,6 +375,7 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       throw err
     } finally {
       jobControls = null
+      activeJobId = null
     }
   })
 
@@ -418,11 +446,189 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       }
     }
   })
+
+  // ---- Interrupted / resumable jobs ----
+
+  /** Compact per-checkpoint summary for the renderer (banner + History affordance). */
+  const listInterruptedSummaries = (): {
+    jobId: string
+    title: string
+    done: number
+    total: number
+  }[] =>
+    listCheckpoints(jobsDir()).map((cp) => ({
+      jobId: cp.jobId,
+      title: cp.jobTitle,
+      done: cp.entries.filter((e) => e.status === 'done' || e.status === 'skipped').length,
+      total: cp.total
+    }))
+
+  /** Shared deps for a resume/retry run (mirrors job:start's wiring). */
+  const resumeDeps = (settings: Settings, checkpoint?: RunJobDeps['checkpoint']): RunJobDeps => ({
+    bin: currentBin(),
+    settings,
+    homeBase: expandHome(settings.downloads.baseFolder),
+    cache: getMetaCache(),
+    analyze: (file, config) =>
+      getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
+    media: getMediaClient(),
+    checkpoint,
+    onProgress: (p) => {
+      const win = getWindow()
+      win?.webContents.send('job:progress', p)
+      win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
+    },
+    onStatus: (s) => getWindow()?.webContents.send('job:status', s),
+    signal: abort?.signal,
+    onControls: (c) => {
+      jobControls = c
+    }
+  })
+
+  /** Resume an interrupted job from its checkpoint: re-download only the pending tracks. */
+  const runResume = async (cp: JobCheckpoint): Promise<void> => {
+    const settings = loadSettings()
+    const { completed, pending } = partitionCheckpoint(cp)
+    resumeAllChildren()
+    getWindow()?.webContents.send('job:paused', false)
+    abort = new AbortController()
+    activeJobId = cp.jobId
+    const sink = createCheckpointSink(jobsDir(), cp.jobId, () => Date.now())
+    const req: StartJobRequest = {
+      url: cp.url,
+      title: cp.jobTitle,
+      kind: cp.kind,
+      entries: pending.map((e) => ({ videoId: e.videoId ?? '', title: e.title, index: e.index })),
+      folderOverride: cp.folder
+    }
+    try {
+      const deps = resumeDeps(settings, sink)
+      const result = await runPipeline(buildDownloadSourceFromEntries(req, deps), deps)
+      getWindow()?.setProgressBar(-1)
+      const cancelled = abort?.signal.aborted ?? false
+      const resumed = result.tracks.map((track, i) => ({ index: pending[i].index, track }))
+      const merged = mergeResumed(completed, resumed)
+      const fresh = loadSettings()
+      const entry: HistoryEntry = {
+        id: fresh.history.find((h) => h.jobId === cp.jobId)?.id ?? randomUUID(),
+        jobId: cp.jobId,
+        url: cp.url,
+        title: cp.jobTitle,
+        folder: cp.folder,
+        kind: cp.kind,
+        completedAt: new Date().toISOString(),
+        outcome: cancelled ? 'interrupted' : outcomeFromTracks(merged),
+        tracks: merged
+      }
+      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+      getWindow()?.webContents.send('history:changed')
+      if (!cancelled) deleteCheckpoint(jobsDir(), cp.jobId)
+      getWindow()?.webContents.send('jobs:interruptedChanged')
+    } catch (err) {
+      getWindow()?.setProgressBar(-1)
+      if (!(abort?.signal.aborted ?? false)) {
+        const message = err instanceof Error ? err.message : String(err)
+        log.error('app', 'resume failed:', err)
+        getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
+      }
+    } finally {
+      jobControls = null
+      activeJobId = null
+    }
+  }
+
+  /** Retry just the failed tracks of a finished history entry, merging results in place. */
+  const runRetryFailed = async (entryId: string): Promise<void> => {
+    const settings = loadSettings()
+    const src = settings.history.find((h) => h.id === entryId)
+    if (!src) return
+    const failed = src.tracks
+      .map((t, index) => ({ t, index }))
+      .filter(({ t }) => t.status === 'failed')
+    if (failed.length === 0) return
+    resumeAllChildren()
+    getWindow()?.webContents.send('job:paused', false)
+    abort = new AbortController()
+    const req: StartJobRequest = {
+      url: src.url,
+      title: src.title,
+      kind: src.kind,
+      entries: failed.map(({ t }, i) => ({
+        videoId: t.videoId ?? '',
+        title: t.title,
+        index: i + 1
+      })),
+      folderOverride: src.folder
+    }
+    try {
+      const deps = resumeDeps(settings)
+      const result = await runPipeline(buildDownloadSourceFromEntries(req, deps), deps)
+      getWindow()?.setProgressBar(-1)
+      const latest = loadSettings()
+      const current = latest.history.find((h) => h.id === entryId)?.tracks ?? src.tracks
+      const tracks = [...current]
+      result.tracks.forEach((rt, i) => {
+        if (rt.status === 'done') tracks[failed[i].index] = rt
+      })
+      const history = latest.history.map((h) =>
+        h.id === entryId ? { ...h, tracks, outcome: outcomeFromTracks(tracks) } : h
+      )
+      saveSettings(settingsPath(), { ...latest, history })
+      getWindow()?.webContents.send('history:changed')
+    } catch (err) {
+      getWindow()?.setProgressBar(-1)
+      if (!(abort?.signal.aborted ?? false)) log.error('app', 'retry-failed failed:', err)
+    } finally {
+      jobControls = null
+    }
+  }
+
+  ipcMain.handle('jobs:listInterrupted', () => listInterruptedSummaries())
+  ipcMain.handle('jobs:discard', (_e, jobId: string) => {
+    deleteCheckpoint(jobsDir(), jobId)
+    return listInterruptedSummaries()
+  })
+  ipcMain.handle('jobs:resume', async (_e, jobId: string) => {
+    const cp = readCheckpoint(join(jobsDir(), `${jobId}.json`))
+    if (cp) await runResume(cp)
+  })
+  ipcMain.handle('jobs:retryFailed', async (_e, entryId: string) => {
+    await runRetryFailed(entryId)
+  })
 }
 
 /** Path of the persisted window-geometry file under the plucker app-data dir. */
 function windowStatePath(): string {
   return join(pluckerDir(), 'window-state.json')
+}
+
+/** Directory holding per-job resume checkpoints. */
+function jobsDir(): string {
+  return join(pluckerDir(), 'jobs')
+}
+
+/**
+ * Crash recovery: any checkpoint that outlived a crash has no (or a stale) history
+ * entry. Synthesize an `interrupted` entry for it so it shows in History, then tell
+ * the renderer to surface the resume banner once the window has loaded.
+ */
+function recoverInterruptedJobs(): void {
+  const checkpoints = listCheckpoints(jobsDir())
+  if (checkpoints.length === 0) return
+  const fresh = loadSettings()
+  let history = fresh.history
+  for (const cp of checkpoints) {
+    if (history.some((h) => h.jobId === cp.jobId)) continue
+    history = addEntry(history, synthesizeEntry(cp, randomUUID(), new Date().toISOString()))
+  }
+  if (history !== fresh.history) saveSettings(settingsPath(), { ...fresh, history })
+  const win = mainWindow
+  const push = (): void => {
+    win?.webContents.send('history:changed')
+    win?.webContents.send('jobs:interruptedChanged')
+  }
+  if (win?.webContents.isLoading()) win.webContents.once('did-finish-load', push)
+  else push()
 }
 
 function createWindow(): void {
@@ -538,6 +744,9 @@ app.whenReady().then(() => {
   // Attach the file + live-stream log transports if the console is enabled.
   applyConsoleLogging(() => mainWindow)
   log.info('app', `Plucker ${appVersion} ready`)
+
+  // Surface any job that was interrupted by a crash/quit as a resumable entry.
+  recoverInterruptedJobs()
 
   // Background auto-updater: checks every 15 min and auto-downloads (throttled) any
   // available update, arming it to install on quit. Respects the "check on launch"
