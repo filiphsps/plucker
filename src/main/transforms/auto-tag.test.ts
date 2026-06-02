@@ -1,6 +1,7 @@
 // src/main/transforms/auto-tag.test.ts
 import { describe, it, expect, vi } from 'vitest'
 import { mergeTags, enrich, resolveAutoTag, type AutoTagConfig } from './auto-tag'
+import { silentTransformLog } from './transform-logger'
 import type { MetadataCache } from '../metadata-cache'
 import type { TrackTags } from '../../shared/types'
 
@@ -89,7 +90,7 @@ describe('enrich', () => {
     const services = {
       bin: {} as never,
       fetch: fakeFetch,
-      log: () => {},
+      log: silentTransformLog,
       reportProgress: () => {}
     }
     const out = await enrich({ artist: 'Real Artist', title: 'Real Title' }, baseConfig, services)
@@ -101,7 +102,7 @@ describe('enrich', () => {
     const services = {
       bin: {} as never,
       fetch: (async () => new Response('')) as unknown as typeof fetch,
-      log: () => {},
+      log: silentTransformLog,
       reportProgress: () => {}
     }
     const out = await enrich(
@@ -120,7 +121,7 @@ describe('resolveAutoTag', () => {
     const services = {
       bin: {} as never,
       fetch: noFetch,
-      log: () => {},
+      log: silentTransformLog,
       reportProgress: () => {},
       cache
     }
@@ -138,7 +139,7 @@ describe('resolveAutoTag', () => {
     const services = {
       bin: {} as never,
       fetch: mbFetch,
-      log: () => {},
+      log: silentTransformLog,
       reportProgress: () => {},
       cache
     }
@@ -155,7 +156,12 @@ describe('resolveAutoTag', () => {
   })
 
   it('falls back to enrich when there is no hash or cache', async () => {
-    const services = { bin: {} as never, fetch: mbFetch, log: () => {}, reportProgress: () => {} }
+    const services = {
+      bin: {} as never,
+      fetch: mbFetch,
+      log: silentTransformLog,
+      reportProgress: () => {}
+    }
     const out = await resolveAutoTag(
       { artist: 'Real Artist', title: 'Real Title' },
       baseConfig,

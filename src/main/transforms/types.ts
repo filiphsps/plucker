@@ -22,12 +22,24 @@ export interface TrackContext {
   outputName?: string
 }
 
+/**
+ * Leveled logger handed to each transform. Lines route into the unified
+ * main-process logger under the `transform` scope (file + dev console overlay),
+ * and the chain runner prefixes each with its transform type. Variadic like
+ * `console.log`, so an `Error` can be passed straight through.
+ */
+export interface TransformLog {
+  debug: (...args: unknown[]) => void
+  info: (...args: unknown[]) => void
+  warn: (...args: unknown[]) => void
+}
+
 /** Cross-cutting services available to every transform. */
 export interface TransformServices {
   bin: BinaryPaths
   fetch: typeof fetch
   signal?: AbortSignal
-  log: (msg: string) => void
+  log: TransformLog
   /** Report 0..1 progress within this transform's step (optional to call). */
   reportProgress: (fraction: number) => void
   /** Content-addressed metadata cache, used to reuse prior auto-tag results. */

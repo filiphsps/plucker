@@ -26,6 +26,7 @@ import {
 } from './cookies'
 import { buildRegistry } from './transforms/registry'
 import { runTransformChain } from './transforms/run-chain'
+import { transformLog } from './transforms/transform-logger'
 import { createPool } from './pool'
 import { startSpan, timed } from './bench'
 import { log } from './log'
@@ -386,7 +387,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       bin,
       fetch: deps.mbFetch ?? fetch,
       signal,
-      log: (m: string) => console.warn(m),
+      log: transformLog(),
       cache: deps.cache
     }
     // One slot per concurrent track pipeline. Each slot owns a single-video download

@@ -29,13 +29,14 @@ export interface AnalyzeDeps {
 
 /**
  * Decode `file` once, run the enabled analyses, and write any results to ID3
- * frames. Writing nothing when nothing is detected is intentional.
+ * frames. Returns the tags that were written (empty when nothing was detected,
+ * which is intentional) plus the analyzed sample count, so callers can log.
  */
 export async function analyzeTrack(
   file: string,
   config: AnalyzeKeyBpmConfig,
   deps: AnalyzeDeps
-): Promise<void> {
+): Promise<{ tags: AnalysisTags; samples: number }> {
   const pcm = await deps.decode(file, ANALYSIS_SR)
   const tags: AnalysisTags = {}
 
@@ -55,6 +56,7 @@ export async function analyzeTrack(
   }
 
   if (tags.key || tags.bpm) deps.writeTags(file, tags)
+  return { tags, samples: pcm.length }
 }
 
 const CONFIG_SCHEMA: ConfigField[] = [
@@ -107,7 +109,7 @@ export const analyzeKeyBpmTransform: TransformDefinition<AnalyzeKeyBpmConfig> = 
     config: AnalyzeKeyBpmConfig,
     services: TransformServices
   ): Promise<void> {
-    await analyzeTrack(ctx.workingFile, config, {
+    const { tags, samples } = await analyzeTrack(ctx.workingFile, config, {
       decode: (file, sr) =>
         decodePcm(file, sr, ffmpegPcmDeps(services.bin.ffmpeg, services.signal)),
       estimateKey,
@@ -115,6 +117,15 @@ export const analyzeKeyBpmTransform: TransformDefinition<AnalyzeKeyBpmConfig> = 
       keyToCamelot,
       writeTags: writeAnalysisTags
     })
-    services.log(`[analyze-key-bpm] analyzed ${ctx.workingFile}`)
+    const seconds = (samples / ANALYSIS_SR).toFixed(1)
+    services.log.debug(`decoded ${samples} samples (${seconds}s @ ${ANALYSIS_SR}Hz)`)
+    const detected: string[] = []
+    if (config.detectKey) {
+      detected.push(tags.key ? `key=${tags.key} (${tags.camelot ?? '?'})` : 'key=inconclusive')
+    }
+    if (config.detectBpm)
+      detected.push(tags.bpm !== undefined ? `bpm=${tags.bpm}` : 'bpm=inconclusive')
+    if (tags.key || tags.bpm) services.log.info(`wrote ${detected.join(' ')}`)
+    else services.log.warn(`nothing detected (${detected.join(' ') || 'all analyses disabled'})`)
   }
 }

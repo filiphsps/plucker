@@ -7,7 +7,6 @@ import { selectBestMatch } from '../mb-select'
 import { MusicBrainzClient } from '../musicbrainz'
 import { readTrackTags, embedCover } from '../tagger'
 import { timed } from '../bench'
-import { log } from '../log'
 
 export interface AutoTagConfig {
   primarySource: 'youtube' | 'musicbrainz'
@@ -47,11 +46,20 @@ export async function enrich(
   config: AutoTagConfig,
   services: Pick<TransformServices, 'fetch' | 'log' | 'reportProgress'>
 ): Promise<{ tags: TrackTags; cover?: Buffer }> {
-  if (!config.enrichWithMusicBrainz) return { tags: {} }
+  if (!config.enrichWithMusicBrainz) {
+    services.log.debug('MusicBrainz enrichment disabled — using YouTube tags only')
+    return { tags: {} }
+  }
   const mb = new MusicBrainzClient(MUSICBRAINZ_CONTACT, { fetchImpl: services.fetch })
   const search = await mb.searchRecording(ytNorm.artist ?? null, ytNorm.title ?? '')
   const match = selectBestMatch(search, config.minMatchScore)
-  if (!match) return { tags: {} }
+  if (!match) {
+    services.log.info(
+      `no MusicBrainz match above score ${config.minMatchScore} — keeping YouTube tags`
+    )
+    return { tags: {} }
+  }
+  services.log.info(`MusicBrainz match: "${match.artist ?? '?'} – ${match.title}"`)
   const tags: TrackTags = {
     artist: match.artist ?? undefined,
     title: match.title,
@@ -71,9 +79,14 @@ export async function enrich(
       const res = await services.fetch(
         `https://coverartarchive.org/release/${match.releaseId}/front-500`
       )
-      if (res.ok) cover = Buffer.from(await res.arrayBuffer())
-    } catch {
-      /* keep embedded youtube thumbnail */
+      if (res.ok) {
+        cover = Buffer.from(await res.arrayBuffer())
+        services.log.debug(`fetched cover art (${cover.length} bytes)`)
+      } else {
+        services.log.debug(`no cover art on Cover Art Archive (HTTP ${res.status})`)
+      }
+    } catch (err) {
+      services.log.debug('cover art fetch failed — keeping YouTube thumbnail:', err)
     }
   }
   services.reportProgress(0.9)
@@ -94,15 +107,12 @@ export async function resolveAutoTag(
   if (hash && services.cache) {
     const cached = services.cache.read(hash)
     if (cached?.mb) {
-      log.debug('transform', `cache hit — skipping MusicBrainz lookup (${hash})`)
+      services.log.debug(`cache hit — reusing tags, skipping MusicBrainz lookup (${hash})`)
       services.reportProgress(0.9)
       return { tags: cached.mb, cover: services.cache.readCover(hash) ?? undefined }
     }
   }
-  log.debug(
-    'transform',
-    `MusicBrainz lookup for "${ytNorm.artist ?? '?'} – ${ytNorm.title ?? '?'}"`
-  )
+  services.log.debug(`MusicBrainz lookup for "${ytNorm.artist ?? '?'} – ${ytNorm.title ?? '?'}"`)
   const result = await timed('auto-tag-enrich', 'transform', () => enrich(ytNorm, config, services))
   if (hash && services.cache) services.cache.writeAutoTag(hash, result.tags, result.cover)
   return result
@@ -187,5 +197,10 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
     )
     if (cover) embedCover(ctx.workingFile, cover, 'image/jpeg')
     ctx.tags = mergeTags(ytNorm, mbTags, config.primarySource)
+    services.log.info(
+      `tagged "${ctx.tags.artist ?? '?'} – ${ctx.tags.title ?? '?'}"` +
+        ` (primary=${config.primarySource}${ctx.tags.album ? `, album="${ctx.tags.album}"` : ''}` +
+        `${ctx.tags.genre ? `, genre=${ctx.tags.genre}` : ''}${cover ? ', +cover' : ''})`
+    )
   }
 }

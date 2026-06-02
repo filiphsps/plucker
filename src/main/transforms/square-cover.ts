@@ -24,8 +24,10 @@ export async function squareCover(file: string, deps: SquareCoverDeps): Promise<
     deps.log?.('no embedded cover — skipping')
     return
   }
+  deps.log?.(`cropping cover to square (${cover.image.length} bytes, ${cover.mime})`)
   const squared = await deps.crop(cover.image, cover.mime)
   deps.embed(file, squared.image, squared.mime)
+  deps.log?.(`embedded squared cover (${squared.image.length} bytes)`)
 }
 
 const CONFIG_SCHEMA: ConfigField[] = []
@@ -48,7 +50,7 @@ export const squareCoverTransform: TransformDefinition<SquareCoverConfig> = {
       readCover: readCoverImage,
       crop: (image, mime) => cropToSquare(services.bin.ffmpeg, image, mime, services.signal),
       embed: embedCover,
-      log: (msg) => services.log(`[square-cover] ${msg}`)
+      log: (msg) => services.log.info(msg)
     })
   }
 }

@@ -61,7 +61,10 @@ export const trimSilenceTransform: TransformDefinition<TrimSilenceConfig> = {
     config: TrimSilenceConfig,
     services: TransformServices
   ): Promise<void> {
-    if (config.mode === 'none') return
+    if (config.mode === 'none') {
+      services.log.debug('mode=none — nothing to do')
+      return
+    }
     const result = await trimSilence(
       ctx.workingFile,
       config,
@@ -69,7 +72,9 @@ export const trimSilenceTransform: TransformDefinition<TrimSilenceConfig> = {
     )
     if (result.trimmed) {
       renameSync(result.file, ctx.workingFile)
-      services.log(`[trim-silence] trimmed ${config.mode}`)
+      services.log.info(`trimmed ${config.mode} (threshold ${config.thresholdDb}dB)`)
+    } else {
+      services.log.debug(`no edge silence to trim (mode=${config.mode})`)
     }
   }
 }

@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, existsSync, readdirSync, rmSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runTransformChain } from './run-chain'
+import { silentTransformLog } from './transform-logger'
 import type { TransformDefinition } from './types'
 
 let dir: string
@@ -12,7 +13,7 @@ beforeEach(() => {
 })
 afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-const services = { bin: {} as never, fetch, log: () => {}, reportProgress: () => {} }
+const services = { bin: {} as never, fetch, log: silentTransformLog, reportProgress: () => {} }
 
 // A transform that sets outputName, and one that throws.
 const renamer: TransformDefinition = {

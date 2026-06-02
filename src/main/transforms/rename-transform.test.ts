@@ -1,12 +1,13 @@
 // src/main/transforms/rename-transform.test.ts
 import { describe, it, expect } from 'vitest'
 import { renameTransform } from './rename'
+import { silentTransformLog } from './transform-logger'
 import type { TrackContext, TransformServices } from './types'
 
 const services = {
   bin: {} as never,
   fetch,
-  log: () => {},
+  log: silentTransformLog,
   reportProgress: () => {}
 } as TransformServices
 
