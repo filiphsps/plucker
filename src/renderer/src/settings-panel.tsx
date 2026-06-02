@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useTranslation, Trans } from 'react-i18next'
 import {
   Globe,
   Download as DownloadIcon,
@@ -28,12 +28,20 @@ import type {
 import type { TransformManifest } from '../../shared/transforms'
 import { TransformsSection } from './transforms-section'
 import { Panel, PanelRow } from './ui/panel'
+import { Kbd } from './ui/kbd'
 import { Switch } from './ui/switch'
+import { formatShortcut, currentShortcutPlatform } from './format-shortcut'
+import { ACCELERATORS } from '../../shared/shortcuts'
 import { Segmented } from './ui/segmented'
 import { Stepper } from './ui/stepper'
 import { UpdateCard } from './ui/update-card'
 import { applyLanguage } from './i18n'
 import { version, repository, author, contributors } from '../../../package.json'
+
+// The console toggle shortcut, formatted for the current platform (⌘J on macOS, Ctrl+J
+// elsewhere). Sourced from the shared accelerator the native menu binds, so the hint
+// always matches the live keybinding.
+const CONSOLE_SHORTCUT = formatShortcut(ACCELERATORS.toggleConsole, currentShortcutPlatform())
 
 // App metadata for the About panel, normalized from package.json (fields may be a
 // bare string or an object, per npm conventions).
@@ -310,7 +318,13 @@ export function SettingsPanel({
         <Panel icon={Terminal} title={t('settings.sections.developer')}>
           <PanelRow
             name={t('settings.developer.console')}
-            desc={t('settings.developer.consoleDesc')}
+            desc={
+              <Trans
+                i18nKey="settings.developer.consoleDesc"
+                values={{ shortcut: CONSOLE_SHORTCUT }}
+                components={{ kbd: <Kbd /> }}
+              />
+            }
           >
             <Switch
               checked={s.developer.console}

@@ -159,7 +159,8 @@ export default {
     },
     developer: {
       console: 'Enable console',
-      consoleDesc: 'Show a live log console overlay (terminal button in the header)'
+      consoleDesc:
+        'Show a live log console overlay (terminal button in the header). Toggle it with <kbd>{{shortcut}}</kbd>'
     },
     reset: {
       label: 'Reset settings',

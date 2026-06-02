@@ -32,7 +32,7 @@ export function PanelRow({
   children
 }: {
   name: string
-  desc?: string
+  desc?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
   return (

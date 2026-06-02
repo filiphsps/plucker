@@ -4,6 +4,7 @@
 // renderer over `menu:navigate` so they drive the same views as the in-app header.
 import { app, Menu, shell, type MenuItemConstructorOptions } from 'electron'
 import { menu as MENU } from '../shared/menu-strings'
+import { ACCELERATORS } from '../shared/shortcuts'
 import { loadSettings } from './settings'
 import { checkForUpdates, RELEASES_URL, type GetWindow } from './updater'
 import type { MenuLang } from '../shared/menu-strings'
@@ -43,7 +44,7 @@ export function buildAppMenu(getWindow: GetWindow): void {
   const consoleAvailable = !app.isPackaged || loadSettings().developer.console
   const consoleItem: MenuItemConstructorOptions = {
     label: t.toggleConsole,
-    accelerator: 'CmdOrCtrl+J',
+    accelerator: ACCELERATORS.toggleConsole,
     click: () => getWindow()?.webContents.send('menu:toggle-console')
   }
 

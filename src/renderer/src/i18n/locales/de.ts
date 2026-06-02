@@ -160,7 +160,8 @@ const de: typeof en = {
     },
     developer: {
       console: 'Konsole aktivieren',
-      consoleDesc: 'Eine Live-Protokollkonsole anzeigen (Terminal-Schaltfläche in der Kopfzeile)'
+      consoleDesc:
+        'Eine Live-Protokollkonsole anzeigen (Terminal-Schaltfläche in der Kopfzeile). Mit <kbd>{{shortcut}}</kbd> umschalten'
     },
     reset: {
       label: 'Einstellungen zurücksetzen',
