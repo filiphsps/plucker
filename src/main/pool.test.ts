@@ -30,4 +30,30 @@ describe('createPool', () => {
     pool.run(async () => {})
     await expect(pool.drain()).resolves.toBeDefined()
   })
+
+  it('setLimit raises the ceiling and wakes waiters', async () => {
+    const defer = (): { p: Promise<void>; resolve: () => void } => {
+      let resolve!: () => void
+      const p = new Promise<void>((r) => (resolve = r))
+      return { p, resolve }
+    }
+    const pool = createPool(1)
+    let active = 0
+    let peak = 0
+    const gates = [defer(), defer(), defer()]
+    gates.forEach((g) =>
+      pool.run(async () => {
+        active++
+        peak = Math.max(peak, active)
+        await g.p
+        active--
+      })
+    )
+    pool.setLimit(3) // wakes the two queued tasks
+    await Promise.resolve()
+    await Promise.resolve()
+    gates.forEach((g) => g.resolve())
+    await pool.drain()
+    expect(peak).toBe(3)
+  })
 })
