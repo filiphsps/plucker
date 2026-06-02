@@ -26,6 +26,7 @@ const de: typeof en = {
     skip: 'Überspringen',
     pauseTrack: 'Pausieren',
     resumeTrack: 'Fortsetzen',
+    youtube: 'YouTube',
     copyUrl: 'YouTube-URL kopieren',
     openYouTube: 'Auf YouTube öffnen',
     redownload: 'Erneut herunterladen',

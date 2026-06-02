@@ -27,6 +27,23 @@ describe('serializeMenu', () => {
     const { descriptor } = serializeMenu([{ label: 'Delete', enabled: false, onClick: vi.fn() }])
     expect(descriptor[0].enabled).toBe(false)
   })
+
+  it('carries the symbol through to the descriptor', () => {
+    const { descriptor } = serializeMenu([{ label: 'Reveal', symbol: 'folder', onClick: vi.fn() }])
+    expect(descriptor[0].symbol).toBe('folder')
+  })
+
+  it('recurses submenus with hierarchical ids and wires nested handlers', () => {
+    const onNested = vi.fn()
+    const { descriptor, handlers } = serializeMenu([
+      { label: 'YouTube', submenu: [{ label: 'Copy URL', onClick: onNested }] }
+    ])
+    const sub = descriptor[0].submenu
+    expect(sub?.[0].label).toBe('Copy URL')
+    expect(sub?.[0].id).toBe('item-0-item-0')
+    handlers.get('item-0-item-0')?.()
+    expect(onNested).toHaveBeenCalledOnce()
+  })
 })
 
 describe('showContextMenu', () => {
@@ -48,5 +65,20 @@ describe('showContextMenu', () => {
     vi.stubGlobal('window', { plucker: { popupMenu: vi.fn().mockResolvedValue(null) } } as never)
     await showContextMenu([{ label: 'Reveal', onClick }] as MenuItem[])
     expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('forwards an explicit anchor to popupMenu', async () => {
+    const popupMenu = vi.fn().mockResolvedValue(null)
+    vi.stubGlobal('window', { plucker: { popupMenu } } as never)
+    await showContextMenu([{ label: 'Reveal', onClick: vi.fn() }] as MenuItem[], { x: 12, y: 34 })
+    expect(popupMenu).toHaveBeenCalledWith(expect.anything(), { x: 12, y: 34 })
+  })
+
+  it('falls back to a default anchor when none is given', async () => {
+    const popupMenu = vi.fn().mockResolvedValue(null)
+    vi.stubGlobal('window', { plucker: { popupMenu } } as never)
+    await showContextMenu([{ label: 'Reveal', onClick: vi.fn() }] as MenuItem[])
+    const [, anchor] = popupMenu.mock.calls[0]
+    expect(anchor).toMatchObject({ x: expect.any(Number), y: expect.any(Number) })
   })
 })

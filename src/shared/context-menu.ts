@@ -12,6 +12,20 @@ export interface MenuItemDescriptor {
   role?: MenuRole
   enabled?: boolean
   accelerator?: string
+  /** SF Symbol name for the native panel's leading icon. Ignored by the Electron menu. */
+  symbol?: string
+  /** Nested submenu; opens as a flyout (native) or a real submenu (Electron). */
+  submenu?: MenuDescriptor
 }
 
 export type MenuDescriptor = MenuItemDescriptor[]
+
+/** Where to anchor the menu, in screen coordinates (top-left origin, matching the
+ * DOM's `screenX`/`screenY`). Consumed by the native panel; ignored by the Electron
+ * menu, which always pops at the OS cursor. */
+export interface MenuAnchor {
+  x: number
+  y: number
+  /** Optional NSScreen number to disambiguate multi-monitor setups. */
+  screenId?: number
+}

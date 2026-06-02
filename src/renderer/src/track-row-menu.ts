@@ -36,8 +36,12 @@ export function trackRowMenuItems(opts: {
   const { t, variant, track, missing, failed } = opts
   const hasFile = !!track.file && !missing
   const items: MenuItem[] = [
-    { label: t('context.reveal'), enabled: hasFile, onClick: opts.onReveal },
-    { label: t('context.copyTitle'), onClick: () => void window.plucker.copyText(track.title) }
+    { label: t('context.reveal'), symbol: 'folder', enabled: hasFile, onClick: opts.onReveal },
+    {
+      label: t('context.copyTitle'),
+      symbol: 'doc.on.doc',
+      onClick: () => void window.plucker.copyText(track.title)
+    }
   ]
 
   // Live-job controls (download view): pause/resume an in-flight track and skip
@@ -48,32 +52,56 @@ export function trackRowMenuItems(opts: {
     if (active && opts.onPause && opts.onResume) {
       items.push(
         track.paused
-          ? { label: t('context.resumeTrack'), onClick: opts.onResume }
-          : { label: t('context.pauseTrack'), onClick: opts.onPause }
+          ? { label: t('context.resumeTrack'), symbol: 'play.fill', onClick: opts.onResume }
+          : { label: t('context.pauseTrack'), symbol: 'pause.fill', onClick: opts.onPause }
       )
     }
-    items.push({ label: t('context.skip'), onClick: opts.onSkip }, { type: 'separator' })
+    items.push(
+      { label: t('context.skip'), symbol: 'forward.fill', onClick: opts.onSkip },
+      { type: 'separator' }
+    )
   }
 
+  // YouTube actions grouped into a submenu (flyout).
   if (track.videoId) {
     const url = watchUrl(track.videoId)
-    items.push(
-      { label: t('context.copyUrl'), onClick: () => void window.plucker.copyText(url) },
-      { label: t('context.openYouTube'), onClick: () => void window.plucker.openExternal(url) }
-    )
+    items.push({
+      label: t('context.youtube'),
+      symbol: 'play.rectangle.fill',
+      submenu: [
+        {
+          label: t('context.copyUrl'),
+          symbol: 'link',
+          onClick: () => void window.plucker.copyText(url)
+        },
+        {
+          label: t('context.openYouTube'),
+          symbol: 'arrow.up.forward.app',
+          onClick: () => void window.plucker.openExternal(url)
+        }
+      ]
+    })
   }
 
   if (variant === 'history' && opts.onRedownload) {
     items.push(
       { type: 'separator' },
-      { label: t('context.redownload'), onClick: opts.onRedownload }
+      { label: t('context.redownload'), symbol: 'arrow.down.circle', onClick: opts.onRedownload }
     )
   }
   if (variant === 'history' && opts.onRetransform) {
-    items.push({ label: t('context.retransform'), enabled: hasFile, onClick: opts.onRetransform })
+    items.push({
+      label: t('context.retransform'),
+      symbol: 'wand.and.stars',
+      enabled: hasFile,
+      onClick: opts.onRetransform
+    })
   }
   if (variant === 'cache' && opts.onEditTags) {
-    items.push({ type: 'separator' }, { label: t('context.editTags'), onClick: opts.onEditTags })
+    items.push(
+      { type: 'separator' },
+      { label: t('context.editTags'), symbol: 'tag', onClick: opts.onEditTags }
+    )
   }
 
   if (failed && (track.errorCode || track.reason)) {
@@ -81,6 +109,7 @@ export function trackRowMenuItems(opts: {
       { type: 'separator' },
       {
         label: t('context.copyError'),
+        symbol: 'exclamationmark.triangle',
         onClick: () => void window.plucker.copyText(track.errorCode ?? track.reason ?? '')
       }
     )
@@ -89,7 +118,7 @@ export function trackRowMenuItems(opts: {
   if (opts.onDelete) {
     items.push(
       { type: 'separator' },
-      { label: t('context.deleteFile'), enabled: hasFile, onClick: opts.onDelete }
+      { label: t('context.deleteFile'), symbol: 'trash', enabled: hasFile, onClick: opts.onDelete }
     )
   }
 

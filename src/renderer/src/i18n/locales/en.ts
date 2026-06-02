@@ -25,6 +25,7 @@ export default {
     skip: 'Skip',
     pauseTrack: 'Pause',
     resumeTrack: 'Resume',
+    youtube: 'YouTube',
     copyUrl: 'Copy YouTube URL',
     openYouTube: 'Open on YouTube',
     redownload: 'Re-download',

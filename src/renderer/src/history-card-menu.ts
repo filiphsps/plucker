@@ -11,15 +11,19 @@ export function historyCardMenuItems(opts: {
 }): MenuItem[] {
   const { t, url } = opts
   const items: MenuItem[] = [
-    { label: t('context.openFolder'), onClick: opts.onOpenFolder },
-    { label: t('context.redownloadAll'), onClick: opts.onRedownload }
+    { label: t('context.openFolder'), symbol: 'folder', onClick: opts.onOpenFolder },
+    { label: t('context.redownloadAll'), symbol: 'arrow.down.circle', onClick: opts.onRedownload }
   ]
   if (url) {
     items.push({
       label: t('context.copyPlaylistUrl'),
+      symbol: 'link',
       onClick: () => void window.plucker.copyText(url)
     })
   }
-  items.push({ type: 'separator' }, { label: t('context.deleteEntry'), onClick: opts.onDelete })
+  items.push(
+    { type: 'separator' },
+    { label: t('context.deleteEntry'), symbol: 'trash', onClick: opts.onDelete }
+  )
   return items
 }

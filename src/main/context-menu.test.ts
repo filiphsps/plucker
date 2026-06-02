@@ -21,4 +21,18 @@ describe('buildMenuTemplate', () => {
     expect(template[1].role).toBe('copy')
     expect(template[1].click).toBeUndefined()
   })
+
+  it('recurses submenus and dispatches nested clicks by id', () => {
+    const onClick = vi.fn()
+    const descriptor: MenuDescriptor = [
+      { label: 'YouTube', submenu: [{ id: 'sub', label: 'Copy URL' }] }
+    ]
+    const template = buildMenuTemplate(descriptor, onClick)
+    expect(template[0].label).toBe('YouTube')
+    expect(template[0].click).toBeUndefined()
+    const sub = template[0].submenu as Array<{ label?: string; click?: () => void }>
+    expect(sub[0].label).toBe('Copy URL')
+    sub[0].click?.()
+    expect(onClick).toHaveBeenCalledWith('sub')
+  })
 })

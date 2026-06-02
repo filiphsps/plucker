@@ -132,7 +132,12 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
               if (e.defaultPrevented) return
               e.preventDefault()
               void showContextMenu([
-                { label: t('context.clearCache'), enabled: items.length > 0, onClick: clearAll }
+                {
+                  label: t('context.clearCache'),
+                  symbol: 'trash',
+                  enabled: items.length > 0,
+                  onClick: clearAll
+                }
               ])
             }}
           >

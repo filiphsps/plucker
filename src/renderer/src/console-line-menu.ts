@@ -9,9 +9,21 @@ export function consoleLineMenuItems(opts: {
 }): MenuItem[] {
   const { t, line, allText } = opts
   return [
-    { label: t('context.copyLine'), onClick: () => void window.plucker.copyText(line) },
-    { label: t('context.copyAll'), onClick: () => void window.plucker.copyText(allText) },
+    {
+      label: t('context.copyLine'),
+      symbol: 'doc.on.doc',
+      onClick: () => void window.plucker.copyText(line)
+    },
+    {
+      label: t('context.copyAll'),
+      symbol: 'doc.on.clipboard',
+      onClick: () => void window.plucker.copyText(allText)
+    },
     { type: 'separator' },
-    { label: t('context.revealLog'), onClick: () => void window.plucker.revealLog() }
+    {
+      label: t('context.revealLog'),
+      symbol: 'doc.text.magnifyingglass',
+      onClick: () => void window.plucker.revealLog()
+    }
   ]
 }
