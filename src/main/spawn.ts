@@ -18,18 +18,36 @@ import { setPriority } from 'node:os'
  *     or ignored, so we force-kill with SIGKILL, which cannot be trapped.
  */
 
+type GroupKey = number | string
+const UNGROUPED: GroupKey = '__ungrouped__'
+
 /** Every still-running managed child, so orphans can be reaped on app quit. */
 const live = new Set<ChildProcess>()
+/** Children bucketed by group key (a track index) for per-track control. */
+const groups = new Map<GroupKey, Set<ChildProcess>>()
+/** Reverse lookup so cleanup can find a child's group without scanning. */
+const groupOf = new WeakMap<ChildProcess, GroupKey>()
 
 const isWindows = process.platform === 'win32'
 
 /**
- * Whether managed children are currently paused. While true, any child spawned
- * mid-pause is stopped the moment it comes up — the download pool launches
- * yt-dlp processes over time, so a slot that frees during a pause must not let a
- * fresh process race ahead of the frozen ones.
+ * Whether ALL managed children are paused (the global deck pause). While true,
+ * any child spawned mid-pause is stopped the moment it comes up — the download
+ * pool launches yt-dlp processes over time, so a slot that frees during a pause
+ * must not let a fresh process race ahead of the frozen ones.
  */
-let paused = false
+let globalPaused = false
+/** Group keys individually paused, independent of the global flag. */
+const pausedGroups = new Set<GroupKey>()
+
+/** A child is frozen if the global pause is on, or its own group is paused. */
+function shouldStop(key: GroupKey): boolean {
+  return globalPaused || pausedGroups.has(key)
+}
+
+function childrenOf(key: GroupKey): ChildProcess[] {
+  return [...(groups.get(key) ?? [])]
+}
 
 /**
  * Deliver a job-control signal to a child and (on POSIX) its whole process group
@@ -102,7 +120,13 @@ export function spawnManaged(
    * spawn; its own children (e.g. yt-dlp's ffmpeg) inherit it. Best-effort —
    * raising priority (negative) needs privileges and is silently ignored if denied.
    */
-  priority?: number
+  priority?: number,
+  /**
+   * Process-group key (the track index) so per-track pause/skip can target just
+   * this child's tree. Ungrouped children share a sentinel key and are only
+   * affected by the global pause / app-quit reap.
+   */
+  groupKey?: GroupKey
 ): ChildProcessWithoutNullStreams {
   // Default (pipe) stdio, so stdout/stderr are always present — callers stream
   // them. Cast reflects that; do not pass a non-pipe `stdio` to this helper.
@@ -110,11 +134,19 @@ export function spawnManaged(
     ...options,
     detached: !isWindows
   }) as ChildProcessWithoutNullStreams
+  const key = groupKey ?? UNGROUPED
   live.add(child)
+  let bucket = groups.get(key)
+  if (!bucket) {
+    bucket = new Set()
+    groups.set(key, bucket)
+  }
+  bucket.add(child)
+  groupOf.set(child, key)
 
-  // Came up while the job is paused — freeze it immediately so it doesn't run
-  // ahead of the already-stopped processes until the next resume.
-  if (paused) signalGroup(child, 'SIGSTOP')
+  // Came up while frozen (global pause OR this group paused) — freeze it now so
+  // it doesn't run ahead of the already-stopped processes until the next resume.
+  if (shouldStop(key)) signalGroup(child, 'SIGSTOP')
 
   if (priority !== undefined && child.pid !== undefined) {
     try {
@@ -132,6 +164,12 @@ export function spawnManaged(
 
   const cleanup = (): void => {
     live.delete(child)
+    const k = groupOf.get(child) ?? UNGROUPED
+    const set = groups.get(k)
+    if (set) {
+      set.delete(child)
+      if (set.size === 0) groups.delete(k)
+    }
     signal?.removeEventListener('abort', onAbort)
   }
   child.on('close', cleanup)
@@ -147,6 +185,7 @@ export function spawnManaged(
 export function killAllChildren(): void {
   for (const child of live) hardKill(child)
   live.clear()
+  groups.clear()
 }
 
 /**
@@ -155,17 +194,40 @@ export function killAllChildren(): void {
  * mid-flight transform holds its state — and resumes exactly where it left off.
  */
 export function pauseAllChildren(): void {
-  paused = true
+  globalPaused = true
   for (const child of live) signalGroup(child, 'SIGSTOP')
 }
 
-/** Resume every paused managed child with SIGCONT and clear the paused flag. */
+/**
+ * Clear the global pause and resume every child with SIGCONT — except children
+ * whose group is still individually paused, which stay frozen (union semantics).
+ */
 export function resumeAllChildren(): void {
-  paused = false
-  for (const child of live) signalGroup(child, 'SIGCONT')
+  globalPaused = false
+  for (const child of live) {
+    if (!pausedGroups.has(groupOf.get(child) ?? UNGROUPED)) signalGroup(child, 'SIGCONT')
+  }
 }
 
-/** Whether managed children are currently paused. */
+/** Whether the global pause is currently engaged. */
 export function isPaused(): boolean {
-  return paused
+  return globalPaused
+}
+
+/** Freeze one group's process trees (SIGSTOP). Independent of the global pause. */
+export function pauseGroup(key: GroupKey): void {
+  pausedGroups.add(key)
+  for (const child of childrenOf(key)) signalGroup(child, 'SIGSTOP')
+}
+
+/** Wake one group — but only if the global pause isn't also holding it down. */
+export function resumeGroup(key: GroupKey): void {
+  pausedGroups.delete(key)
+  if (globalPaused) return
+  for (const child of childrenOf(key)) signalGroup(child, 'SIGCONT')
+}
+
+/** Force-kill one group's process trees (a per-track skip). */
+export function killGroup(key: GroupKey): void {
+  for (const child of childrenOf(key)) hardKill(child)
 }

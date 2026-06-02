@@ -5,6 +5,9 @@ import {
   killAllChildren,
   pauseAllChildren,
   resumeAllChildren,
+  pauseGroup,
+  resumeGroup,
+  killGroup,
   isPaused
 } from './spawn'
 
@@ -75,6 +78,49 @@ describe('pause/resume', () => {
     const child = spawnManaged('sleep', ['30'])
     await tick()
     expect(procState(child.pid as number)).toBe('T')
+  })
+})
+
+describe('per-group pause/resume', () => {
+  afterEach(() => {
+    resumeAllChildren()
+    killAllChildren()
+  })
+
+  itPosix('pauses and resumes only the targeted group', async () => {
+    const a = spawnManaged('sleep', ['30'], {}, undefined, undefined, 1)
+    const b = spawnManaged('sleep', ['30'], {}, undefined, undefined, 2)
+    pauseGroup(1)
+    await tick()
+    expect(procState(a.pid as number)).toBe('T') // group 1 stopped
+    expect(procState(b.pid as number)).not.toBe('T') // group 2 untouched
+    resumeGroup(1)
+    await tick()
+    expect(procState(a.pid as number)).not.toBe('T')
+  })
+
+  itPosix('global resume leaves an individually-paused group stopped', async () => {
+    const a = spawnManaged('sleep', ['30'], {}, undefined, undefined, 1)
+    pauseGroup(1)
+    pauseAllChildren()
+    await tick()
+    expect(procState(a.pid as number)).toBe('T')
+    resumeAllChildren() // group 1 is still individually paused
+    await tick()
+    expect(procState(a.pid as number)).toBe('T')
+    resumeGroup(1)
+    await tick()
+    expect(procState(a.pid as number)).not.toBe('T')
+  })
+
+  itPosix('killGroup reaps only its own group', async () => {
+    const a = spawnManaged('sleep', ['30'], {}, undefined, undefined, 1)
+    const b = spawnManaged('sleep', ['30'], {}, undefined, undefined, 2)
+    const aClosed = closed(a)
+    killGroup(1)
+    await aClosed
+    expect(a.signalCode).toBe('SIGKILL')
+    expect(procState(b.pid as number)).not.toBe('') // group 2 alive
   })
 })
 
