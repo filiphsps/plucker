@@ -92,6 +92,24 @@ export function addLogTransport(transport: LogTransport): () => void {
   return () => transports.delete(transport)
 }
 
+/**
+ * Re-inject an already-formed entry (e.g. forwarded from a job worker) into the
+ * ring buffer and all transports, preserving its original time/level/scope/message
+ * instead of re-stamping it as a fresh line.
+ */
+export function replayLogEntry(entry: LogEntry): void {
+  ring.push(entry)
+  if (ring.length > RING_CAP) ring.shift()
+  toConsole(entry)
+  for (const t of transports) {
+    try {
+      t(entry)
+    } catch {
+      // A failing transport must never break logging.
+    }
+  }
+}
+
 /** The most recent log entries (oldest → newest), for seeding the console on open. */
 export function getLogTail(limit = RING_CAP): LogEntry[] {
   return limit >= ring.length ? [...ring] : ring.slice(ring.length - limit)
