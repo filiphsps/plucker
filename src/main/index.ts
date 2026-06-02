@@ -663,7 +663,13 @@ function openConsoleWindow(getMain: () => BrowserWindow | null): void {
   }
   const saved = loadWindowBounds(consoleWindowStatePath())
   const onScreen =
-    saved && isOnScreen(saved, screen.getAllDisplays().map((d) => d.workArea)) ? saved : null
+    saved &&
+    isOnScreen(
+      saved,
+      screen.getAllDisplays().map((d) => d.workArea)
+    )
+      ? saved
+      : null
   const alwaysOnTop = loadSettings().developer.consoleWindow.alwaysOnTop
 
   const win = new BrowserWindow({
@@ -671,7 +677,7 @@ function openConsoleWindow(getMain: () => BrowserWindow | null): void {
     height: onScreen?.height ?? 440,
     ...(onScreen ? { x: onScreen.x, y: onScreen.y } : {}),
     show: false,
-    title: 'Console',
+    title: `Console — ${app.getName()}`,
     backgroundColor: '#0a0b0e',
     alwaysOnTop,
     autoHideMenuBar: true,
@@ -680,6 +686,9 @@ function openConsoleWindow(getMain: () => BrowserWindow | null): void {
   consoleWindow = win
   consoleRedockOnClose = true
 
+  // The shared index.html sets <title>Plucker</title>; keep our explicit
+  // "Console — Plucker" window title instead of letting the page override it.
+  win.on('page-title-updated', (e) => e.preventDefault())
   win.on('ready-to-show', () => win.show())
   const persist = (): void => saveWindowBounds(consoleWindowStatePath(), win.getBounds())
   win.on('moved', persist)
