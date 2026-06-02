@@ -95,4 +95,70 @@ describe('trackRowMenuItems', () => {
     const item = items.find((i) => i.label === 'context.retransform')
     expect(item?.enabled).toBe(false)
   })
+
+  it('offers Skip + Pause for a downloading track', () => {
+    const items = trackRowMenuItems({
+      t,
+      variant: 'download',
+      track: { title: 'X', status: 'downloading', paused: false },
+      missing: false,
+      failed: false,
+      onReveal: vi.fn(),
+      onSkip: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn()
+    })
+    const labels = items.map((i) => i.label)
+    expect(labels).toContain('context.skip')
+    expect(labels).toContain('context.pauseTrack')
+    expect(labels).not.toContain('context.resumeTrack')
+  })
+
+  it('shows Resume (not Pause) when the track is paused', () => {
+    const items = trackRowMenuItems({
+      t,
+      variant: 'download',
+      track: { title: 'X', status: 'transforming', paused: true },
+      missing: false,
+      failed: false,
+      onReveal: vi.fn(),
+      onSkip: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn()
+    })
+    const labels = items.map((i) => i.label)
+    expect(labels).toContain('context.resumeTrack')
+    expect(labels).not.toContain('context.pauseTrack')
+  })
+
+  it('offers Skip but no pause/resume for a queued track', () => {
+    const items = trackRowMenuItems({
+      t,
+      variant: 'download',
+      track: { title: 'X', status: 'queued', paused: false },
+      missing: false,
+      failed: false,
+      onReveal: vi.fn(),
+      onSkip: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn()
+    })
+    const labels = items.map((i) => i.label)
+    expect(labels).toContain('context.skip')
+    expect(labels).not.toContain('context.pauseTrack')
+    expect(labels).not.toContain('context.resumeTrack')
+  })
+
+  it('offers no skip/pause for a done track', () => {
+    const items = trackRowMenuItems({
+      t,
+      variant: 'download',
+      track: { title: 'X', status: 'done', file: '/a.mp3', paused: false },
+      missing: false,
+      failed: false,
+      onReveal: vi.fn(),
+      onSkip: vi.fn()
+    })
+    expect(items.some((i) => i.label === 'context.skip')).toBe(false)
+  })
 })

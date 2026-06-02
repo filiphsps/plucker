@@ -22,6 +22,9 @@ export default {
   context: {
     reveal: 'Reveal in folder',
     copyTitle: 'Copy title',
+    skip: 'Skip',
+    pauseTrack: 'Pause',
+    resumeTrack: 'Resume',
     copyUrl: 'Copy YouTube URL',
     openYouTube: 'Open on YouTube',
     redownload: 'Re-download',

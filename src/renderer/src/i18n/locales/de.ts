@@ -23,6 +23,9 @@ const de: typeof en = {
   context: {
     reveal: 'Im Ordner anzeigen',
     copyTitle: 'Titel kopieren',
+    skip: 'Überspringen',
+    pauseTrack: 'Pausieren',
+    resumeTrack: 'Fortsetzen',
     copyUrl: 'YouTube-URL kopieren',
     openYouTube: 'Auf YouTube öffnen',
     redownload: 'Erneut herunterladen',

@@ -3,6 +3,7 @@
 // re-download, edit tags) are supplied by the parent view that owns that logic.
 import type { TFunction } from 'i18next'
 import { watchUrl } from '../../shared/youtube-url'
+import type { TrackStatus } from '../../shared/types'
 import type { MenuItem } from './ui/context-menu'
 
 export interface TrackMenuTrack {
@@ -11,6 +12,10 @@ export interface TrackMenuTrack {
   videoId?: string
   errorCode?: string
   reason?: string
+  /** Live status — drives the skip/pause/resume block on the download view. */
+  status?: TrackStatus
+  /** Whether this track is individually paused (download view only). */
+  paused?: boolean
 }
 
 export function trackRowMenuItems(opts: {
@@ -24,6 +29,9 @@ export function trackRowMenuItems(opts: {
   onRetransform?: () => void
   onEditTags?: () => void
   onDelete?: () => void
+  onSkip?: () => void
+  onPause?: () => void
+  onResume?: () => void
 }): MenuItem[] {
   const { t, variant, track, missing, failed } = opts
   const hasFile = !!track.file && !missing
@@ -31,6 +39,21 @@ export function trackRowMenuItems(opts: {
     { label: t('context.reveal'), enabled: hasFile, onClick: opts.onReveal },
     { label: t('context.copyTitle'), onClick: () => void window.plucker.copyText(track.title) }
   ]
+
+  // Live-job controls (download view): pause/resume an in-flight track and skip
+  // any track that hasn't finished yet.
+  const active = track.status === 'downloading' || track.status === 'transforming'
+  const skippable = active || track.status === 'queued'
+  if (variant === 'download' && skippable && opts.onSkip) {
+    if (active && opts.onPause && opts.onResume) {
+      items.push(
+        track.paused
+          ? { label: t('context.resumeTrack'), onClick: opts.onResume }
+          : { label: t('context.pauseTrack'), onClick: opts.onPause }
+      )
+    }
+    items.push({ label: t('context.skip'), onClick: opts.onSkip }, { type: 'separator' })
+  }
 
   if (track.videoId) {
     const url = watchUrl(track.videoId)
