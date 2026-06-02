@@ -7,8 +7,23 @@ import {
   rangeBetween,
   selectOnClick,
   targetsFor,
-  trackKey
+  trackKey,
+  trackRowKey
 } from './history-selection'
+
+describe('trackRowKey', () => {
+  it('prefers videoId, then hash, then the position key', () => {
+    expect(trackRowKey({ videoId: 'v1', hash: 'h1' }, 'e', 0)).toBe('v1')
+    expect(trackRowKey({ hash: 'h1' }, 'e', 0)).toBe('h1')
+    expect(trackRowKey({}, 'e', 3)).toBe('e#3')
+  })
+
+  it('stays stable when only file/status change (content identity unchanged)', () => {
+    const before = trackRowKey({ videoId: 'v1' }, 'e', 0)
+    const after = trackRowKey({ videoId: 'v1' }, 'e', 0)
+    expect(before).toBe(after)
+  })
+})
 
 describe('trackKey / parseTrackKey', () => {
   it('round-trips an entry id and index', () => {

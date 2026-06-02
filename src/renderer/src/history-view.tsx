@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Music,
@@ -25,7 +25,8 @@ import {
   parseTrackKey,
   selectOnClick,
   targetsFor,
-  trackKey
+  trackKey,
+  trackRowKey
 } from './history-selection'
 
 /** Per-outcome badge styling + i18n label key for a history entry. */
@@ -57,6 +58,19 @@ export function HistoryView({
   // back to the default (multi-track playlists outside the latest 3 collapse),
   // so newly-arrived downloads pick up the right default without re-seeding.
   const [collapseOverride, setCollapseOverride] = useState<Map<string, boolean>>(new Map())
+
+  // Live refs for state read by the per-row handlers. Rows are memoized and
+  // ignore handler identity (see track-row-equal), so a row that did not
+  // re-render keeps an older handler closure — reading the changing state from
+  // refs keeps those closures acting on current values. Without this, a stale
+  // `anchor` in onRowSelect would break shift-range selection. The refs are
+  // synced in an effect (never written during render) and read only from event
+  // handlers, which run after the effect has committed.
+  const historyRef = useRef(history)
+  const missingRef = useRef(missing)
+  const selectedRef = useRef(selected)
+  const anchorRef = useRef(anchor)
+  const orderedKeysRef = useRef<string[]>([])
 
   // Apply a fresh history list and prune any selected keys whose track no
   // longer exists, so the selection never dangles onto a shifted index after a
@@ -106,7 +120,7 @@ export function HistoryView({
   /** Resolve a selection key back to its entry, track, and index. */
   function lookup(key: string): { entry: HistoryEntry; track: HistoryTrack; index: number } | null {
     const { entryId, index } = parseTrackKey(key)
-    const entry = history.find((e) => e.id === entryId)
+    const entry = historyRef.current.find((e) => e.id === entryId)
     const track = entry?.tracks[index]
     return entry && track ? { entry, track, index } : null
   }
@@ -115,9 +129,13 @@ export function HistoryView({
   function deletable(track: HistoryTrack): boolean {
     return isDeletable(track.file, !!track.file && missing.has(track.file))
   }
+  /** Handler-time variant reading the live `missing` ref (not render state). */
+  function deletableNow(track: HistoryTrack): boolean {
+    return isDeletable(track.file, !!track.file && missingRef.current.has(track.file))
+  }
 
   function onRowSelect(key: string, e: React.MouseEvent): void {
-    const r = selectOnClick(selected, anchor, orderedKeys, key, {
+    const r = selectOnClick(selectedRef.current, anchorRef.current, orderedKeysRef.current, key, {
       shift: e.shiftKey,
       meta: e.metaKey || e.ctrlKey
     })
@@ -152,7 +170,7 @@ export function HistoryView({
     let skipped = 0
     for (const key of keys) {
       const hit = lookup(key)
-      if (hit && deletable(hit.track)) targets.push({ entryId: hit.entry.id, index: hit.index })
+      if (hit && deletableNow(hit.track)) targets.push({ entryId: hit.entry.id, index: hit.index })
       else skipped++
     }
     if (targets.length === 0) {
@@ -172,7 +190,7 @@ export function HistoryView({
     if (keys.length === 0) return
     const anyFile = keys.some((k) => {
       const hit = lookup(k)
-      return hit ? deletable(hit.track) : false
+      return hit ? deletableNow(hit.track) : false
     })
     if (anyFile && !window.confirm(t('actions.confirmDelete'))) return
     let result = history
@@ -206,6 +224,16 @@ export function HistoryView({
   const orderedKeys = filtered
     .filter((e) => !isCollapsed(e.id))
     .flatMap((e) => e.tracks.map((_, i) => trackKey(e.id, i)))
+
+  // Keep the handler refs current. Written here (an effect), never during
+  // render, so memoized rows' stale handler closures still see live state.
+  useEffect(() => {
+    historyRef.current = history
+    missingRef.current = missing
+    selectedRef.current = selected
+    anchorRef.current = anchor
+    orderedKeysRef.current = orderedKeys
+  })
 
   // Delete/Backspace clears the current selection (an in-page shortcut, per
   // Electron's keyboard-shortcuts guidance — a window keydown listener). Ignore
@@ -373,7 +401,7 @@ export function HistoryView({
                 const canDelete = deletable(tk)
                 return (
                   <TrackRow
-                    key={tk.file || i}
+                    key={trackRowKey(tk, entry.id, i)}
                     variant="history"
                     index={i + 1}
                     track={tk}

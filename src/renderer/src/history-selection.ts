@@ -6,6 +6,22 @@ export function trackKey(entryId: string, index: number): string {
   return `${entryId}#${index}`
 }
 
+/**
+ * Stable React key for a history track row. Prefers a content identity
+ * (`videoId`, then `hash`) so the key survives the track's `file`/`status`
+ * changing — re-downloads and re-transforms keep the same row instance instead
+ * of remounting it (which would drop the row's local state and re-fetch its
+ * cover/metadata/waveform). Falls back to the position key for tracks that have
+ * neither (e.g. a track that failed before it resolved).
+ */
+export function trackRowKey(
+  track: { videoId?: string; hash?: string },
+  entryId: string,
+  index: number
+): string {
+  return track.videoId ?? track.hash ?? trackKey(entryId, index)
+}
+
 /** Parse a track key back into its entry id and index (split on the last `#`). */
 export function parseTrackKey(key: string): { entryId: string; index: number } {
   const i = key.lastIndexOf('#')

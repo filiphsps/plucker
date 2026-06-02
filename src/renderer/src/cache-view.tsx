@@ -22,6 +22,36 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
     [items]
   )
 
+  // Pre-build each row's data props once per `items` change, keyed by hash, so
+  // typing in the search box (which only narrows `filtered`) doesn't hand every
+  // memoized TrackRow freshly-allocated track/meta/source objects.
+  const rowData = useMemo(
+    () =>
+      new Map(
+        items.map((it) => {
+          const title = it.mb?.title || it.track?.title || `${it.hash.slice(0, 8)}…`
+          return [
+            it.hash,
+            {
+              title,
+              track: {
+                title,
+                artist: it.mb?.artist,
+                album: it.mb?.album,
+                year: it.mb?.year,
+                file: it.track?.file,
+                hash: it.hash
+              },
+              meta: { tags: it.mb ?? {}, audio: it.audio ?? {} },
+              source: { videoId: it.track?.videoId, downloadedAt: it.updatedAt },
+              missing: !!it.track?.file && !it.fileExists
+            }
+          ]
+        })
+      ),
+    [items]
+  )
+
   const filtered = items.filter((it) => {
     const q = query.trim().toLowerCase()
     if (!q) return true
@@ -107,22 +137,16 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
             }}
           >
             {filtered.map((it, i) => {
-              const missing = !!it.track?.file && !it.fileExists
+              const row = rowData.get(it.hash)!
+              const missing = row.missing
               return (
                 <TrackRow
                   key={it.hash}
                   variant="cache"
                   index={i + 1}
-                  track={{
-                    title: it.mb?.title || it.track?.title || `${it.hash.slice(0, 8)}…`,
-                    artist: it.mb?.artist,
-                    album: it.mb?.album,
-                    year: it.mb?.year,
-                    file: it.track?.file,
-                    hash: it.hash
-                  }}
-                  meta={{ tags: it.mb ?? {}, audio: it.audio ?? {} }}
-                  source={{ videoId: it.track?.videoId, downloadedAt: it.updatedAt }}
+                  track={row.track}
+                  meta={row.meta}
+                  source={row.source}
                   missing={missing}
                   editing={editing === it.hash}
                   onSaveTags={(tags) => save(it.hash, tags)}

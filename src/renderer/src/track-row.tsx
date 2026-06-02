@@ -6,6 +6,7 @@ import { TrackDetail, type TrackSource } from './ui/meta/track-detail'
 import { formatDuration, formatSpeed, formatElapsed } from './ui/meta/format'
 import { Tooltip } from './ui/tooltip'
 import { statusColumnWidth } from './status-column'
+import { trackRowPropsEqual } from './track-row-equal'
 
 export interface TrackRowData {
   title: string
@@ -54,24 +55,7 @@ function Meter({ value, done }: { value: number; done?: boolean }): React.JSX.El
   )
 }
 
-/** Shared, expandable track line used by Download, History and the Cache manager. */
-export function TrackRow({
-  variant,
-  index,
-  track,
-  source,
-  meta,
-  actions,
-  active = false,
-  missing = false,
-  editing = false,
-  selected = false,
-  onSelect,
-  onActivate,
-  onSaveTags,
-  onCancelEdit,
-  onContextMenu
-}: {
+export interface TrackRowProps {
   variant: 'download' | 'history' | 'cache'
   index: number
   track: TrackRowData
@@ -100,7 +84,26 @@ export function TrackRow({
   onCancelEdit?: () => void
   /** Native right-click handler for the row (built by the parent view). */
   onContextMenu?: (e: React.MouseEvent) => void
-}): React.JSX.Element {
+}
+
+/** Shared, expandable track line used by Download, History and the Cache manager. */
+function TrackRowImpl({
+  variant,
+  index,
+  track,
+  source,
+  meta,
+  actions,
+  active = false,
+  missing = false,
+  editing = false,
+  selected = false,
+  onSelect,
+  onActivate,
+  onSaveTags,
+  onCancelEdit,
+  onContextMenu
+}: TrackRowProps): React.JSX.Element {
   const { t } = useTranslation()
   const statusWidth = statusColumnWidth(t)
   const [open, setOpen] = useState(false)
@@ -407,3 +410,11 @@ export function TrackRow({
     </div>
   )
 }
+
+/**
+ * Memoized so a row only re-renders when its own data changes — without this, a
+ * single progress tick or selection click re-renders the entire list. The
+ * comparator compares data props by value (IPC hands us fresh objects each
+ * update) and ignores handler/`actions` identity; see {@link trackRowPropsEqual}.
+ */
+export const TrackRow = React.memo(TrackRowImpl, trackRowPropsEqual)
