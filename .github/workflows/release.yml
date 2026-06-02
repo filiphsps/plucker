@@ -75,13 +75,17 @@ jobs:
 
       # Render UI screenshots from the freshly built app (out/ exists after build)
       # into .github/img/. These are committed back to master so the README images
-      # track every release.
+      # track every release. Screenshots are cosmetic, so a failure here must not
+      # fail the release job — continue-on-error keeps the release green either way.
       - run: pnpm build:screenshots
+        continue-on-error: true
 
       # Commit the refreshed screenshots back to master. The release commit (= this tag)
       # is master's tip at release time, so the screenshot commit fast-forwards onto it.
       # [skip ci] avoids a redundant CI run; the chore: prefix opens no new release PR.
+      # Also continue-on-error: a failed screenshot commit must not fail the release.
       - name: Commit refreshed screenshots
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
