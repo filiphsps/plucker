@@ -295,6 +295,16 @@ const de: typeof en = {
       },
       options: { youtube: 'YouTube', musicbrainz: 'MusicBrainz' }
     },
+    analyzeKeyBpm: {
+      label: 'Tonart & BPM analysieren',
+      description: 'Tonart und Tempo des Tracks schätzen und in die Tags schreiben.',
+      fields: {
+        detectKey: 'Tonart erkennen (schreibt Tonart + Camelot)',
+        detectBpm: 'Tempo erkennen (BPM)',
+        minBpm: 'Minimale BPM — untere Grenze für die Tempo-Faltung',
+        maxBpm: 'Maximale BPM — obere Grenze für die Tempo-Faltung'
+      }
+    },
     rename: {
       label: 'Datei umbenennen',
       description: 'Datei anhand der finalen Tags umbenennen.',

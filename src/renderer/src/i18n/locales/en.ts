@@ -293,6 +293,16 @@ export default {
       },
       options: { youtube: 'YouTube', musicbrainz: 'MusicBrainz' }
     },
+    analyzeKeyBpm: {
+      label: 'Analyze key & BPM',
+      description: "Estimate the track's musical key and tempo and write them to its tags.",
+      fields: {
+        detectKey: 'Detect musical key (writes key + Camelot)',
+        detectBpm: 'Detect tempo (BPM)',
+        minBpm: 'Minimum BPM — lower bound for tempo folding',
+        maxBpm: 'Maximum BPM — upper bound for tempo folding'
+      }
+    },
     rename: {
       label: 'Rename file',
       description: 'Rename the file from its final tags.',
