@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS versions (
   id TEXT PRIMARY KEY,
   track_id TEXT NOT NULL REFERENCES track_instances(id) ON DELETE CASCADE,
   parent_id TEXT REFERENCES versions(id),
-  blob_hash TEXT REFERENCES blobs(hash),
+  -- blob_hash is a plain column, not an FK: versions are inserted before their blob
+  -- row exists (refBlob registers blobs lazily after insertVersion), and blob lifetime
+  -- is governed by the repo's transactional refcount, not by a DB foreign key.
+  blob_hash TEXT,
   recipe TEXT NOT NULL DEFAULT '{"steps":[]}',
   materialized INTEGER NOT NULL DEFAULT 0,
   label TEXT, created_at TEXT NOT NULL

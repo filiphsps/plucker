@@ -66,7 +66,7 @@ export function createRepo(db: Database) {
 
   const v = (x: unknown): unknown => x ?? null // sqlite wants null, not undefined
 
-  return {
+  const repo = {
     db,
     insertCollection: (c: Collection) =>
       stmt.insCollection.run({ ...c, sourceUrl: v(c.sourceUrl) }),
@@ -103,9 +103,67 @@ export function createRepo(db: Database) {
     insertActivity: (e: ActivityEvent) =>
       stmt.insActivity.run({ ...e, collectionId: v(e.collectionId), trackId: v(e.trackId), versionId: v(e.versionId) }),
 
+    /** Register a blob row if new, then increment its refcount. Transactional. */
+    refBlob(blob: { hash: string; path: string; size: number }, _store?: unknown) {
+      db.transaction(() => {
+        if (!stmt.getBlob.get(blob.hash)) stmt.insBlob.run(blob.hash, blob.path, blob.size)
+        stmt.incBlob.run(blob.hash)
+      })()
+    },
+    /** Decrement a blob's refcount; at zero, delete the row AND the file. Transactional. */
+    derefBlob(hash: string, store: { remove(h: string): void }) {
+      const removed = db.transaction(() => {
+        const row = stmt.getBlob.get(hash) as { refcount: number } | undefined
+        if (!row) return false
+        if (row.refcount <= 1) { stmt.delBlob.run(hash); return true }
+        stmt.decBlob.run(hash); return false
+      })()
+      if (removed) store.remove(hash) // file IO outside the txn; safe — row already gone
+    },
+    /** Delete a track instance: drop its versions/branches and deref every blob they held. */
+    deleteTrack(trackId: string, store: { remove(h: string): void }) {
+      const hashes = db.transaction(() => {
+        const versions = stmt.listVersions.all(trackId) as Array<{ blob_hash: string | null }>
+        const blobHashes = versions.map((r) => r.blob_hash).filter((h): h is string => !!h)
+        // FK ON DELETE CASCADE removes versions+branches when the track row goes.
+        if (stmt.getTrack.get(trackId)) db.prepare('DELETE FROM track_instances WHERE id=?').run(trackId)
+        const dropped: string[] = []
+        for (const h of blobHashes) {
+          const row = stmt.getBlob.get(h) as { refcount: number } | undefined
+          if (!row) continue
+          if (row.refcount <= 1) { stmt.delBlob.run(h); dropped.push(h) } else stmt.decBlob.run(h)
+        }
+        return dropped
+      })()
+      for (const h of hashes) store.remove(h)
+    },
+    /** Delete a collection and all of its tracks (cascade), derefing blobs. */
+    deleteCollection(collectionId: string, store: { remove(h: string): void }) {
+      const trackIds = (stmt.listTracks.all(collectionId) as Array<{ id: string }>).map((r) => r.id)
+      for (const tid of trackIds) repo.deleteTrack(tid, store)
+      db.prepare('DELETE FROM collections WHERE id=?').run(collectionId)
+    },
+    /** Delete a single version (must not be a branch tip; caller enforces). Derefs its blob. */
+    deleteVersion(versionId: string, store: { remove(h: string): void }) {
+      const hash = db.transaction(() => {
+        const row = stmt.getVersion.get(versionId) as { blob_hash: string | null } | undefined
+        if (!row) return null
+        stmt.delVersion.run(versionId)
+        const h = row.blob_hash
+        if (!h) return null
+        const b = stmt.getBlob.get(h) as { refcount: number } | undefined
+        if (!b) return null
+        if (b.refcount <= 1) { stmt.delBlob.run(h); return h }
+        stmt.decBlob.run(h); return null
+      })()
+      if (hash) store.remove(hash)
+    },
+
     /** Internal statement bag — used by transactional helpers in Task 5. */
     _stmt: stmt
   }
+
+  return repo
 }
 
 export type Repo = ReturnType<typeof createRepo>
