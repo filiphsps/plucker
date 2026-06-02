@@ -8,9 +8,11 @@ import {
   toHistoryTracks,
   jobOutcome,
   classifyDownload,
-  classifySettled
+  classifySettled,
+  buildDownloadSourceFromEntries
 } from './pipeline'
-import type { TrackProgress, HistoryTrack } from '../shared/types'
+import type { TrackProgress, HistoryTrack, ResolvedJob } from '../shared/types'
+import { DEFAULT_SETTINGS } from '../shared/defaults'
 
 const tp = (index: number, status: TrackProgress['status']): TrackProgress => ({
   index,
@@ -18,6 +20,30 @@ const tp = (index: number, status: TrackProgress['status']): TrackProgress => ({
   status,
   percent: 0,
   transformPercent: 0
+})
+
+describe('buildDownloadSourceFromEntries', () => {
+  const deps = {
+    bin: { ytdlp: '/yt', ffmpeg: '/ff' },
+    settings: DEFAULT_SETTINGS,
+    homeBase: '/home/Music',
+    onProgress: () => {}
+  } as unknown as Parameters<typeof buildDownloadSourceFromEntries>[1]
+
+  it('resolves to the supplied job without re-resolving, in entry order', async () => {
+    const job: ResolvedJob = {
+      kind: 'playlist',
+      title: 'Mix',
+      entries: [
+        { videoId: 'b', title: 'B', index: 2, url: 'https://x/b' },
+        { videoId: 'a', title: 'A', index: 1, url: 'https://x/a' }
+      ]
+    }
+    const src = buildDownloadSourceFromEntries({ url: 'https://x', ...job }, deps)
+    const resolved = await src.resolve()
+    expect(resolved).toEqual({ title: 'Mix', kind: 'playlist', url: 'https://x' })
+    expect(src.entries().map((e) => e.title)).toEqual(['B', 'A']) // preserves curated order
+  })
 })
 
 describe('classifySettled', () => {

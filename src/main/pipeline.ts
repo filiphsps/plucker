@@ -10,7 +10,8 @@ import type {
   TrackProgress,
   HistoryTrack,
   PlaylistEntry,
-  ResolvedJob
+  ResolvedJob,
+  StartJobRequest
 } from '../shared/types'
 
 export type { PlaylistEntry, ResolvedJob } from '../shared/types'
@@ -714,25 +715,19 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
 }
 
 /**
- * The download source: resolve playlist/video metadata via yt-dlp (escalating to
- * an exported cookie file once if the browser cookie store is unreadable), then
- * download each entry on its own.
+ * Resolve a URL to its playlist/video entries WITHOUT downloading. Escalates to an
+ * exported cookie file once if the live browser store is unreadable; the resulting
+ * cookie file (if any) is returned so a subsequent download can reuse it.
  */
-function buildDownloadSource(url: string, deps: RunJobDeps): JobSource {
-  const { bin, settings, homeBase, onStatus, signal } = deps
-  log.info('app', `job start: ${url}`)
-
-  // When a browser cookie source is selected we first try reading it directly.
-  // If yt-dlp can't access the cookie store (permission error in the packaged
-  // app), we escalate ONCE: a privileged step exports the cookies to a temp file
-  // that every subsequent (unprivileged) resolve/download reads via `--cookies`.
+export async function resolveJob(
+  url: string,
+  deps: Pick<RunJobDeps, 'bin' | 'settings' | 'onStatus' | 'signal'>
+): Promise<{ job: ResolvedJob; cookieFile?: string }> {
+  const { bin, settings, onStatus, signal } = deps
   let cookieFile: string | undefined
   let cookieArgs: string[] = needsCookieEscalation(settings)
     ? ['--cookies-from-browser', settings.cookies.source]
     : []
-  let job: ResolvedJob | undefined
-  let dest = ''
-
   const resolveOnce = (): Promise<ResolvedJob> =>
     timed('resolve-playlist', 'pipeline', () =>
       resolvePlaylist(
@@ -747,28 +742,163 @@ function buildDownloadSource(url: string, deps: RunJobDeps): JobSource {
         cookieArgs
       )
     )
+  onStatus?.({ phase: 'resolving', key: 'launching' })
+  let job: ResolvedJob
+  try {
+    job = await resolveOnce()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    const escalate =
+      !(signal?.aborted ?? false) && needsCookieEscalation(settings) && isCookiePermissionError(msg)
+    if (!escalate) throw err
+    cookieFile = await exportBrowserCookies(bin.ytdlp, settings.cookies.source, url)
+    cookieArgs = ['--cookies', cookieFile]
+    job = await resolveOnce()
+  }
+  onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
+  log.info('app', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
+  return { job, cookieFile }
+}
 
-  const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
+const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
 
+/**
+ * Build the per-entry acquire function used by every download source: spawn a
+ * single-video yt-dlp (intermediates redirected to the pipeline's per-track temp
+ * dir, process group keyed to the track index for per-track pause/skip) and
+ * classify its result.
+ */
+function makeDownloadProvide(opts: {
+  entryUrl: () => string
+  dest: () => string
+  bin: BinaryPaths
+  settings: Settings
+  cookieFile?: string
+}): SourceEntry['provide'] {
+  const { bin, settings, cookieFile } = opts
+  return async function provide(t, report, sig, tempDir) {
+    let downloaded: string | null = null
+    const onProgress = (ev: ProgressEvent): void => {
+      if (t.status === 'queued' || t.status === 'downloading') {
+        t.status = 'downloading'
+        t.stage = 'downloading'
+        t.percent = ev.percent
+        t.speedBytesPerSec = ev.speedBytesPerSec
+        if (ev.title) t.title = ev.title
+      }
+      report()
+    }
+    const args = buildDownloadArgs({
+      url: opts.entryUrl(),
+      destFolder: opts.dest(),
+      settings,
+      ffmpegPath: bin.ffmpeg,
+      singleVideo: true,
+      cookieFile,
+      tempDir
+    })
+    // Mark the track active right before spawning yt-dlp, so the row reflects
+    // work immediately instead of sitting on "queued" through process startup.
+    if (t.status === 'queued') {
+      t.status = 'downloading'
+      t.stage = 'downloading'
+      log.info('yt-dlp', `downloading "${t.title}"`)
+      report()
+    }
+    const dl = await runYtDlp(
+      bin.ytdlp,
+      args,
+      onProgress,
+      (f) => {
+        downloaded = f
+      },
+      sig,
+      priorityToNice(settings.performance.priority),
+      t.index
+    )
+    const outcome = classifyDownload(downloaded, dl, settings.audio.minBitrate)
+    if (outcome.kind === 'skipped') {
+      log.info(
+        'yt-dlp',
+        `skipped "${t.title}" — no source audio at/above ${settings.audio.minBitrate} kbps`
+      )
+      return { kind: 'skipped', reason: outcome.reason }
+    }
+    if (outcome.kind === 'failed') {
+      log.warn('yt-dlp', `download failed for "${t.title}": ${outcome.reason}`)
+      log.error('yt-dlp', `download result for "${t.title}":`, dl)
+      return {
+        kind: 'failed',
+        reason: outcome.reason,
+        errorCode: dl.code ? `yt-dlp ${dl.code}` : undefined
+      }
+    }
+    return { kind: 'file', file: outcome.file }
+  }
+}
+
+/**
+ * Download source over a pre-resolved, curated entry list (from the staging UI):
+ * no re-resolution — `resolve()` just echoes the confirmed title/kind/url and
+ * `entries()` maps the supplied entries in their (possibly reordered) order.
+ */
+export function buildDownloadSourceFromEntries(
+  req: StartJobRequest,
+  deps: RunJobDeps,
+  cookieFile?: string
+): JobSource {
+  const { bin, settings, homeBase } = deps
+  log.info('app', `job start (staged): ${req.url} — ${req.entries.length} track(s)`)
+  let dest = ''
+  const entryUrl = (e: PlaylistEntry): string =>
+    isHttpUrl(e.url) ? e.url : req.kind === 'video' ? req.url : watchUrl(e.videoId)
   return {
     async resolve() {
-      onStatus?.({ phase: 'resolving', key: 'launching' })
-      try {
-        job = await resolveOnce()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        const escalate =
-          !(signal?.aborted ?? false) &&
-          needsCookieEscalation(settings) &&
-          !cookieFile &&
-          isCookiePermissionError(msg)
-        if (!escalate) throw err
-        cookieFile = await exportBrowserCookies(bin.ytdlp, settings.cookies.source, url)
-        cookieArgs = ['--cookies', cookieFile]
-        job = await resolveOnce()
-      }
-      onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
-      log.info('app', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
+      dest =
+        deps.folderOverride ??
+        req.folderOverride ??
+        destFolderFor(homeBase, req.title, settings.downloads.perPlaylistSubfolder, req.kind)
+      return { title: req.title, kind: req.kind, url: req.url }
+    },
+    entries() {
+      return req.entries.map((e) => ({
+        index: e.index,
+        title: e.title,
+        videoId: e.videoId,
+        destFolder: dest,
+        provide: makeDownloadProvide({
+          entryUrl: () => entryUrl(e),
+          dest: () => dest,
+          bin,
+          settings,
+          cookieFile
+        })
+      }))
+    },
+    cleanup() {
+      if (cookieFile) cleanupCookieFile(cookieFile)
+    }
+  }
+}
+
+/**
+ * The download source: resolve playlist/video metadata via yt-dlp (escalating to
+ * an exported cookie file once if the browser cookie store is unreadable), then
+ * download each entry on its own.
+ */
+function buildDownloadSource(url: string, deps: RunJobDeps): JobSource {
+  const { bin, settings, homeBase } = deps
+  log.info('app', `job start: ${url}`)
+  let job: ResolvedJob | undefined
+  let cookieFile: string | undefined
+  let dest = ''
+  const entryUrl = (e: PlaylistEntry, kind: 'playlist' | 'video'): string =>
+    isHttpUrl(e.url) ? e.url : kind === 'video' ? url : watchUrl(e.videoId)
+  return {
+    async resolve() {
+      const r = await resolveJob(url, deps)
+      job = r.job
+      cookieFile = r.cookieFile
       dest =
         deps.folderOverride ??
         destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
@@ -777,73 +907,18 @@ function buildDownloadSource(url: string, deps: RunJobDeps): JobSource {
     entries() {
       const resolvedJob = job
       if (!resolvedJob) return []
-      // Prefer the flat-playlist entry URL; fall back to a watch URL (or, for a single
-      // video job, the original URL) so a missing entry URL never blocks a download.
-      const entryUrl = (e: PlaylistEntry): string =>
-        isHttpUrl(e.url) ? e.url : resolvedJob.kind === 'video' ? url : watchUrl(e.videoId)
       return resolvedJob.entries.map((e) => ({
         index: e.index,
         title: e.title,
         videoId: e.videoId,
         destFolder: dest,
-        async provide(t, report, sig) {
-          let downloaded: string | null = null
-          const onProgress = (ev: ProgressEvent): void => {
-            if (t.status === 'queued' || t.status === 'downloading') {
-              t.status = 'downloading'
-              t.stage = 'downloading'
-              t.percent = ev.percent
-              t.speedBytesPerSec = ev.speedBytesPerSec
-              if (ev.title) t.title = ev.title
-            }
-            report()
-          }
-          const args = buildDownloadArgs({
-            url: entryUrl(e),
-            destFolder: dest,
-            settings,
-            ffmpegPath: bin.ffmpeg,
-            singleVideo: true,
-            cookieFile
-          })
-          // Mark the track active right before spawning yt-dlp, so the row reflects
-          // work immediately instead of sitting on "queued" through process startup
-          // and format selection — the first progress line can be seconds away.
-          if (t.status === 'queued') {
-            t.status = 'downloading'
-            t.stage = 'downloading'
-            log.info('yt-dlp', `downloading "${t.title}"`)
-            report()
-          }
-          const dl = await runYtDlp(
-            bin.ytdlp,
-            args,
-            onProgress,
-            (f) => {
-              downloaded = f
-            },
-            sig,
-            priorityToNice(settings.performance.priority)
-          )
-          const outcome = classifyDownload(downloaded, dl, settings.audio.minBitrate)
-          if (outcome.kind === 'skipped') {
-            log.info(
-              'yt-dlp',
-              `skipped "${t.title}" — no source audio at/above ${settings.audio.minBitrate} kbps`
-            )
-            return { kind: 'skipped', reason: outcome.reason }
-          }
-          if (outcome.kind === 'failed') {
-            log.warn('yt-dlp', `download failed for "${t.title}": ${outcome.reason}`)
-            log.error('yt-dlp', `download result for "${t.title}":`, dl)
-            return {
-              kind: 'failed',
-              reason: outcome.reason,
-              errorCode: dl.code ? `yt-dlp ${dl.code}` : undefined
-            }
-          }
-          return { kind: 'file', file: outcome.file }
-        }
+        provide: makeDownloadProvide({
+          entryUrl: () => entryUrl(e, resolvedJob.kind),
+          dest: () => dest,
+          bin,
+          settings,
+          cookieFile
+        })
       }))
     },
     cleanup() {
