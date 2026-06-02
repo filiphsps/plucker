@@ -57,8 +57,11 @@ export function HistoryView({
     if (!window.confirm(t('actions.confirmDelete'))) return
     setHistory(await window.plucker.removeHistoryEntry(id, true))
   }
-  async function deleteTrack(id: string, index: number): Promise<void> {
-    if (!window.confirm(t('actions.confirmDelete'))) return
+  // Only confirm when there's an actual downloaded file to lose. Tracks that
+  // failed, were stopped/cancelled/skipped, or whose file is missing have
+  // nothing destructive to delete, so remove them without prompting.
+  async function deleteTrack(id: string, index: number, hasFile: boolean): Promise<void> {
+    if (hasFile && !window.confirm(t('actions.confirmDelete'))) return
     setHistory(await window.plucker.removeHistoryTrack(id, index, true))
   }
 
@@ -188,7 +191,7 @@ export function HistoryView({
                       onReveal: () => tk.file && window.plucker.revealFile(tk.file),
                       onRedownload: () =>
                         tk.videoId && redownload(watchUrl(tk.videoId), entry.folder),
-                      onDelete: () => deleteTrack(entry.id, i)
+                      onDelete: () => deleteTrack(entry.id, i, !!tk.file && !missing.has(tk.file))
                     })
                   )
                 }}
@@ -215,7 +218,7 @@ export function HistoryView({
                     <button
                       className={ra + ' hover:text-bad'}
                       title={t('actions.delete')}
-                      onClick={() => deleteTrack(entry.id, i)}
+                      onClick={() => deleteTrack(entry.id, i, !!tk.file && !missing.has(tk.file))}
                     >
                       <Trash2 size={15} />
                     </button>
