@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  defaultCollapsedIds,
   groupForDelete,
   isDeletable,
   parseTrackKey,
@@ -95,5 +96,31 @@ describe('isDeletable', () => {
     expect(isDeletable('/x.mp3', false)).toBe(true)
     expect(isDeletable('/x.mp3', true)).toBe(false)
     expect(isDeletable(undefined, false)).toBe(false)
+  })
+})
+
+describe('defaultCollapsedIds', () => {
+  const entry = (id: string, trackCount: number): { id: string; tracks: unknown[] } => ({
+    id,
+    tracks: Array.from({ length: trackCount })
+  })
+
+  it('keeps the latest 3 entries open and collapses later playlists', () => {
+    const entries = [entry('a', 5), entry('b', 5), entry('c', 5), entry('d', 5), entry('e', 5)]
+    expect(defaultCollapsedIds(entries)).toEqual(new Set(['d', 'e']))
+  })
+
+  it('never collapses single-track entries, even outside the latest 3', () => {
+    const entries = [entry('a', 1), entry('b', 1), entry('c', 1), entry('d', 1), entry('e', 8)]
+    expect(defaultCollapsedIds(entries)).toEqual(new Set(['e']))
+  })
+
+  it('collapses nothing when there are 3 or fewer entries', () => {
+    expect(defaultCollapsedIds([entry('a', 9), entry('b', 9), entry('c', 9)])).toEqual(new Set())
+  })
+
+  it('honors a custom keepOpen window', () => {
+    const entries = [entry('a', 5), entry('b', 5), entry('c', 5)]
+    expect(defaultCollapsedIds(entries, 1)).toEqual(new Set(['b', 'c']))
   })
 })

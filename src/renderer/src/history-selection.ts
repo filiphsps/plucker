@@ -77,3 +77,15 @@ export function groupForDelete(keys: string[]): Map<string, number[]> {
 export function isDeletable(file: string | undefined, missing: boolean): boolean {
   return !!file && !missing
 }
+
+/**
+ * Ids of entries that should start collapsed: multi-track playlists that fall
+ * outside the latest `keepOpen` entries (history is newest-first). Single-track
+ * entries are never collapsed — there is nothing to fold away.
+ */
+export function defaultCollapsedIds(
+  entries: ReadonlyArray<{ id: string; tracks: ReadonlyArray<unknown> }>,
+  keepOpen = 3
+): Set<string> {
+  return new Set(entries.filter((e, i) => i >= keepOpen && e.tracks.length > 1).map((e) => e.id))
+}

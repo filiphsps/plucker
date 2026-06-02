@@ -16,6 +16,8 @@ const de: typeof en = {
     clear: 'Entfernen',
     openFolder: 'Ordner öffnen',
     reveal: 'Im Ordner anzeigen',
+    collapse: 'Einklappen',
+    expand: 'Ausklappen',
     confirmDelete: 'Von der Festplatte löschen? Dies kann nicht rückgängig gemacht werden.'
   },
   context: {

@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Music, Folder, RotateCw, Trash2, X, Search, Check } from 'lucide-react'
+import {
+  Music,
+  Folder,
+  RotateCw,
+  Trash2,
+  X,
+  Search,
+  Check,
+  ChevronDown,
+  ChevronRight
+} from 'lucide-react'
 import type { HistoryEntry, HistoryTrack, JobOutcome } from '../../shared/types'
 import { TrackRow } from './track-row'
 import { watchUrl } from '../../shared/youtube-url'
@@ -9,6 +19,7 @@ import { trackRowMenuItems } from './track-row-menu'
 import { historyCardMenuItems } from './history-card-menu'
 import { Tooltip } from './ui/tooltip'
 import {
+  defaultCollapsedIds,
   groupForDelete,
   isDeletable,
   parseTrackKey,
@@ -40,6 +51,10 @@ export function HistoryView({
   const [missing, setMissing] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<string | null>(null)
+  // Manual collapse overrides, keyed by entry id. Entries not present here fall
+  // back to the default (multi-track playlists outside the latest 3 collapse),
+  // so newly-arrived downloads pick up the right default without re-seeding.
+  const [collapseOverride, setCollapseOverride] = useState<Map<string, boolean>>(new Map())
 
   // Apply a fresh history list and prune any selected keys whose track no
   // longer exists, so the selection never dangles onto a shifted index after a
@@ -151,9 +166,22 @@ export function HistoryView({
     query.trim() ? e.title.toLowerCase().includes(query.trim().toLowerCase()) : true
   )
 
+  // Which entries start collapsed by default — derived from the full history so
+  // the "latest 3" window is independent of the current search filter.
+  const collapsedByDefault = defaultCollapsedIds(history)
+  function isCollapsed(id: string): boolean {
+    return collapseOverride.get(id) ?? collapsedByDefault.has(id)
+  }
+  function toggleCollapsed(id: string): void {
+    setCollapseOverride((prev) => new Map(prev).set(id, !isCollapsed(id)))
+  }
+
   // Flat list of every visible track key in render order — the basis for
-  // shift-range selection.
-  const orderedKeys = filtered.flatMap((e) => e.tracks.map((_, i) => trackKey(e.id, i)))
+  // shift-range selection. Collapsed entries hide their rows, so their keys are
+  // excluded to keep a shift-range contiguous with what's actually on screen.
+  const orderedKeys = filtered
+    .filter((e) => !isCollapsed(e.id))
+    .flatMap((e) => e.tracks.map((_, i) => trackKey(e.id, i)))
 
   // Delete/Backspace clears the current selection (an in-page shortcut, per
   // Electron's keyboard-shortcuts guidance — a window keydown listener). Ignore
@@ -206,13 +234,19 @@ export function HistoryView({
         // No real files anywhere in the entry → deleting removes nothing on
         // disk, so the action reads as "clear" rather than "delete".
         const entryHasFiles = entry.tracks.some(deletable)
+        // Only multi-track playlists fold — a single track has nothing to hide.
+        const collapsible = entry.tracks.length > 1
+        const collapsed = collapsible && isCollapsed(entry.id)
         return (
           <div
             key={entry.id}
             className="mb-3.5 overflow-hidden rounded-[10px] border border-line bg-panel2"
           >
             <div
-              className="flex items-center gap-3 border-b border-line bg-panel px-3.5 py-[11px]"
+              className={
+                'flex items-center gap-3 bg-panel px-3.5 py-[11px]' +
+                (collapsed ? '' : ' border-b border-line')
+              }
               onContextMenu={(e) => {
                 e.preventDefault()
                 void showContextMenu(
@@ -226,6 +260,17 @@ export function HistoryView({
                 )
               }}
             >
+              {collapsible && (
+                <Tooltip label={t(collapsed ? 'actions.expand' : 'actions.collapse')}>
+                  <button
+                    onClick={() => toggleCollapsed(entry.id)}
+                    aria-expanded={!collapsed}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-faint hover:bg-raise hover:text-ink"
+                  >
+                    {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </Tooltip>
+              )}
               <Tooltip label={t('actions.openFolder')}>
                 <button
                   onClick={() => window.plucker.openFolder(entry.folder)}
@@ -284,71 +329,72 @@ export function HistoryView({
               </div>
             </div>
 
-            {entry.tracks.map((tk, i) => {
-              const key = trackKey(entry.id, i)
-              const isMissing = !!tk.file && missing.has(tk.file)
-              const canDelete = deletable(tk)
-              return (
-                <TrackRow
-                  key={tk.file || i}
-                  variant="history"
-                  index={i + 1}
-                  track={tk}
-                  missing={isMissing}
-                  selected={selected.has(key)}
-                  onSelect={(e) => onRowSelect(key, e)}
-                  onActivate={() => tk.file && !isMissing && window.plucker.revealFile(tk.file)}
-                  source={{ videoId: tk.videoId, downloadedAt: entry.completedAt }}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    void showContextMenu(
-                      trackRowMenuItems({
-                        t,
-                        variant: 'history',
-                        track: tk,
-                        missing: isMissing,
-                        failed: tk.status === 'failed',
-                        onReveal: () => revealTargets(targetsFor(selected, key)),
-                        onRedownload: () => void redownloadTargets(targetsFor(selected, key)),
-                        onDelete: () => void deleteTargets(targetsFor(selected, key))
-                      })
-                    )
-                  }}
-                  actions={
-                    <>
-                      {tk.file && (
-                        <Tooltip label={t('actions.reveal')}>
+            {!collapsed &&
+              entry.tracks.map((tk, i) => {
+                const key = trackKey(entry.id, i)
+                const isMissing = !!tk.file && missing.has(tk.file)
+                const canDelete = deletable(tk)
+                return (
+                  <TrackRow
+                    key={tk.file || i}
+                    variant="history"
+                    index={i + 1}
+                    track={tk}
+                    missing={isMissing}
+                    selected={selected.has(key)}
+                    onSelect={(e) => onRowSelect(key, e)}
+                    onActivate={() => tk.file && !isMissing && window.plucker.revealFile(tk.file)}
+                    source={{ videoId: tk.videoId, downloadedAt: entry.completedAt }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      void showContextMenu(
+                        trackRowMenuItems({
+                          t,
+                          variant: 'history',
+                          track: tk,
+                          missing: isMissing,
+                          failed: tk.status === 'failed',
+                          onReveal: () => revealTargets(targetsFor(selected, key)),
+                          onRedownload: () => void redownloadTargets(targetsFor(selected, key)),
+                          onDelete: () => void deleteTargets(targetsFor(selected, key))
+                        })
+                      )
+                    }}
+                    actions={
+                      <>
+                        {tk.file && (
+                          <Tooltip label={t('actions.reveal')}>
+                            <button
+                              className={ra}
+                              onClick={() => revealTargets(targetsFor(selected, key))}
+                            >
+                              <Folder size={15} />
+                            </button>
+                          </Tooltip>
+                        )}
+                        {tk.videoId && (
+                          <Tooltip label={t('actions.redownload')}>
+                            <button
+                              className={ra}
+                              onClick={() => void redownloadTargets(targetsFor(selected, key))}
+                            >
+                              <RotateCw size={15} />
+                            </button>
+                          </Tooltip>
+                        )}
+                        <Tooltip label={t(canDelete ? 'actions.delete' : 'actions.clear')}>
                           <button
-                            className={ra}
-                            onClick={() => revealTargets(targetsFor(selected, key))}
+                            className={ra + (canDelete ? ' hover:text-bad' : '')}
+                            onClick={() => void deleteTargets(targetsFor(selected, key))}
                           >
-                            <Folder size={15} />
+                            {canDelete ? <Trash2 size={15} /> : <X size={15} />}
                           </button>
                         </Tooltip>
-                      )}
-                      {tk.videoId && (
-                        <Tooltip label={t('actions.redownload')}>
-                          <button
-                            className={ra}
-                            onClick={() => void redownloadTargets(targetsFor(selected, key))}
-                          >
-                            <RotateCw size={15} />
-                          </button>
-                        </Tooltip>
-                      )}
-                      <Tooltip label={t(canDelete ? 'actions.delete' : 'actions.clear')}>
-                        <button
-                          className={ra + (canDelete ? ' hover:text-bad' : '')}
-                          onClick={() => void deleteTargets(targetsFor(selected, key))}
-                        >
-                          {canDelete ? <Trash2 size={15} /> : <X size={15} />}
-                        </button>
-                      </Tooltip>
-                    </>
-                  }
-                />
-              )
-            })}
+                      </>
+                    }
+                  />
+                )
+              })}
           </div>
         )
       })}

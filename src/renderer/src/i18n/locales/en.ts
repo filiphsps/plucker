@@ -15,6 +15,8 @@ export default {
     clear: 'Clear',
     openFolder: 'Open folder',
     reveal: 'Reveal in folder',
+    collapse: 'Collapse',
+    expand: 'Expand',
     confirmDelete: 'Delete from disk? This cannot be undone.'
   },
   context: {
