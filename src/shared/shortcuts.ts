@@ -4,7 +4,10 @@
  * keyboard-shortcut label in the UI can never drift away from the binding that's live.
  */
 export const ACCELERATORS = {
-  toggleConsole: 'CmdOrCtrl+J'
+  toggleConsole: 'CmdOrCtrl+J',
+  newDownload: 'CmdOrCtrl+N',
+  openUrl: 'CmdOrCtrl+Shift+N',
+  retransform: 'CmdOrCtrl+Shift+R'
 } as const
 
 export type AcceleratorName = keyof typeof ACCELERATORS
