@@ -1,7 +1,7 @@
 // src/main/transforms/auto-tag.ts
 import type { TrackTags } from '../../shared/types'
 import type { ConfigField } from '../../shared/transforms'
-import type { TransformDefinition, TrackContext, TransformServices } from './types'
+import type { TransformDefinition, TrackContext, TransformServices, TransformLog } from './types'
 import { parseTitle } from '../title-parser'
 import { selectBestMatch } from '../mb-select'
 import { MusicBrainzClient } from '../musicbrainz'
@@ -19,6 +19,47 @@ export interface AutoTagConfig {
 
 /** App identifier sent in the MusicBrainz User-Agent (per their API etiquette). */
 const MUSICBRAINZ_CONTACT = 'Plucker desktop app'
+
+/** Cover Art Archive base URL. */
+const CAA_BASE = 'https://coverartarchive.org'
+
+/**
+ * Fetch front cover art from the Cover Art Archive, preferring the specific
+ * release but falling back to its release group. CAA art is frequently attached
+ * to the group rather than every individual release, so the release URL 404s for
+ * many tracks — without the fallback a real album cover is missed and the
+ * YouTube thumbnail is kept by default. Returns undefined when neither yields an
+ * image. Stops at the first hit (the release).
+ */
+export async function fetchCoverArt(
+  fetchImpl: typeof fetch,
+  ids: { releaseId?: string | null; releaseGroupId?: string | null },
+  log: TransformLog
+): Promise<Buffer | undefined> {
+  const candidates = [
+    ids.releaseId
+      ? { kind: 'release', url: `${CAA_BASE}/release/${ids.releaseId}/front-500` }
+      : null,
+    ids.releaseGroupId
+      ? { kind: 'release-group', url: `${CAA_BASE}/release-group/${ids.releaseGroupId}/front-500` }
+      : null
+  ].filter((c): c is { kind: string; url: string } => c !== null)
+
+  for (const { kind, url } of candidates) {
+    try {
+      const res = await fetchImpl(url)
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer())
+        log.debug(`fetched cover art (${buf.length} bytes) from ${kind}`)
+        return buf
+      }
+      log.debug(`no cover art on Cover Art Archive ${kind} (HTTP ${res.status})`)
+    } catch (err) {
+      log.debug(`cover art ${kind} fetch failed:`, err)
+    }
+  }
+  return undefined
+}
 
 /** Primary source wins; secondary only fills gaps. */
 export function mergeTags(
@@ -74,20 +115,8 @@ export async function enrich(
     tags.genre = (await mb.getReleaseGroupGenre(match.releaseGroupId)) ?? undefined
   }
   let cover: Buffer | undefined
-  if (config.fetchCoverArt && match.releaseId) {
-    try {
-      const res = await services.fetch(
-        `https://coverartarchive.org/release/${match.releaseId}/front-500`
-      )
-      if (res.ok) {
-        cover = Buffer.from(await res.arrayBuffer())
-        services.log.debug(`fetched cover art (${cover.length} bytes)`)
-      } else {
-        services.log.debug(`no cover art on Cover Art Archive (HTTP ${res.status})`)
-      }
-    } catch (err) {
-      services.log.debug('cover art fetch failed — keeping YouTube thumbnail:', err)
-    }
+  if (config.fetchCoverArt && (match.releaseId || match.releaseGroupId)) {
+    cover = await fetchCoverArt(services.fetch, match, services.log)
   }
   services.reportProgress(0.9)
   return { tags, cover }
@@ -195,6 +224,9 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
       services,
       ctx.info.contentHash
     )
+    // A real album cover (MusicBrainz / Cover Art Archive) always replaces the
+    // YouTube thumbnail, independent of `primarySource` — the thumbnail is only a
+    // fallback when no other cover is available.
     if (cover) embedCover(ctx.workingFile, cover, 'image/jpeg')
     ctx.tags = mergeTags(ytNorm, mbTags, config.primarySource)
     services.log.info(

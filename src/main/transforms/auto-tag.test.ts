@@ -1,6 +1,6 @@
 // src/main/transforms/auto-tag.test.ts
 import { describe, it, expect, vi } from 'vitest'
-import { mergeTags, enrich, resolveAutoTag, type AutoTagConfig } from './auto-tag'
+import { mergeTags, enrich, resolveAutoTag, fetchCoverArt, type AutoTagConfig } from './auto-tag'
 import { silentTransformLog } from './transform-logger'
 import type { MetadataCache } from '../metadata-cache'
 import type { TrackTags } from '../../shared/types'
@@ -98,6 +98,81 @@ describe('enrich', () => {
     expect(out.tags.year).toBe('2001')
   })
 
+  it('embeds cover art even when YouTube is the primary source', async () => {
+    const fetchImpl = (async (url: string) => {
+      const u = String(url)
+      if (u.includes('/release/rel1/front-500')) {
+        return new Response(Buffer.from([1, 2, 3]), { status: 200 })
+      }
+      return new Response(
+        JSON.stringify({
+          recordings: [
+            {
+              id: 'rec1',
+              score: 100,
+              title: 'Real Title',
+              'artist-credit': [{ artist: { name: 'Real Artist' } }],
+              releases: [
+                { id: 'rel1', title: 'Real Album', date: '2001', 'release-group': { id: 'rg1' } }
+              ]
+            }
+          ]
+        }),
+        { status: 200 }
+      )
+    }) as unknown as typeof fetch
+    const services = {
+      bin: {} as never,
+      fetch: fetchImpl,
+      log: silentTransformLog,
+      reportProgress: () => {}
+    }
+    const out = await enrich(
+      { artist: 'Real Artist', title: 'Real Title' },
+      { ...baseConfig, primarySource: 'youtube', fetchCoverArt: true },
+      services
+    )
+    expect(out.cover).toEqual(Buffer.from([1, 2, 3]))
+  })
+
+  it('falls back to the release-group cover when the release has none', async () => {
+    const fetchImpl = (async (url: string) => {
+      const u = String(url)
+      if (u.includes('/release/rel1/front-500')) return new Response('', { status: 404 })
+      if (u.includes('/release-group/rg1/front-500')) {
+        return new Response(Buffer.from([7, 8, 9]), { status: 200 })
+      }
+      return new Response(
+        JSON.stringify({
+          recordings: [
+            {
+              id: 'rec1',
+              score: 100,
+              title: 'Real Title',
+              'artist-credit': [{ artist: { name: 'Real Artist' } }],
+              releases: [
+                { id: 'rel1', title: 'Real Album', date: '2001', 'release-group': { id: 'rg1' } }
+              ]
+            }
+          ]
+        }),
+        { status: 200 }
+      )
+    }) as unknown as typeof fetch
+    const services = {
+      bin: {} as never,
+      fetch: fetchImpl,
+      log: silentTransformLog,
+      reportProgress: () => {}
+    }
+    const out = await enrich(
+      { artist: 'Real Artist', title: 'Real Title' },
+      { ...baseConfig, fetchCoverArt: true },
+      services
+    )
+    expect(out.cover).toEqual(Buffer.from([7, 8, 9]))
+  })
+
   it('returns empty tags when enrich disabled', async () => {
     const services = {
       bin: {} as never,
@@ -111,6 +186,34 @@ describe('enrich', () => {
       services
     )
     expect(out.tags).toEqual({})
+  })
+})
+
+describe('fetchCoverArt', () => {
+  it('prefers the release cover and never queries the release group when it succeeds', async () => {
+    const calls: string[] = []
+    const fetchImpl = (async (url: string) => {
+      calls.push(String(url))
+      return new Response(Buffer.from([1]), { status: 200 })
+    }) as unknown as typeof fetch
+    const out = await fetchCoverArt(
+      fetchImpl,
+      { releaseId: 'rel1', releaseGroupId: 'rg1' },
+      silentTransformLog
+    )
+    expect(out).toEqual(Buffer.from([1]))
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toContain('/release/rel1/front-500')
+  })
+
+  it('returns undefined when neither release nor release group has a cover', async () => {
+    const fetchImpl = (async () => new Response('', { status: 404 })) as unknown as typeof fetch
+    const out = await fetchCoverArt(
+      fetchImpl,
+      { releaseId: 'rel1', releaseGroupId: 'rg1' },
+      silentTransformLog
+    )
+    expect(out).toBeUndefined()
   })
 })
 
