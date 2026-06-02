@@ -1,28 +1,24 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import './i18n'
-import { JobRail } from './job-rail'
-import type { JobMeta } from '../../shared/types'
+import { JobRail, type RailItem } from './job-rail'
 
-const meta = (jobId: string, state: JobMeta['state']): JobMeta => ({
+const item = (jobId: string, state: RailItem['state'], overall = 0): RailItem => ({
   jobId,
   title: `Job ${jobId}`,
-  kind: 'download',
-  state
+  overall,
+  state,
+  finished: state === 'done'
 })
 
 describe('JobRail', () => {
   it('lists every job plus a New entry, with state labels and progress widths', () => {
     const html = renderToStaticMarkup(
       <JobRail
-        jobs={[
-          { meta: meta('A', 'running'), overall: 0.6 },
-          { meta: meta('B', 'paused'), overall: 0.3 },
-          { meta: meta('C', 'queued'), overall: 0 }
-        ]}
+        jobs={[item('A', 'running', 0.6), item('B', 'paused', 0.3), item('C', 'queued')]}
         selectedJobId="A"
         onSelect={vi.fn()}
-        onCancel={vi.fn()}
+        onClose={vi.fn()}
       />
     )
     expect(html).toContain('Job A')
@@ -35,13 +31,25 @@ describe('JobRail', () => {
     expect(html).toContain('width:60%')
   })
 
+  it('labels finished jobs as Done', () => {
+    const html = renderToStaticMarkup(
+      <JobRail
+        jobs={[item('A', 'done', 1)]}
+        selectedJobId={null}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+    expect(html).toContain('Done')
+  })
+
   it('marks the selected job row with the accent background', () => {
     const html = renderToStaticMarkup(
       <JobRail
-        jobs={[{ meta: meta('A', 'running'), overall: 0.5 }]}
+        jobs={[item('A', 'running', 0.5)]}
         selectedJobId="A"
         onSelect={vi.fn()}
-        onCancel={vi.fn()}
+        onClose={vi.fn()}
       />
     )
     expect(html).toContain('bg-accent/15')

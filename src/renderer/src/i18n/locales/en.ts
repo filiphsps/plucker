@@ -84,10 +84,12 @@ export default {
   jobs: {
     new: 'New',
     cancel: 'Cancel',
+    dismiss: 'Dismiss',
     state: {
       running: 'Running',
       paused: 'Paused',
-      queued: 'Queued'
+      queued: 'Queued',
+      done: 'Done'
     }
   },
   statusBar: {

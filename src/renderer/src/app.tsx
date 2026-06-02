@@ -137,14 +137,21 @@ export default function App(): React.JSX.Element {
       window.plucker.onJobsChanged((roster) =>
         setJobs((prev) => {
           const next = new Map<string, JobView>()
+          const inRoster = new Set(roster.map((m) => m.jobId))
           for (const meta of roster) {
             const existing = prev.get(meta.jobId)
             next.set(
               meta.jobId,
               existing
-                ? { ...existing, meta }
-                : { meta, progress: null, paused: false, trackPaused: {} }
+                ? { ...existing, meta, finished: false }
+                : { meta, progress: null, paused: false, trackPaused: {}, finished: false }
             )
+          }
+          // Keep jobs that left the roster but actually ran — mark them finished so
+          // they linger in the rail (for review) until the user dismisses them. A
+          // queued job cancelled before it ran (no progress) is dropped.
+          for (const [id, v] of prev) {
+            if (!inRoster.has(id) && v.progress) next.set(id, { ...v, finished: true })
           }
           return next
         })
@@ -266,14 +273,30 @@ export default function App(): React.JSX.Element {
   const overlayOpen = settingsOpen || cacheOpen
   const selectedJob = selectedJobId ? (jobs.get(selectedJobId) ?? null) : null
   const railItems = [...jobs.values()].map((v) => ({
-    meta: v.meta,
-    overall: v.progress?.overall ?? 0
+    jobId: v.meta.jobId,
+    title: v.meta.title,
+    overall: v.progress?.overall ?? 0,
+    finished: !!v.finished,
+    state: v.finished ? ('done' as const) : v.meta.state
   }))
+  // The rail only earns its space once there are ≥2 entries (the "New" row plus at
+  // least one job); with no jobs the compose pane takes the full width.
+  const showRail = railItems.length >= 1
   // Show the deck for the selected job only while it has work in flight.
   const deckJob =
     selectedJob && selectedJob.progress?.tracks.some((t) => ACTIVE.has(t.status))
       ? selectedJob
       : null
+
+  /** Remove a finished job from the rail (it stays in History). */
+  const dismissJob = (jobId: string): void => {
+    setJobs((prev) => {
+      const next = new Map(prev)
+      next.delete(jobId)
+      return next
+    })
+    setSelectedJobId((cur) => (cur === jobId ? null : cur))
+  }
 
   const visibleInterrupted = interrupted.filter((j) => !dismissed.has(j.jobId))
   const handleResume = (jobId: string): void => {
@@ -345,12 +368,16 @@ export default function App(): React.JSX.Element {
             them on return. Exactly one page is active at a time. */}
         <Page active={!overlayOpen && view === 'download'}>
           <div className="flex h-full min-h-0">
-            <JobRail
-              jobs={railItems}
-              selectedJobId={selectedJobId}
-              onSelect={setSelectedJobId}
-              onCancel={(jobId) => void window.plucker.cancel(jobId)}
-            />
+            {showRail && (
+              <JobRail
+                jobs={railItems}
+                selectedJobId={selectedJobId}
+                onSelect={setSelectedJobId}
+                onClose={(jobId, finished) =>
+                  finished ? dismissJob(jobId) : void window.plucker.cancel(jobId)
+                }
+              />
+            )}
             <div className="min-h-0 flex-1">
               <DownloadView
                 job={selectedJob}

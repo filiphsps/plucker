@@ -6,4 +6,6 @@ export interface JobView {
   progress: JobProgress | null
   paused: boolean
   trackPaused: Record<number, boolean>
+  /** True once the job has left the pool roster but is kept around for review. */
+  finished?: boolean
 }

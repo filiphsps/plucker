@@ -85,10 +85,12 @@ const de: typeof en = {
   jobs: {
     new: 'Neu',
     cancel: 'Abbrechen',
+    dismiss: 'Verwerfen',
     state: {
       running: 'Läuft',
       paused: 'Pausiert',
-      queued: 'Warteschlange'
+      queued: 'Warteschlange',
+      done: 'Fertig'
     }
   },
   statusBar: {
