@@ -53,9 +53,15 @@ export function TransportDeck({
     <div className="flex h-12 items-center gap-4 border-t border-line bg-panel px-[18px]">
       {/* left: counter + progress bar + sublabels, all left-aligned */}
       <div className="flex min-w-0 flex-1 items-center gap-4">
-        <span className="shrink-0 font-mono text-sm font-semibold leading-none tnum text-accent">
-          {processed}/{progress.total}
-          {failed > 0 && <span className="ml-1.5 text-bad">·&nbsp;{failed}</span>}
+        <span className="flex shrink-0 items-baseline gap-2 font-mono leading-none">
+          <span className="text-sm font-semibold tnum text-accent">
+            {processed}/{progress.total}
+          </span>
+          {failed > 0 && (
+            <span className="text-[9px] tracking-[1.5px] text-bad">
+              {t('deck.failed', { count: failed })}
+            </span>
+          )}
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Meter value={progress.overall} />

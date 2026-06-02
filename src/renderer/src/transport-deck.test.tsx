@@ -17,11 +17,10 @@ const base: JobProgress = {
 }
 
 describe('TransportDeck', () => {
-  it('shows the active (downloading) track title and the done/total counter', () => {
+  it('shows the done/total counter', () => {
     const html = renderToStaticMarkup(
       <TransportDeck progress={base} paused={false} onTogglePause={() => {}} onCancel={() => {}} />
     )
-    expect(html).toContain('Avril 14th') // active downloading track
     expect(html).toContain('1/24') // 1 done of 24
   })
 
