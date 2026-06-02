@@ -120,6 +120,9 @@ const de: typeof en = {
   },
   console: {
     toggle: 'Konsole umschalten',
+    undock: 'Abdocken',
+    dock: 'Andocken',
+    pin: 'Im Vordergrund',
     title: 'Konsole',
     empty: 'Noch keine Protokollausgabe',
     clear: 'Leeren',

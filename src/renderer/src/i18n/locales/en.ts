@@ -119,6 +119,9 @@ export default {
   },
   console: {
     toggle: 'Toggle console',
+    undock: 'Undock',
+    dock: 'Dock',
+    pin: 'Keep on top',
     title: 'Console',
     empty: 'No log output yet',
     clear: 'Clear',
