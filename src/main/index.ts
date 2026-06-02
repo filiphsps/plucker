@@ -302,6 +302,20 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('library:edit', (_e, trackId: string, chain: TransformInstance[]) =>
     library.edit(trackId, chain)
   )
+  ipcMain.handle('library:createBranch', (_e, trackId: string, fromVersionId: string, name: string) => {
+    const id = library.createBranch(trackId, fromVersionId, name)
+    return { id, detail: library.getTrack(trackId) }
+  })
+  ipcMain.handle('library:switchBranch', (_e, trackId: string, branchId: string) => {
+    library.switchBranch(trackId, branchId)
+    return library.getTrack(trackId)
+  })
+  ipcMain.handle('library:renameBranch', (_e, branchId: string, name: string) =>
+    library.renameBranch(branchId, name)
+  )
+  ipcMain.handle('library:renameVersion', (_e, versionId: string, label: string) =>
+    library.renameVersion(versionId, label)
+  )
 
   const win = (): BrowserWindow | null => getWindow()
   const setBar = (overall: number): void =>
