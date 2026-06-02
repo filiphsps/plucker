@@ -47,10 +47,20 @@ export function buildAppMenu(getWindow: GetWindow): void {
     click: () => getWindow()?.webContents.send('menu:toggle-console')
   }
 
+  // Re-run the enabled transform chain on the current History selection. Always
+  // enabled — the renderer no-ops (and shows a notice) when nothing eligible is
+  // selected, so we don't have to mirror selection state into the native menu.
+  const retransformItem: MenuItemConstructorOptions = {
+    label: t.retransformSelection,
+    click: () => getWindow()?.webContents.send('menu:retransform-selection')
+  }
+
   // Download / History navigation, shared by the Go menu (and the mac app menu omits it).
   const goSubmenu: MenuItemConstructorOptions[] = [
     { label: t.download, accelerator: 'CmdOrCtrl+1', click: navigate('download') },
     { label: t.history, accelerator: 'CmdOrCtrl+2', click: navigate('history') },
+    { type: 'separator' },
+    retransformItem,
     ...(consoleAvailable ? [{ type: 'separator' } as MenuItemConstructorOptions, consoleItem] : []),
     ...(!isMac ? [{ type: 'separator' } as MenuItemConstructorOptions, settingsItem] : [])
   ]

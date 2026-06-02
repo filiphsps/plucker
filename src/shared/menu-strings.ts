@@ -13,6 +13,7 @@ export const menu = {
     go: 'Go',
     download: 'Download',
     history: 'History',
+    retransformSelection: 'Re-run Transforms on Selection',
     toggleConsole: 'Toggle Console'
   },
   de: {
@@ -22,6 +23,7 @@ export const menu = {
     go: 'Gehe zu',
     download: 'Download',
     history: 'Verlauf',
+    retransformSelection: 'Transformationen für Auswahl erneut ausführen',
     toggleConsole: 'Konsole umschalten'
   }
 }
