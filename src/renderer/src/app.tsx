@@ -279,9 +279,10 @@ export default function App(): React.JSX.Element {
     finished: !!v.finished,
     state: v.finished ? ('done' as const) : v.meta.state
   }))
-  // The rail only earns its space once there are ≥2 entries (the "New" row plus at
-  // least one job); with no jobs the compose pane takes the full width.
-  const showRail = railItems.length >= 1
+  // Show the rail when there's more than one job to switch between, or a single
+  // multi-track playlist (worth the rail on its own). A lone single-track download
+  // doesn't earn the space — the compose pane / its detail takes the full width.
+  const showRail = jobs.size >= 2 || [...jobs.values()].some((v) => (v.progress?.total ?? 0) > 1)
   // Show the deck for the selected job only while it has work in flight.
   const deckJob =
     selectedJob && selectedJob.progress?.tracks.some((t) => ACTIVE.has(t.status))
