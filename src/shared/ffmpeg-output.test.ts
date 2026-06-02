@@ -75,6 +75,18 @@ describe('hasTrimmableSilence', () => {
     expect(hasTrimmableSilence(leading, dur, 'both')).toBe(true)
     expect(hasTrimmableSilence(trailing, dur, 'both')).toBe(true)
   })
+
+  // silenceremove only strips silence anchored at the literal stream edge. A
+  // region that starts after some audio (or ends before EOF) is NOT removed, so
+  // it must not be reported as trimmable — otherwise we log a trim that never
+  // happens and the silence stays on the waveform.
+  it('ignores near-edge silence that is not anchored to the edge', () => {
+    const nearStart = [{ start: 0.4, end: 0.9 }]
+    const nearEnd = [{ start: 200, end: 200.8 }]
+    expect(hasTrimmableSilence(nearStart, dur, 'start')).toBe(false)
+    expect(hasTrimmableSilence(nearEnd, dur, 'end')).toBe(false)
+    expect(hasTrimmableSilence(nearStart, dur, 'both')).toBe(false)
+  })
 })
 
 describe('measureEdgeSilence', () => {
@@ -99,6 +111,19 @@ describe('measureEdgeSilence', () => {
 
   it('ignores mid-track silence', () => {
     expect(measureEdgeSilence([{ start: 90, end: 92 }], dur, 'both')).toEqual({
+      leadingSec: 0,
+      trailingSec: 0
+    })
+  })
+
+  // Silence that starts after some audio (or ends before EOF) is not removed by
+  // silenceremove, so it must measure as zero rather than reporting a phantom trim.
+  it('ignores near-edge silence that is not anchored to the edge', () => {
+    expect(measureEdgeSilence([{ start: 0.4, end: 0.9 }], dur, 'start')).toEqual({
+      leadingSec: 0,
+      trailingSec: 0
+    })
+    expect(measureEdgeSilence([{ start: 200, end: 200.8 }], dur, 'end')).toEqual({
       leadingSec: 0,
       trailingSec: 0
     })

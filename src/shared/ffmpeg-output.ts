@@ -40,14 +40,23 @@ export function parseBitrateKbps(stderr: string): number | null {
   return container ? Number(container[1]) : null
 }
 
-/** How close to an edge (seconds) a region must be to count as leading/trailing. */
-const EDGE_EPS = 0.5
+/**
+ * How close (seconds) a region's edge must sit to the literal stream start/end to
+ * count as leading/trailing. `silenceremove` only strips silence anchored at the
+ * very start (or, reversed, the very end) of the stream — a region that begins
+ * after some audio, or ends before EOF, is left untouched. So this must be a tight
+ * rounding tolerance, not a "near the edge" window: a looser value reports phantom
+ * trims (logging silence that silenceremove never removes, leaving it on the
+ * waveform).
+ */
+const EDGE_EPS = 0.05
 
 /**
  * Whether the requested mode has edge silence to trim. silencedetect only reports
- * regions already at least `minDurationSec` long, so any region starting at the
- * very beginning (leading) or ending at the very end (trailing) counts; mid-track
- * silence is ignored.
+ * regions already at least `minDurationSec` long; a region counts only when it is
+ * anchored to the literal edge — starting at the very beginning (leading) or
+ * ending at the very end (trailing). Mid-track and merely near-edge silence are
+ * ignored, matching what silenceremove actually removes.
  */
 export function hasTrimmableSilence(
   regions: SilenceRegion[],
