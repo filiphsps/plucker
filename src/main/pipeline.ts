@@ -167,6 +167,8 @@ export interface JobControls {
   skipTrack(index: number): void
   pauseTrack(index: number): void
   resumeTrack(index: number): void
+  /** Resize this job's download/transform concurrency to a new track budget. */
+  setLimit(limit: number): void
 }
 
 export interface RunJobDeps {
@@ -190,6 +192,11 @@ export interface RunJobDeps {
   onControls?: (controls: JobControls) => void
   /** Durable resume checkpoint; persists per-track terminal state during the run. */
   checkpoint?: JobCheckpointSink
+  /**
+   * Initial per-job track budget (download + transform concurrency). Falls back
+   * to `settings.performance.parallel` when absent (the non-worker code paths).
+   */
+  getLimit?: () => number
 }
 
 export interface JobResult {
@@ -432,20 +439,6 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
     tempRoot = join(tmpdir(), 'plucker', randomUUID())
     const tempDirFor = (index: number): string => join(tempRoot, String(index))
 
-    deps.onControls?.({
-      skipTrack(index) {
-        skipRequested.add(index)
-        trackAbort.get(index)?.abort()
-        killGroup(index)
-      },
-      pauseTrack(index) {
-        pauseGroup(index)
-      },
-      resumeTrack(index) {
-        resumeGroup(index)
-      }
-    })
-
     const overall = (): number =>
       tracks.length ? tracks.reduce((sum, t) => sum + trackProgress(t), 0) / tracks.length : 0
     // Assigned once the checkpoint flush is wired (after historyByIndex exists); the
@@ -481,9 +474,30 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
     // download stage (I/O-bound: yt-dlp child processes) feeds the transform stage
     // (CPU-bound, now mostly off-thread) the moment each file lands, so both run
     // concurrently instead of competing for a single shared pool.
-    const limit = Math.max(1, settings.performance.parallel)
+    const limit = Math.max(1, deps.getLimit?.() ?? settings.performance.parallel)
     const downloadPool = createPool(limit)
     const transformPool = createPool(limit)
+
+    // Hand the live controls to the host now that the pools exist: skip/pause/resume
+    // act per-track, and setLimit lets the scheduler rebalance this job's budget.
+    deps.onControls?.({
+      skipTrack(index) {
+        skipRequested.add(index)
+        trackAbort.get(index)?.abort()
+        killGroup(index)
+      },
+      pauseTrack(index) {
+        pauseGroup(index)
+      },
+      resumeTrack(index) {
+        resumeGroup(index)
+      },
+      setLimit(next) {
+        const n = Math.max(1, next)
+        downloadPool.setLimit(n)
+        transformPool.setLimit(n)
+      }
+    })
     // Collect history by track index so the recorded order is stable regardless
     // of which concurrent track finishes first.
     const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
