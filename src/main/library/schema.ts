@@ -19,7 +19,10 @@ CREATE TABLE IF NOT EXISTS track_instances (
 CREATE TABLE IF NOT EXISTS versions (
   id TEXT PRIMARY KEY,
   track_id TEXT NOT NULL REFERENCES track_instances(id) ON DELETE CASCADE,
-  parent_id TEXT REFERENCES versions(id),
+  -- parent_id is a plain column, not a self-FK: the version DAG is app-managed (cascade
+  -- is driven by track_id ON DELETE CASCADE), and a self-FK would block deleting an
+  -- interior version while descendants still reference it.
+  parent_id TEXT,
   -- blob_hash is a plain column, not an FK: versions are inserted before their blob
   -- row exists (refBlob registers blobs lazily after insertVersion), and blob lifetime
   -- is governed by the repo's transactional refcount, not by a DB foreign key.
