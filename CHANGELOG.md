@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.18.0](https://github.com/filiphsps/plucker/compare/plucker-v0.17.0...plucker-v0.18.0) (2026-06-02)
+
+
+### Features
+
+* **native:** keyboard nav, submenu safe-triangle, scrolling, polish ([e2bd398](https://github.com/filiphsps/plucker/commit/e2bd398f79acb0d6e2dfecb03fdf0d38c4240df8))
+* **perf:** virtualize downloads, history, and cache lists ([a7560f3](https://github.com/filiphsps/plucker/commit/a7560f3d917ef80445f6a44df0b0c667e819a4c6))
+* **settings:** live-preview language, revert if closed unsaved ([2ff6cdb](https://github.com/filiphsps/plucker/commit/2ff6cdb85b0640abad1bf4f403d0ffbcaf273974))
+* **shared:** add distribute util for splitting a concurrency budget ([80803ea](https://github.com/filiphsps/plucker/commit/80803ea2e728c7ac769790199e0f6397ec68f94d))
+
+
+### Bug Fixes
+
+* **cache:** refresh waveform and audio after a transform re-encode ([e0b05de](https://github.com/filiphsps/plucker/commit/e0b05dea36d8f5e046bd0209f5982c8f12dc67e0))
+* **context-menu:** improve mouse event handling for context menu interactions ([b32e958](https://github.com/filiphsps/plucker/commit/b32e95877b305c898ee09642d28df084a33ec1d3))
+* **native:** build a universal self-contained addon (arm64 + x86_64) ([5436d10](https://github.com/filiphsps/plucker/commit/5436d107871d28abede5a2b112868e9f1bc0c6c1))
+* **resume:** persist resume-banner dismissals across restarts ([20ce164](https://github.com/filiphsps/plucker/commit/20ce1647367e16de3f4660cb279bb078d701cb41))
+* **transforms:** enable drag-to-reorder in settings ([6a55804](https://github.com/filiphsps/plucker/commit/6a55804a7cb21fbcf5b13b7fb8e80f0c27e321c3))
+* **transforms:** only trim silence anchored to the stream edge ([d416188](https://github.com/filiphsps/plucker/commit/d416188e8e4769947bfc4fb068ecfaf2f735e22e))
+
 ## [0.17.0](https://github.com/filiphsps/plucker/compare/plucker-v0.16.0...plucker-v0.17.0) (2026-06-02)
 
 
