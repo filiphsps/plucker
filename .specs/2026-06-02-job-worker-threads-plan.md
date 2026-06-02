@@ -389,7 +389,8 @@ import type {
   JobProgress,
   JobStatus,
   StartJobRequest,
-  Settings
+  Settings,
+  LogEntry
 } from '../../shared/types'
 import type { BinaryPaths } from '../binaries'
 import type { JobResult } from '../pipeline'
@@ -444,7 +445,7 @@ export type JobWorkerEvent =
   | { type: 'status'; status: JobStatus }
   | { type: 'paused'; paused: boolean }
   | { type: 'trackPaused'; index: number; paused: boolean }
-  | { type: 'log'; line: JobLogLine }
+  | { type: 'log'; entry: LogEntry }
   | { type: 'done'; result: JobResult }
   | { type: 'error'; message: string; cancelled: boolean }
 ```
@@ -555,11 +556,10 @@ Expected: FAIL — module not found.
 // commands, and fans worker events out to injected handlers. The worker factory is
 // injected so this logic is unit-testable without a real thread; the production
 // factory (which imports the bundled worker via `?nodeWorker`) lives in job-host.ts.
-import type { JobProgress, JobStatus } from '../../shared/types'
+import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
 import type { JobResult } from '../pipeline'
 import type {
   JobDepsConfig,
-  JobLogLine,
   JobStartPayload,
   JobWorkerCommand,
   JobWorkerEvent
@@ -579,7 +579,7 @@ export interface JobClientHandlers {
   onStatus?: (s: JobStatus) => void
   onPaused?: (paused: boolean) => void
   onTrackPaused?: (index: number, paused: boolean) => void
-  onLog?: (line: JobLogLine) => void
+  onLog?: (entry: LogEntry) => void
   onDone?: (result: JobResult) => void
   onError?: (e: { message: string; cancelled: boolean }) => void
 }
@@ -618,7 +618,7 @@ export function createJobClient(
         handlers.onTrackPaused?.(msg.index, msg.paused)
         break
       case 'log':
-        handlers.onLog?.(msg.line)
+        handlers.onLog?.(msg.entry)
         break
       case 'done':
         finished = true
@@ -703,7 +703,7 @@ import { resumeAllChildren, pauseAllChildren } from '../spawn'
 import { analyzeTrack, buildAnalyzeDeps } from '../transforms/analyze-key-bpm'
 import { readTrackTags, writeTrackTags, embedCover, readCoverImage } from '../tagger'
 import { hashAudioFile } from '../audio-hash'
-import { setLogSink } from '../log'
+import { addLogTransport } from '../log'
 import type { OffThreadAnalyze, AnalyzeLogLine } from './analyze-protocol'
 import type { OffThreadMedia } from './media-protocol'
 import type { TransformLog } from '../transforms/types'
@@ -714,12 +714,14 @@ const port = parentPort
 
 const emit = (e: JobWorkerEvent): void => port.postMessage(e)
 
-// Route this worker's logger into the main process so the console window + log file
-// still see job output, tagged by scope.
-setLogSink((level, scope, message) => emit({ type: 'log', line: { level, scope, message } }))
+// Forward this worker's log entries to the main process so the console window +
+// log file still capture job output. The worker has no other transports attached
+// (applyConsoleLogging only runs in main), so this is the only consumer.
+addLogTransport((entry) => emit({ type: 'log', entry }))
 
 let controls: JobControls | null = null
 let limit = 1
+let ffmpegPath = ''
 const abort = new AbortController()
 
 /** Inline analyze service — runs essentia on THIS worker thread. */
@@ -744,8 +746,6 @@ const media: OffThreadMedia = {
   readCover: async (file) => readCoverImage(file),
   terminate: () => {}
 }
-
-let ffmpegPath = ''
 
 function buildDeps(jobId: string, cfg: JobDepsConfig): RunJobDeps {
   ffmpegPath = cfg.bin.ffmpeg
@@ -824,29 +824,28 @@ port.on('message', (msg: JobWorkerCommand) => {
 })
 ```
 
-- [ ] **Step 2: Add `setLogSink` to the log module**
+- [ ] **Step 2: Add `replayLogEntry` to the log module (for the main side to re-emit)**
 
-The worker redirects logging to the main process. Inspect `src/main/log.ts`: it must expose a `setLogSink(fn)` that, when set, receives every log line instead of (or in addition to) the default file/console path. If it does not already, add:
+`log.ts` already exposes `addLogTransport(transport: LogTransport)` (used by the worker above) and an `emit(level, scope, args)` internal that stamps a fresh `LogEntry`. The main side needs to re-inject an *already-formed* `LogEntry` (from a worker) into the ring + transports without re-stamping it. Add to `src/main/log.ts`:
 
 ```ts
-// src/main/log.ts — add near the top-level state
-type LogSink = (level: LogLevel, scope: string, message: string) => void
-let externalSink: LogSink | null = null
-export function setLogSink(sink: LogSink | null): void {
-  externalSink = sink
+/** Re-inject an already-formed entry (e.g. forwarded from a worker) into the ring
+ *  buffer and all transports, preserving its original time/level/scope/message. */
+export function replayLogEntry(entry: LogEntry): void {
+  ring.push(entry)
+  if (ring.length > RING_CAP) ring.shift()
+  toConsole(entry)
+  for (const t of transports) {
+    try {
+      t(entry)
+    } catch {
+      // A failing transport must never break logging.
+    }
+  }
 }
 ```
 
-Then, inside the existing log-writing function (where a line is finalized), add at the start:
-
-```ts
-  if (externalSink) {
-    externalSink(level, scope, message)
-    return
-  }
-```
-
-Match the actual parameter names/shape used in `log.ts` (read the file first; `level`/`scope`/`message` here are illustrative — adapt to its real signature). Keep `LogLevel` imported/defined as it already is.
+(This mirrors the tail of the existing `emit` — `ring`/`RING_CAP`/`toConsole`/`transports` are already in scope in that module.)
 
 - [ ] **Step 3: Typecheck**
 
@@ -1023,9 +1022,9 @@ Expected: FAIL — module not found.
 // of history/settings (see onDone/onError consumers in index.ts).
 import { distribute } from '../shared/distribute'
 import type { JobClient, JobClientHandlers } from './workers/job-client'
-import type { JobProgress, JobStatus } from '../shared/types'
+import type { JobProgress, JobStatus, LogEntry } from '../shared/types'
 import type { JobResult } from './pipeline'
-import type { JobDepsConfig, JobMeta, JobStartPayload, JobLogLine } from './workers/job-protocol'
+import type { JobDepsConfig, JobMeta, JobStartPayload } from './workers/job-protocol'
 
 /** Per-job hooks the host (index.ts) supplies to relay events to the renderer. */
 export interface JobPoolHooks {
@@ -1033,7 +1032,7 @@ export interface JobPoolHooks {
   onStatus?: (jobId: string, s: JobStatus) => void
   onPaused?: (jobId: string, paused: boolean) => void
   onTrackPaused?: (jobId: string, index: number, paused: boolean) => void
-  onLog?: (jobId: string, line: JobLogLine) => void
+  onLog?: (jobId: string, entry: LogEntry) => void
   onDone?: (jobId: string, payload: JobStartPayload, result: JobResult) => void
   onError?: (jobId: string, payload: JobStartPayload, e: { message: string; cancelled: boolean }) => void
 }
@@ -1226,7 +1225,7 @@ function getJobPool(): ReturnType<typeof createJobPool> {
     onPaused: (jobId, paused) => getWindow()?.webContents.send('job:paused', jobId, paused),
     onTrackPaused: (jobId, i, paused) =>
       getWindow()?.webContents.send('job:trackPaused', jobId, i, paused),
-    onLog: (jobId, line) => appendWorkerLog(jobId, line), // see Step 2
+    onLog: (_jobId, entry) => replayLogEntry(entry), // re-inject into main's log pipeline
     onDone: (jobId, payload, result) => foldJobResult(jobId, payload, result),
     onError: (jobId, payload, e) => foldJobError(jobId, payload, e)
   })
@@ -1236,18 +1235,13 @@ function getJobPool(): ReturnType<typeof createJobPool> {
 
 If `getMetaCache()` constructs the cache from a private dir, extract a `metaCacheDir()` helper that returns that path so both the cache and the worker config use the same directory. Same for `jobsDir()` (already exists, per existing checkpoint usage).
 
-- [ ] **Step 2: Forward worker logs into the existing log pipeline**
+- [ ] **Step 2: Import the log helpers**
 
 ```ts
-import { log } from './log'
-
-function appendWorkerLog(jobId: string, line: { level: 'debug' | 'info' | 'warn' | 'error'; scope: string; message: string }): void {
-  // Re-emit through the main logger so the console window + log file capture it.
-  log[line.level](line.scope, line.message)
-}
+import { log, replayLogEntry } from './log'
 ```
 
-(If `log` does not have a per-level signature like `log.info(scope, msg)`, adapt to its real API as used elsewhere in `index.ts`.)
+`replayLogEntry` (added in Task 6, Step 2) re-injects a worker's forwarded `LogEntry` into main's ring buffer + transports so the console window + log file capture job output with its original timestamp. The pool's `onLog` callback (Step 1) calls it directly. `log` is used by `foldJobError` below.
 
 - [ ] **Step 3: Move result/error folding out of the old job:start body into reusable functions**
 
