@@ -11,6 +11,10 @@ describe('registry', () => {
     expect(r.get('trim-silence')?.type).toBe('trim-silence')
     expect(r.get('trim-silence')?.allowMultiple).toBe(true)
   })
+  it('includes the analyze-key-bpm transform', () => {
+    expect(getCatalog().map((m) => m.type)).toContain('analyze-key-bpm')
+    expect(buildRegistry().has('analyze-key-bpm')).toBe(true)
+  })
   it('catalog is serializable and omits run()', () => {
     const catalog = getCatalog()
     const json = JSON.parse(JSON.stringify(catalog))
