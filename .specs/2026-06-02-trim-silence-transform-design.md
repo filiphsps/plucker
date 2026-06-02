@@ -28,7 +28,7 @@ runner needs no changes.
 
 ## Non-goals
 
-- Removing silence *within* a track (only the very start/end are trimmed).
+- Removing silence _within_ a track (only the very start/end are trimmed).
 - Loudness normalization or any other audio processing.
 - Per-format handling beyond mp3 (the working file is always mp3 in this pipeline).
 
@@ -46,7 +46,7 @@ export type TrimMode = 'both' | 'start' | 'end' | 'none'
 
 export interface SilenceFilterOpts {
   mode: TrimMode
-  thresholdDb: number   // e.g. -90
+  thresholdDb: number // e.g. -90
   minDurationSec: number // e.g. 0.1
 }
 
@@ -54,7 +54,7 @@ export interface SilenceFilterOpts {
 export function silenceRemoveFilter(opts: SilenceFilterOpts): string | null
 ```
 
-`silenceremove` only trims *leading* silence natively; trailing silence uses the
+`silenceremove` only trims _leading_ silence natively; trailing silence uses the
 standard reverse-trim-reverse trick:
 
 - **start** → `silenceremove=start_periods=1:start_threshold=-90dB:start_duration=0.1`
@@ -89,7 +89,8 @@ export function trimSilence(
 silence longer than `minDurationSec`, **return the original file untouched**
 (`trimmed: false`) — the track stays bit-identical, no lossy re-encode.
 
-When there *is* something to trim:
+When there _is_ something to trim:
+
 1. Probe the source bitrate (ffprobe / ffmpeg), falling back to `320k`.
 2. Run ffmpeg with `-af <filtergraph>` re-encoding via `libmp3lame` at the source
    bitrate, writing to a sibling temp file (e.g. `<input>.trim.mp3`).
@@ -162,10 +163,10 @@ const CONFIG_SCHEMA: ConfigField[] = [
     type: 'enum',
     default: 'both',
     options: [
-      { value: 'both',  labelKey: 'transforms.trimSilence.modes.both' },
+      { value: 'both', labelKey: 'transforms.trimSilence.modes.both' },
       { value: 'start', labelKey: 'transforms.trimSilence.modes.start' },
-      { value: 'end',   labelKey: 'transforms.trimSilence.modes.end' },
-      { value: 'none',  labelKey: 'transforms.trimSilence.modes.none' }
+      { value: 'end', labelKey: 'transforms.trimSilence.modes.end' },
+      { value: 'none', labelKey: 'transforms.trimSilence.modes.none' }
     ]
   },
   {

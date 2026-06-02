@@ -32,6 +32,7 @@
 ## Task 1: Pure silence filtergraph builder
 
 **Files:**
+
 - Create: `src/shared/silence-filter.ts`
 - Test: `src/shared/silence-filter.test.ts`
 
@@ -128,6 +129,7 @@ git commit -m "feat(transforms): add silence filtergraph builder"
 ## Task 2: ffmpeg-stderr parsers and trim decision
 
 **Files:**
+
 - Create: `src/shared/ffmpeg-output.ts`
 - Test: `src/shared/ffmpeg-output.test.ts`
 
@@ -278,8 +280,7 @@ export function hasTrimmableSilence(
   mode: TrimMode
 ): boolean {
   const hasLeading = regions.some((r) => r.start <= EDGE_EPS)
-  const hasTrailing =
-    durationSec !== null && regions.some((r) => r.end >= durationSec - EDGE_EPS)
+  const hasTrailing = durationSec !== null && regions.some((r) => r.end >= durationSec - EDGE_EPS)
   if (mode === 'start') return hasLeading
   if (mode === 'end') return hasTrailing
   if (mode === 'both') return hasLeading || hasTrailing
@@ -304,6 +305,7 @@ git commit -m "feat(transforms): parse ffmpeg silence/duration/bitrate output"
 ## Task 3: Audio-trim orchestrator (probe-first)
 
 **Files:**
+
 - Create: `src/main/audio-trim.ts`
 - Test: `src/main/audio-trim.test.ts`
 
@@ -548,6 +550,7 @@ git commit -m "feat(transforms): add probe-first audio silence trimmer"
 ## Task 4: The trim-silence transform
 
 **Files:**
+
 - Create: `src/main/transforms/trim-silence.ts`
 - Test: `src/main/transforms/trim-silence.test.ts`
 
@@ -684,6 +687,7 @@ git commit -m "feat(transforms): add trim-silence transform"
 ## Task 5: Register the transform
 
 **Files:**
+
 - Modify: `src/main/transforms/registry.ts`
 - Test: `src/main/transforms/registry.test.ts`
 
@@ -692,8 +696,8 @@ git commit -m "feat(transforms): add trim-silence transform"
 Add to the first `it` block in `src/main/transforms/registry.test.ts`, after the `square-cover` assertion (line 10):
 
 ```ts
-    expect(r.get('trim-silence')?.type).toBe('trim-silence')
-    expect(r.get('trim-silence')?.allowMultiple).toBe(true)
+expect(r.get('trim-silence')?.type).toBe('trim-silence')
+expect(r.get('trim-silence')?.allowMultiple).toBe(true)
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -737,6 +741,7 @@ git commit -m "feat(transforms): register trim-silence in the catalog"
 ## Task 6: Add to the default chain
 
 **Files:**
+
 - Modify: `src/shared/defaults.ts`
 - Test: `src/shared/defaults.test.ts`
 
@@ -745,12 +750,12 @@ git commit -m "feat(transforms): register trim-silence in the catalog"
 Add this `it` block inside the `describe('DEFAULT_TRANSFORMS', ...)` in `src/shared/defaults.test.ts`:
 
 ```ts
-  it('includes trim-silence (both ends, true silence) right after auto-tag', () => {
-    const entry = DEFAULT_TRANSFORMS[1]
-    expect(entry.type).toBe('trim-silence')
-    expect(entry.enabled).toBe(true)
-    expect(entry.config).toEqual({ mode: 'both', thresholdDb: -90, minDurationSec: 0.1 })
-  })
+it('includes trim-silence (both ends, true silence) right after auto-tag', () => {
+  const entry = DEFAULT_TRANSFORMS[1]
+  expect(entry.type).toBe('trim-silence')
+  expect(entry.enabled).toBe(true)
+  expect(entry.config).toEqual({ mode: 'both', thresholdDb: -90, minDurationSec: 0.1 })
+})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -788,6 +793,7 @@ git commit -m "feat(transforms): trim silence by default on new downloads"
 ## Task 7: Localized labels (English + German)
 
 **Files:**
+
 - Modify: `src/renderer/src/i18n/locales/en.ts`
 - Modify: `src/renderer/src/i18n/locales/de.ts`
 
