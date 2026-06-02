@@ -1,0 +1,69 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "pl-dl-plugins",
+  "description": "Repo-local Claude Code plugins for the Plucker app — TypeScript and Tailwind LSPs, so a fresh clone gets code intelligence with no global config.",
+  "owner": {
+    "name": "Plucker"
+  },
+  "plugins": [
+    {
+      "name": "typescript-lsp",
+      "description": "TypeScript/JavaScript LSP for Claude Code - go-to-definition, find references, hover, and diagnostics.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Plucker"
+      },
+      "source": "./typescript-lsp",
+      "category": "development",
+      "strict": false,
+      "lspServers": {
+        "typescript": {
+          "command": "pnpm",
+          "args": ["dlx", "typescript-language-server@4.4.1", "--stdio"],
+          "extensionToLanguage": {
+            ".ts": "typescript",
+            ".tsx": "typescriptreact",
+            ".js": "javascript",
+            ".jsx": "javascriptreact",
+            ".mts": "typescript",
+            ".cts": "typescript",
+            ".mjs": "javascript",
+            ".cjs": "javascript"
+          }
+        }
+      }
+    },
+    {
+      "name": "tailwind-lsp-adapter",
+      "description": "Tailwind CSS LSP for Claude Code - completions, hover info, and diagnostics for Tailwind classes.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Plucker"
+      },
+      "source": "./tailwind-lsp-adapter",
+      "category": "development",
+      "strict": false,
+      "lspServers": {
+        "tailwindcss": {
+          "command": "pnpm",
+          "args": [
+            "dlx",
+            "--package",
+            "tailwind-lsp-adapter@1.1.5",
+            "--package",
+            "@tailwindcss/language-server@0.14.29",
+            "tailwind-lsp-adapter"
+          ],
+          "extensionToLanguage": {
+            ".css": "css",
+            ".scss": "scss",
+            ".less": "less",
+            ".html": "html",
+            ".vue": "vue",
+            ".svelte": "svelte"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -4,6 +4,59 @@
 
 Use **pnpm** for every command (install, scripts, adding deps). Never use `npm` or `npx` — use `pnpm` and `pnpm dlx`.
 
+## Toolchain corrections
+
+Defaults that would otherwise be wrong here:
+
+- **Use `pnpm <script>` whenever a `package.json` script exists** — `pnpm test`,
+  `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm dev`, `pnpm start`. Don't
+  hand-roll the underlying `vitest`/`tsc`/`electron-vite`/`eslint` invocation; the
+  scripts carry the right flags **and** the `pre*` hooks that fix native modules
+  (below).
+- **`better-sqlite3` is a native (node-gyp) module with a per-runtime ABI, and one
+  `node_modules` serves two runtimes:** the app runs under **Electron**, Vitest runs
+  under plain **Node** — different ABIs. `scripts/ensure-better-sqlite3-abi.mjs`
+  reconciles this and is wired as `pretest` → `--target node`, `predev`/`prestart`
+  → `--target electron`. It short-circuits when the binary already matches, so just
+  run the right `pnpm` script and let the guard switch the binary. **Don't** manually
+  `rebuild` / `node-gyp` / `electron-builder install-app-deps` to "fix a crash":
+  - better-sqlite3 ships **no Electron prebuilt**, so the Electron binary must be
+    compiled **from source** (which also bakes in the pnpm V8-compat patch in
+    `patches/better-sqlite3.patch`).
+  - The dep is pnpm-`patchedDependencies`-patched, so the copy the app actually
+    loads is the `…_patch_hash=…` virtual-store dir. Running
+    `electron-builder install-app-deps` rebuilds the **unpatched** store dir
+    instead and silently leaves the loaded binary at the Node ABI → the app
+    crashes under Electron. The guard drives node-gyp against the **resolved
+    (patched)** module directly.
+- **Node / ABI pinning:** `.nvmrc` pins Node for local dev; the GitHub workflows
+  pin their own `node-version` (kept in sync via `.nvmrc`). ABI reference: **Electron
+  42 = ABI 146**, **Node 26 = ABI 147** — a `NODE_MODULE_VERSION` mismatch in a crash
+  is this conflict, not a code bug.
+- **Root cause before symptom.** Don't revert versions, disable features, or return
+  empty results as a first-guess fix — especially for native-module ABI, electron-vite
+  build issues, or release-please/CI failures. Diagnose the actual cause.
+- **electron-vite builds three targets** (main / preload / renderer). A renderer-only
+  change still needs the preload/main contracts (`src/preload`, `src/shared/types.ts`)
+  to stay in sync.
+
+## Code intelligence
+
+Prefer **LSP over `Grep`/`Read`** for navigation — faster, precise, no whole-file
+reads. TypeScript and Tailwind LSPs are vendored in `.claude/plugins/pl-dl-plugins`
+and enabled in `.claude/settings.json`, so they work on a fresh clone.
+
+- The built-in LSP tool's `workspaceSymbol` has **no `query` param**, so symbol-by-name
+  search returns nothing. To find a symbol by name: `Grep` for the name, then point a
+  position-based op at the hit.
+- Position-based ops (`filePath` + `line` + `character`):
+  - **`findReferences`** for every usage across the repo.
+  - **`goToDefinition` / `goToImplementation`** to jump to source.
+  - **`hover`** for type info without opening the file.
+  - **`documentSymbol`** to list a file's symbols (file-scoped, works).
+- **Check LSP diagnostics after writing or editing code** and fix errors before
+  moving on.
+
 ## Specs & plans
 
 Write all specs, plans, and design docs to the **`.specs/`** folder. This overrides any skill's default location (e.g. `docs/superpowers/specs`, `docs/superpowers/plans`) — always use `.specs/` instead.

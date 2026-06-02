@@ -8,6 +8,13 @@ resources/bin
 *.log*
 .superpowers/
 
+# Claude Code: commit shared config (.claude/settings.json, hooks/, plugins/,
+# hookify rules); ignore machine-local / generated bits.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.claude/.DS_Store
+
 # App icon — generated from src/icon/ by scripts/build-icon.mjs, never committed.
 build/icon.png
 build/.icon-hash
