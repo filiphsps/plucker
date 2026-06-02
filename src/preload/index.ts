@@ -102,6 +102,21 @@ const api = {
     ipcRenderer.on('history:changed', fn)
     return () => ipcRenderer.removeListener('history:changed', fn)
   },
+  // Interrupted / resumable jobs (crash, clean quit, or user cancel).
+  listInterruptedJobs: (): Promise<
+    { jobId: string; title: string; done: number; total: number }[]
+  > => ipcRenderer.invoke('jobs:listInterrupted'),
+  resumeJob: (jobId: string): Promise<void> => ipcRenderer.invoke('jobs:resume', jobId),
+  discardJob: (
+    jobId: string
+  ): Promise<{ jobId: string; title: string; done: number; total: number }[]> =>
+    ipcRenderer.invoke('jobs:discard', jobId),
+  retryFailed: (entryId: string): Promise<void> => ipcRenderer.invoke('jobs:retryFailed', entryId),
+  onInterruptedChanged: (cb: () => void): (() => void) => {
+    const fn = (): void => cb()
+    ipcRenderer.on('jobs:interruptedChanged', fn)
+    return () => ipcRenderer.removeListener('jobs:interruptedChanged', fn)
+  },
   // Re-run the enabled transform chain on already-downloaded tracks (no re-download).
   retransform: (targets: { entryId: string; index: number }[]): Promise<void> =>
     ipcRenderer.invoke('job:retransform', targets),
