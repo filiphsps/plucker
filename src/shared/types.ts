@@ -272,6 +272,7 @@ export interface CachedTrack {
  * - `upToDate`     — no newer version available
  * - `available`    — a newer version exists (download not started / can't self-install)
  * - `downloading`  — the update zip is downloading (`percent` populated)
+ * - `verifying`    — download finished; checking its integrity before install
  * - `ready`        — downloaded and ready; relaunch to swap-and-install
  * - `unsupported`  — running unpackaged (dev) where updates don't apply
  * - `error`        — the check or download failed (`error` populated)
@@ -282,6 +283,7 @@ export type UpdatePhase =
   | 'upToDate'
   | 'available'
   | 'downloading'
+  | 'verifying'
   | 'ready'
   | 'unsupported'
   | 'error'
@@ -293,6 +295,11 @@ export interface UpdateState {
   newVersion?: string
   /** Download progress 0–100 while `phase === 'downloading'`. */
   percent?: number
+  /**
+   * For a differential download, the % of the new build reused from the cached
+   * previous build (so the UI can show how little is actually being fetched).
+   */
+  reusePercent?: number
   /** Human-readable failure reason while `phase === 'error'`. */
   error?: string
   /**

@@ -189,6 +189,8 @@ export default {
         upToDate: 'Plucker is up to date',
         available: 'Version {{version}} is available',
         downloading: 'Downloading update… {{percent}}%',
+        downloadingDiff: 'Downloading update… {{percent}}% (reusing {{reuse}}% from your build)',
+        verifying: 'Verifying update…',
         ready: 'Update downloaded — relaunch to finish',
         error: 'Couldn’t check for updates',
         devOnly: 'Updates are only available in the installed app',

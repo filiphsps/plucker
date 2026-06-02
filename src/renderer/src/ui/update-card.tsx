@@ -54,10 +54,15 @@ export function UpdateCard({
     []
   )
 
+  // Authoritative state pushed by the background auto-updater, so the card reflects
+  // checks/downloads that started outside of it (e.g. before the panel was opened).
+  useEffect(() => window.plucker.onUpdateState((s) => setState(s)), [])
+
   const relaunch = (): void => void window.plucker.installUpdate()
   const openReleases = (): void => void window.plucker.openExternal(releasesUrl)
 
-  const busy = state.phase === 'checking' || state.phase === 'downloading'
+  const busy =
+    state.phase === 'checking' || state.phase === 'downloading' || state.phase === 'verifying'
   const tone: 'busy' | 'ok' | 'action' | 'bad' | 'muted' =
     state.phase === 'error'
       ? 'bad'
@@ -92,7 +97,14 @@ export function UpdateCard({
       case 'checking':
         return t('settings.about.update.checking')
       case 'downloading':
-        return t('settings.about.update.downloading', { percent: state.percent ?? 0 })
+        return state.reusePercent != null
+          ? t('settings.about.update.downloadingDiff', {
+              percent: state.percent ?? 0,
+              reuse: state.reusePercent
+            })
+          : t('settings.about.update.downloading', { percent: state.percent ?? 0 })
+      case 'verifying':
+        return t('settings.about.update.verifying')
       case 'ready':
         return t('settings.about.update.ready')
       case 'available':

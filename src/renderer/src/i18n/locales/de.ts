@@ -190,6 +190,9 @@ const de: typeof en = {
         upToDate: 'Plucker ist aktuell',
         available: 'Version {{version}} ist verfügbar',
         downloading: 'Update wird geladen … {{percent}} %',
+        downloadingDiff:
+          'Update wird geladen … {{percent}} % ({{reuse}} % aus deiner Version übernommen)',
+        verifying: 'Update wird überprüft …',
         ready: 'Update geladen — zum Abschluss neu starten',
         error: 'Suche nach Updates fehlgeschlagen',
         devOnly: 'Updates sind nur in der installierten App verfügbar',

@@ -38,8 +38,22 @@ describe('buildSwapScript', () => {
     expect(script).toContain(`mv "$STAGE"/'Plucker.app' '/Applications/Plucker.app'`)
   })
 
-  it('relaunches the freshly installed bundle', () => {
+  it('relaunches the freshly installed bundle by default', () => {
     expect(script).toContain(`open '/Applications/Plucker.app'`)
+  })
+
+  it('skips the relaunch when relaunch is false (install-on-quit)', () => {
+    const s = buildSwapScript({
+      zipPath: '/tmp/cache/update.zip',
+      bundlePath: '/Applications/Plucker.app',
+      pid: 4321,
+      logPath: '/Users/me/.plucker/plucker.log',
+      relaunch: false
+    })
+    expect(s).not.toContain('open ')
+    expect(s).toContain('not relaunching')
+    // still performs the swap
+    expect(s).toContain(`mv "$STAGE"/'Plucker.app' '/Applications/Plucker.app'`)
   })
 
   it('quotes paths so spaces survive the shell', () => {

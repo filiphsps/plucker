@@ -24,10 +24,13 @@ export function appBundlePath(exePath: string): string | null {
 }
 
 /**
- * Build the detached swap-and-relaunch script.
+ * Build the detached swap script.
  * - waits for the running app (`pid`) to fully exit,
  * - removes the old bundle and extracts the downloaded zip in its place,
- * - relaunches the app, then deletes itself.
+ * - relaunches the app (unless `relaunch` is false), then deletes itself.
+ *
+ * `relaunch` defaults to true (the user asked to install now). Pass false for an
+ * install-on-quit, where the user is closing the app and shouldn't have it reopen.
  *
  * `ditto -x -k` extracts the macOS app zip (which contains `<Name>.app` at its root)
  * without re-applying a quarantine flag, so the freshly installed bundle launches
@@ -38,8 +41,10 @@ export function buildSwapScript(opts: {
   bundlePath: string
   pid: number
   logPath: string
+  relaunch?: boolean
 }): string {
   const { zipPath, bundlePath, pid, logPath } = opts
+  const relaunch = opts.relaunch ?? true
   const slash = bundlePath.lastIndexOf('/')
   const parent = bundlePath.slice(0, slash) || '/'
   const basename = bundlePath.slice(slash + 1)
@@ -63,8 +68,11 @@ trap 'rm -rf "$STAGE"' EXIT
 ditto -x -k ${q(zipPath)} "$STAGE"
 rm -rf ${q(bundlePath)}
 mv "$STAGE"/${q(basename)} ${q(bundlePath)}
-echo "[plucker-update] relaunching"
-open ${q(bundlePath)}
+${
+  relaunch
+    ? `echo "[plucker-update] relaunching"\nopen ${q(bundlePath)}`
+    : `echo "[plucker-update] installed; not relaunching (install-on-quit)"`
+}
 rm -f "$0"
 `
 }
@@ -80,6 +88,7 @@ export function installMacUpdate(opts: {
   pid: number
   logPath: string
   scriptDir: string
+  relaunch?: boolean
 }): string {
   const { scriptDir } = opts
   mkdirSync(scriptDir, { recursive: true })

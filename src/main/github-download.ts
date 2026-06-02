@@ -31,6 +31,8 @@ import {
   type Op
 } from './differential'
 import { findCachedUpdate, storeCachedUpdate } from './update-cache'
+import { nextPause } from './throttle'
+import { formatBytes } from '../shared/format-bytes'
 
 const LATEST_RELEASE_API = 'https://api.github.com/repos/filiphsps/plucker/releases/latest'
 
@@ -41,6 +43,11 @@ const MERGE_GAP = 64 * 1024
 
 /** Raised when the server ignored our Range header (HTTP 200), so we fall back to a full download. */
 class RangeUnsupportedError extends Error {}
+
+/** Coarse progress phases emitted by `downloadMacUpdate` for the UI ticker. */
+export type DownloadStatus =
+  | { phase: 'downloading'; reusePercent?: number } // transfer started (reusePercent set for differential)
+  | { phase: 'verifying' } // bytes in hand; checking integrity before install
 
 export interface GithubAsset {
   name: string
@@ -96,11 +103,50 @@ function fetchJson(url: string): Promise<{ assets?: GithubAsset[] }> {
   })
 }
 
+/**
+ * Consume a response stream, handing each chunk to `onChunk`, while pacing it to
+ * `throttleBytesPerSec` (0 = unthrottled). Pacing uses a one-second token bucket:
+ * once a window's byte budget is spent the stream is paused for the rest of the
+ * second (see throttle.ts). Resolves at end-of-stream; rejects on stream error.
+ */
+function consumeResponse(
+  res: Electron.IncomingMessage,
+  throttleBytesPerSec: number,
+  onChunk: (chunk: Buffer) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let windowStart = Date.now()
+    let windowBytes = 0
+    res.on('data', (c: Buffer) => {
+      onChunk(c)
+      if (throttleBytesPerSec <= 0) return
+      windowBytes += c.length
+      if (windowBytes < throttleBytesPerSec) return
+      const pause = nextPause(windowBytes, throttleBytesPerSec, Date.now() - windowStart)
+      // Electron's IncomingMessage is a Readable at runtime; its type omits pause/resume.
+      const flow = res as unknown as { pause(): void; resume(): void }
+      if (pause > 0) {
+        flow.pause()
+        setTimeout(() => {
+          windowStart = Date.now()
+          windowBytes = 0
+          flow.resume()
+        }, pause)
+      } else {
+        windowStart = Date.now()
+        windowBytes = 0
+      }
+    })
+    res.on('end', () => resolve())
+    res.on('error', reject)
+  })
+}
+
 /** Stream a URL to `destPath`, reporting 0–100 progress when a length is known. */
 function downloadToFile(
   url: string,
   destPath: string,
-  onProgress?: (percent: number) => void
+  opts: { onProgress?: (percent: number) => void; throttleBytesPerSec?: number } = {}
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = net.request({ url, method: 'GET' })
@@ -115,16 +161,16 @@ function downloadToFile(
       let received = 0
       const out = createWriteStream(destPath)
       out.on('error', reject)
-      res.on('data', (c) => {
+      consumeResponse(res, opts.throttleBytesPerSec ?? 0, (c) => {
         received += c.length
         out.write(c)
-        if (onProgress && total > 0) onProgress(Math.round((received / total) * 100))
+        if (opts.onProgress && total > 0) opts.onProgress(Math.round((received / total) * 100))
       })
-      res.on('end', () => out.end(() => resolve()))
-      res.on('error', (err) => {
-        out.destroy()
-        reject(err)
-      })
+        .then(() => out.end(() => resolve()))
+        .catch((err) => {
+          out.destroy()
+          reject(err)
+        })
     })
     req.on('error', reject)
     req.end()
@@ -143,7 +189,12 @@ export function sha512OfFile(path: string): Promise<string> {
 }
 
 /** Fetch bytes [start, end) from `url` via an HTTP range request. Throws if the server ignores it. */
-function fetchRange(url: string, start: number, end: number): Promise<Buffer> {
+function fetchRange(
+  url: string,
+  start: number,
+  end: number,
+  throttleBytesPerSec = 0
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const req = net.request({ url, method: 'GET' })
     req.setHeader('User-Agent', 'Plucker-Updater')
@@ -161,9 +212,9 @@ function fetchRange(url: string, start: number, end: number): Promise<Buffer> {
         return
       }
       const chunks: Buffer[] = []
-      res.on('data', (c) => chunks.push(c))
-      res.on('end', () => resolve(Buffer.concat(chunks)))
-      res.on('error', reject)
+      consumeResponse(res, throttleBytesPerSec, (c) => chunks.push(c))
+        .then(() => resolve(Buffer.concat(chunks)))
+        .catch(reject)
     })
     req.on('error', reject)
     req.end()
@@ -194,6 +245,7 @@ async function assembleDifferential(opts: {
   newZipUrl: string
   destPath: string
   downloadBytes: number
+  throttleBytesPerSec?: number
   onProgress?: (percent: number) => void
 }): Promise<void> {
   const out = createWriteStream(opts.destPath)
@@ -205,7 +257,7 @@ async function assembleDifferential(opts: {
     await reconstruct(
       plan,
       async (offset, size) => readAt(oldFd, offset, size),
-      async (start, end) => fetchRange(opts.newZipUrl, start, end),
+      async (start, end) => fetchRange(opts.newZipUrl, start, end, opts.throttleBytesPerSec ?? 0),
       write,
       (downloaded) => {
         if (opts.downloadBytes > 0) {
@@ -232,43 +284,73 @@ export async function downloadMacUpdate(opts: {
   cacheDir: string
   arch: string
   expectedSha512?: string
+  /** Cap network throughput (bytes/sec) for the large transfers; 0 = full speed. */
+  throttleBytesPerSec?: number
   onProgress?: (percent: number) => void
+  /** Coarse phase updates for the UI ticker: the actual transfer, then verification. */
+  onStatus?: (status: DownloadStatus) => void
 }): Promise<string> {
-  const { destDir, cacheDir, arch, expectedSha512, onProgress } = opts
+  const { destDir, cacheDir, arch, expectedSha512, onProgress, onStatus } = opts
+  const throttle = opts.throttleBytesPerSec ?? 0
+  log.info('app', `update download starting (arch=${arch}, throttle=${throttle} B/s)`)
   const release = await fetchJson(LATEST_RELEASE_API)
   const assets = release.assets ?? []
   const zipAsset = pickArchZip(assets, arch)
   if (!zipAsset) throw new Error(`no macOS ${arch} update asset in the latest release`)
   const blockmapAsset = pickBlockmapFor(assets, zipAsset.name)
   const zipDest = join(destDir, zipAsset.name)
+  log.info(
+    'app',
+    `update asset: ${zipAsset.name} (${formatBytes(zipAsset.size)}), blockmap=${blockmapAsset ? 'yes' : 'no'}`
+  )
 
   let newBlockmapPath: string | null = null
   let differential = false
 
   const base = findCachedUpdate(cacheDir)
+  if (!base) log.info('app', 'no cached build to diff against — full download')
+  else if (!blockmapAsset) log.info('app', 'release has no blockmap — full download')
+  else if (!expectedSha512) log.info('app', 'no expected checksum available — full download')
+
   if (base && blockmapAsset && expectedSha512) {
     try {
+      log.info('app', `differential candidate: diffing against cached ${base.zipPath}`)
       newBlockmapPath = join(destDir, blockmapAsset.name)
-      await downloadToFile(blockmapAsset.browser_download_url, newBlockmapPath)
+      await downloadToFile(blockmapAsset.browser_download_url, newBlockmapPath, {
+        throttleBytesPerSec: throttle
+      })
       const oldBlocks = parseBlockmap(await readFile(base.blockmapPath)).blocks
       const newBlocks = parseBlockmap(await readFile(newBlockmapPath)).blocks
       const plan = planDifferential(oldBlocks, newBlocks, { mergeGap: MERGE_GAP })
+      const ranges = plan.ops.filter((o) => o.kind === 'download').length
+      log.info(
+        'app',
+        `diff plan: download ${formatBytes(plan.downloadBytes)} in ${ranges} range(s), ` +
+          `reuse ${formatBytes(plan.copyBytes)} of ${formatBytes(plan.totalBytes)}`
+      )
       if (shouldUseDifferential(plan)) {
         const saved = Math.round((plan.copyBytes / plan.totalBytes) * 100)
         log.info('app', `differential update: reusing ${saved}% from the cached build`)
+        onStatus?.({ phase: 'downloading', reusePercent: saved })
         await assembleDifferential({
           ops: chunkDownloadOps(plan.ops, MAX_RANGE_CHUNK),
           oldZipPath: base.zipPath,
           newZipUrl: zipAsset.browser_download_url,
           destPath: zipDest,
           downloadBytes: plan.downloadBytes,
+          throttleBytesPerSec: throttle,
           onProgress
         })
+        log.info('app', 'differential download complete, verifying…')
+        onStatus?.({ phase: 'verifying' })
         if ((await sha512OfFile(zipDest)) === expectedSha512) {
           differential = true
+          log.info('app', 'differential download verified (SHA-512 OK)')
         } else {
           log.warn('app', 'differential result failed verification, downloading full zip')
         }
+      } else {
+        log.info('app', 'too little to reuse — full download is simpler')
       }
     } catch (err) {
       const why = err instanceof RangeUnsupportedError ? 'range requests unsupported' : err
@@ -277,19 +359,37 @@ export async function downloadMacUpdate(opts: {
   }
 
   if (!differential) {
-    await downloadToFile(zipAsset.browser_download_url, zipDest, onProgress)
+    log.info('app', `downloading full zip ${zipAsset.name} (${formatBytes(zipAsset.size)})…`)
+    onStatus?.({ phase: 'downloading' })
+    await downloadToFile(zipAsset.browser_download_url, zipDest, {
+      onProgress,
+      throttleBytesPerSec: throttle
+    })
+    log.info('app', 'full download complete, verifying…')
+    onStatus?.({ phase: 'verifying' })
     if (expectedSha512 && (await sha512OfFile(zipDest)) !== expectedSha512) {
       throw new Error('update verification failed: SHA-512 mismatch')
     }
+    log.info(
+      'app',
+      expectedSha512 ? 'full download verified (SHA-512 OK)' : 'full download complete'
+    )
   }
 
   // Refresh the cache so the next update can diff against this build.
   try {
     if (!newBlockmapPath && blockmapAsset) {
       newBlockmapPath = join(destDir, blockmapAsset.name)
-      await downloadToFile(blockmapAsset.browser_download_url, newBlockmapPath)
+      await downloadToFile(blockmapAsset.browser_download_url, newBlockmapPath, {
+        throttleBytesPerSec: throttle
+      })
     }
-    if (newBlockmapPath) storeCachedUpdate(cacheDir, zipDest, newBlockmapPath)
+    if (newBlockmapPath) {
+      storeCachedUpdate(cacheDir, zipDest, newBlockmapPath)
+      log.info('app', `update cache refreshed for next differential update (${zipAsset.name})`)
+    } else {
+      log.info('app', 'no blockmap to cache — next update will be a full download')
+    }
   } catch (err) {
     log.warn('app', 'could not refresh update cache:', err)
   }

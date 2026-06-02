@@ -23,7 +23,8 @@ import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { addEntry, removeEntry, removeTrack } from './history'
 import { killAllChildren } from './spawn'
-import { checkForUpdates, registerUpdaterIpc } from './updater'
+import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
+import { registerContextMenuIpc } from './context-menu'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
 import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
@@ -322,6 +323,7 @@ app.whenReady().then(() => {
 
   registerIpc(() => mainWindow)
   registerUpdaterIpc(() => mainWindow)
+  registerContextMenuIpc(() => mainWindow)
 
   // Push OS accent-color changes to the renderer so --color-accent updates live.
   systemPreferences.subscribeNotification?.('AppleColorPreferencesChangedNotification', () =>
@@ -336,10 +338,10 @@ app.whenReady().then(() => {
   applyConsoleLogging(() => mainWindow)
   log.info('app', `Plucker ${appVersion} ready`)
 
-  // Notify-only update check shortly after launch (opt-out via settings).
-  if (loadSettings().updates.checkOnLaunch) {
-    setTimeout(() => void checkForUpdates(() => mainWindow, { silent: true }), 3000)
-  }
+  // Background auto-updater: checks every 15 min and auto-downloads (throttled) any
+  // available update, arming it to install on quit. Respects the "check on launch"
+  // setting as its master switch (see startBackgroundUpdates).
+  startBackgroundUpdates(() => mainWindow)
 
   app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the
@@ -362,6 +364,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   abort?.abort()
   killAllChildren()
+  // If a background-downloaded update is waiting, swap it in after we exit (no relaunch).
+  installPendingUpdateOnQuit()
 })
 
 // In this file you can include the rest of your app's specific main process

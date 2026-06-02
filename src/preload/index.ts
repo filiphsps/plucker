@@ -13,6 +13,7 @@ import type {
   UpdateState
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
+import type { MenuDescriptor } from '../shared/context-menu'
 
 // Custom APIs for renderer
 const api = {
@@ -44,6 +45,11 @@ const api = {
   openFolder: (path: string): Promise<string> => ipcRenderer.invoke('shell:openFolder', path),
   revealFile: (path: string): Promise<void> => ipcRenderer.invoke('shell:revealFile', path),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
+  // Native context menu: send a serializable descriptor, resolve with the clicked
+  // item id (or null on dismiss). Clipboard write backs "Copy …" menu items.
+  popupMenu: (descriptor: MenuDescriptor): Promise<string | null> =>
+    ipcRenderer.invoke('menu:popup', descriptor),
+  copyText: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text),
   getCover: (file: string): Promise<string | null> => ipcRenderer.invoke('cover:get', file),
   getTrackMetadata: (file: string, hash?: string): Promise<TrackMetadata> =>
     ipcRenderer.invoke('metadata:get', file, hash),
@@ -89,6 +95,12 @@ const api = {
     const fn = (_: unknown, percent: number): void => cb(percent)
     ipcRenderer.on('updates:progress', fn)
     return () => ipcRenderer.removeListener('updates:progress', fn)
+  },
+  // Full state pushed by the background auto-updater (check → download → ready).
+  onUpdateState: (cb: (state: UpdateState) => void): (() => void) => {
+    const fn = (_: unknown, state: UpdateState): void => cb(state)
+    ipcRenderer.on('updates:state', fn)
+    return () => ipcRenderer.removeListener('updates:state', fn)
   },
   // Toggle the console drawer from the application menu (⌘J).
   onToggleConsole: (cb: () => void): (() => void) => {
