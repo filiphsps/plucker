@@ -30,6 +30,29 @@ describe('buildDownloadArgs', () => {
     expect(args[args.length - 1]).toBe('https://yt/playlist')
   })
 
+  it('omits --paths when no tempDir is given', () => {
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/o',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/f'
+    })
+    expect(args).not.toContain('--paths')
+  })
+
+  it('redirects intermediates to a temp dir via --paths temp:', () => {
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/o',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/f',
+      tempDir: '/tmp/p/3'
+    })
+    const i = args.indexOf('--paths')
+    expect(i).toBeGreaterThan(-1)
+    expect(args[i + 1]).toBe('temp:/tmp/p/3')
+  })
+
   it('adds cookies-from-browser when source is a browser', () => {
     const s = { ...DEFAULT_SETTINGS, cookies: { source: 'edge' as const } }
     const args = buildDownloadArgs({ url: 'u', destFolder: '/o', settings: s, ffmpegPath: '/f' })

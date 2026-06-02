@@ -20,6 +20,8 @@ export interface DownloadArgsInput {
    * browser store (`--cookies-from-browser`), so the download runs unprivileged.
    */
   cookieFile?: string
+  /** When set, yt-dlp keeps `.part`/intermediate files here (final mp3 still goes to -o). */
+  tempDir?: string
 }
 
 // Custom progress line we can parse deterministically:
@@ -30,7 +32,7 @@ const PROGRESS_TEMPLATE =
   'PLUCKER %(info.playlist_index|1)s %(progress._percent)d %(progress.speed)s %(info.id)s %(info.title)s'
 
 export function buildDownloadArgs(input: DownloadArgsInput): string[] {
-  const { url, destFolder, settings, ffmpegPath, singleVideo, cookieFile } = input
+  const { url, destFolder, settings, ffmpegPath, singleVideo, cookieFile, tempDir } = input
   // libmp3lame algorithm effort: higher = faster encode (big help on slow CPUs),
   // inaudible at our bitrates. Use -compression_level (not -q:a, which would
   // switch the CBR encode to VBR and change the target bitrate). When a sample
@@ -72,6 +74,11 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
   // so below-floor videos yield no format and are skipped under --ignore-errors.
   if (settings.audio.minBitrate != null) {
     args.push('-f', `ba[abr>=${settings.audio.minBitrate}]`)
+  }
+  // Keep partial/intermediate files in a per-track temp dir so a skipped or
+  // killed download leaves no orphaned `.part` files in the shared output folder.
+  if (tempDir) {
+    args.push('--paths', `temp:${tempDir}`)
   }
   if (cookieFile) {
     args.push('--cookies', cookieFile)
@@ -162,13 +169,15 @@ export function runYtDlp(
   onProgress: (e: ProgressEvent) => void,
   onComplete: (filePath: string) => void,
   signal?: AbortSignal,
-  priority?: number
+  priority?: number,
+  groupKey?: number | string
 ): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
     // Managed spawn: own process group, force-killed (with its ffmpeg child) on
     // abort, tracked so app-quit can reap any orphan, and niced to the chosen
-    // priority (its ffmpeg child inherits it).
-    const child = spawnManaged(ytdlpPath, args, {}, signal, priority)
+    // priority (its ffmpeg child inherits it). The group key (track index) lets
+    // per-track pause/skip target just this download's process tree.
+    const child = spawnManaged(ytdlpPath, args, {}, signal, priority, groupKey)
     let stderrTail = ''
     let outBuf = ''
     let errBuf = ''
