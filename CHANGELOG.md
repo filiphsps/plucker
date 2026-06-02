@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.0](https://github.com/filiphsps/plucker/compare/plucker-v0.8.0...plucker-v0.9.0) (2026-06-02)
+
+
+### Features
+
+* **menu:** add native context menus across the app ([41a4076](https://github.com/filiphsps/plucker/commit/41a4076da4ccffc738c3c7662336ce8cf8f9f607))
+* **transforms:** add square cover-art transform ([7b5d1b8](https://github.com/filiphsps/plucker/commit/7b5d1b82b1b3b17c5b8ba54c84dc4ae9394534d1))
+* **updater:** background auto-update with throttling and install-on-quit ([845d785](https://github.com/filiphsps/plucker/commit/845d7856d701144acbd6e873e0ffb3bf4f40cab7))
+* **updater:** differential macOS updates via blockmaps ([9a2943d](https://github.com/filiphsps/plucker/commit/9a2943d7bf708c70e95cab303e06e42758e556fb))
+
 ## [0.8.0](https://github.com/filiphsps/plucker/compare/plucker-v0.7.1...plucker-v0.8.0) (2026-06-01)
 
 
