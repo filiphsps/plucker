@@ -41,6 +41,28 @@ const EDIT_FIELDS: Array<{ key: keyof TrackTags; labelKey: string }> = [
 ]
 
 /**
+ * Every renderable tag, in preferred display order. The panel renders these
+ * dynamically, skipping any without a value — adding a tag here is all it takes
+ * to surface it (analysis-derived key/BPM included). `get` overrides the default
+ * `tags[key]` lookup for fields with a fallback.
+ */
+const DISPLAY_FIELDS: Array<{
+  key: keyof TrackTags
+  labelKey: string
+  get?: (t: TrackTags) => string | undefined
+}> = [
+  { key: 'artist', labelKey: 'meta.tags.artist' },
+  { key: 'title', labelKey: 'meta.tags.title' },
+  { key: 'album', labelKey: 'meta.tags.album' },
+  { key: 'year', labelKey: 'meta.tags.year', get: (t) => t.year ?? t.date },
+  { key: 'trackNumber', labelKey: 'meta.tags.trackNumber' },
+  { key: 'genre', labelKey: 'meta.tags.genre' },
+  { key: 'key', labelKey: 'meta.tags.key' },
+  { key: 'camelot', labelKey: 'meta.tags.camelot' },
+  { key: 'bpm', labelKey: 'meta.tags.bpm' }
+]
+
+/**
  * The full expanded-row metadata panel: a segmented audio spec strip, a dynamic
  * grid of present ID3 tags (or editable inputs in edit mode), and the source
  * column. Built from the reusable MetaField / MetaLink / MetaStrip / MetaGrid
@@ -148,15 +170,11 @@ export function TrackDetail({
     )
   }
 
-  // Only render tag fields that actually have a value (dynamic count).
-  const tagFields: Array<{ label: string; value: string }> = [
-    { label: t('meta.tags.artist'), value: tags.artist ?? '' },
-    { label: t('meta.tags.title'), value: tags.title ?? '' },
-    { label: t('meta.tags.album'), value: tags.album ?? '' },
-    { label: t('meta.tags.year'), value: tags.year ?? tags.date ?? '' },
-    { label: t('meta.tags.trackNumber'), value: tags.trackNumber ?? '' },
-    { label: t('meta.tags.genre'), value: tags.genre ?? '' }
-  ].filter((f) => f.value)
+  // Render the present tags dynamically, in the preferred order above.
+  const tagFields = DISPLAY_FIELDS.map((f) => ({
+    label: t(f.labelKey as never),
+    value: (f.get ? f.get(tags) : tags[f.key]) ?? ''
+  })).filter((f) => f.value)
 
   return (
     <div className={wrapper}>

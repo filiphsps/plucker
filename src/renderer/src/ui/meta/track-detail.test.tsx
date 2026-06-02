@@ -34,6 +34,20 @@ describe('TrackDetail', () => {
     expect(html).not.toContain('Track #')
   })
 
+  it('renders key, Camelot, and BPM tags when present', () => {
+    const meta: TrackMetadata = {
+      tags: { ...META.tags, key: 'Am', camelot: '8A', bpm: '124' },
+      audio: META.audio
+    }
+    const html = renderToStaticMarkup(<TrackDetail meta={meta} />)
+    expect(html).toContain('Key')
+    expect(html).toContain('Am')
+    expect(html).toContain('Camelot')
+    expect(html).toContain('8A')
+    expect(html).toContain('BPM')
+    expect(html).toContain('124')
+  })
+
   it('renders the source URL as a link with the protocol stripped', () => {
     const html = renderToStaticMarkup(
       <TrackDetail meta={META} source={{ videoId: 'dX3k_QDnzHE' }} />

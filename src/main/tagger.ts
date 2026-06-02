@@ -11,12 +11,16 @@ export function writeTrackTags(file: string, tags: TrackTags): void {
   if (tags.year) id3.year = tags.year
   if (tags.trackNumber) id3.trackNumber = tags.trackNumber
   if (tags.genre) id3.genre = tags.genre
+  if (tags.key) id3.initialKey = tags.key
+  if (tags.bpm) id3.bpm = tags.bpm
+  if (tags.camelot) id3.userDefinedText = [{ description: 'CAMELOT', value: tags.camelot }]
   const res = NodeID3.update(id3, file)
   if (res !== true) throw new Error(`Failed to write tags: ${String(res)}`)
 }
 
 export function readTrackTags(file: string): TrackTags {
   const t = NodeID3.read(file)
+  const camelot = (t.userDefinedText ?? []).find((u) => u.description === 'CAMELOT')?.value
   return {
     artist: t.artist,
     title: t.title,
@@ -24,7 +28,10 @@ export function readTrackTags(file: string): TrackTags {
     date: t.date,
     year: t.year,
     trackNumber: t.trackNumber,
-    genre: t.genre
+    genre: t.genre,
+    key: t.initialKey,
+    bpm: t.bpm,
+    camelot
   }
 }
 

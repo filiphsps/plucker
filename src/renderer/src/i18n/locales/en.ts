@@ -271,7 +271,10 @@ export default {
       album: 'Album',
       year: 'Year',
       trackNumber: 'Track #',
-      genre: 'Genre'
+      genre: 'Genre',
+      key: 'Key',
+      camelot: 'Camelot',
+      bpm: 'BPM'
     },
     source: {
       url: 'URL',

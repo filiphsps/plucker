@@ -34,6 +34,14 @@ describe('tagger', () => {
     expect(t.genre).toBe('House')
   })
 
+  it('round-trips key, Camelot, and BPM tags', () => {
+    writeTrackTags(mp3, { title: 'X', key: 'Am', camelot: '8A', bpm: '124' })
+    const t = readTrackTags(mp3)
+    expect(t.key).toBe('Am')
+    expect(t.camelot).toBe('8A')
+    expect(t.bpm).toBe('124')
+  })
+
   it('embeds cover art from a buffer', () => {
     const png = Buffer.from('89504e470d0a1a0a', 'hex') // PNG signature bytes
     embedCover(mp3, png, 'image/png')

@@ -273,7 +273,10 @@ const de: typeof en = {
       album: 'Album',
       year: 'Jahr',
       trackNumber: 'Titelnr.',
-      genre: 'Genre'
+      genre: 'Genre',
+      key: 'Tonart',
+      camelot: 'Camelot',
+      bpm: 'BPM'
     },
     source: {
       url: 'URL',

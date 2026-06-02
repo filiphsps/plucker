@@ -230,6 +230,12 @@ export interface TrackTags {
   year?: string
   trackNumber?: string
   genre?: string
+  /** Musical key (TKEY), e.g. "Am" — written by the analyze-key-bpm transform. */
+  key?: string
+  /** Camelot wheel code (TXXX:CAMELOT), e.g. "8A". */
+  camelot?: string
+  /** Tempo in BPM (TBPM) as a string, e.g. "124". */
+  bpm?: string
 }
 
 /** Technical audio properties extracted from a media file. */
