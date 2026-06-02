@@ -12,7 +12,8 @@ import {
   Terminal,
   ChevronRight,
   Info,
-  ExternalLink
+  ExternalLink,
+  RotateCcw
 } from 'lucide-react'
 import type {
   Settings,
@@ -84,6 +85,11 @@ export function SettingsPanel({
   async function chooseFolder(): Promise<void> {
     const f = await window.plucker.chooseFolder()
     if (f) set({ downloads: { ...s!.downloads, baseFolder: f } })
+  }
+  async function resetSettings(): Promise<void> {
+    if (!window.confirm(t('settings.reset.confirm'))) return
+    // Deletes the config and relaunches the app — nothing after this runs.
+    await window.plucker.resetSettings()
   }
 
   const cookieLabel = (src: CookieSource): string =>
@@ -310,6 +316,18 @@ export function SettingsPanel({
               checked={s.developer.console}
               onChange={(v) => set({ developer: { ...s.developer, console: v } })}
             />
+          </PanelRow>
+        </Panel>
+
+        <Panel icon={RotateCcw} title={t('settings.sections.reset')}>
+          <PanelRow name={t('settings.reset.label')} desc={t('settings.reset.desc')}>
+            <button
+              onClick={resetSettings}
+              className="flex h-8 items-center gap-1.5 rounded-md border border-rose-500/40 bg-rose-500/10 px-[13px] text-[12px] text-rose-300 hover:border-rose-500/60 hover:text-rose-200"
+            >
+              <RotateCcw size={14} />
+              {t('settings.reset.button')}
+            </button>
           </PanelRow>
         </Panel>
 

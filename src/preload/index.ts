@@ -27,6 +27,8 @@ const api = {
   },
   getSettings: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: Settings): Promise<void> => ipcRenderer.invoke('settings:save', s),
+  // Factory reset: delete the config file and relaunch the app into default settings.
+  resetSettings: (): Promise<void> => ipcRenderer.invoke('settings:reset'),
   // URL history (command-bar suggestions). Both return the updated, deduped list.
   addUrlHistory: (url: string): Promise<string[]> => ipcRenderer.invoke('urlHistory:add', url),
   removeUrlHistory: (url: string): Promise<string[]> =>

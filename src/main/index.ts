@@ -10,6 +10,7 @@ import {
   loadSettings,
   saveSettings,
   settingsPath,
+  resetSettings,
   expandHome,
   logPath,
   migrateLegacyConfig
@@ -102,6 +103,12 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     getWindow()?.webContents.send('settings:changed', next)
     return next.urlHistory
   }
+  // Factory reset: wipe the config file entirely, then relaunch into a fresh default state.
+  ipcMain.handle('settings:reset', () => {
+    resetSettings(settingsPath())
+    app.relaunch()
+    app.exit(0)
+  })
   ipcMain.handle('urlHistory:add', (_e, url: string) => mutateUrlHistory((l) => addUrl(l, url)))
   ipcMain.handle('urlHistory:remove', (_e, url: string) =>
     mutateUrlHistory((l) => removeUrl(l, url))

@@ -140,6 +140,7 @@ export default {
       updates: 'Updates',
       cache: 'Cache',
       developer: 'Developer',
+      reset: 'Reset',
       about: 'About'
     },
     cache: {
@@ -150,6 +151,13 @@ export default {
     developer: {
       console: 'Enable console',
       consoleDesc: 'Show a live log console overlay (terminal button in the header)'
+    },
+    reset: {
+      label: 'Reset settings',
+      desc: 'Delete the entire Plucker config and restart with factory defaults',
+      button: 'Reset settings',
+      confirm:
+        'Reset all settings? This permanently deletes your Plucker config (settings and download history) and restarts the app. This cannot be undone.'
     },
     language: {
       label: 'Language',

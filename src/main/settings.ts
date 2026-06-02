@@ -4,7 +4,8 @@ import {
   existsSync,
   mkdirSync,
   renameSync,
-  copyFileSync
+  copyFileSync,
+  rmSync
 } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -92,4 +93,13 @@ export function loadSettings(file = settingsPath()): Settings {
 
 export function saveSettings(file: string, settings: Settings): void {
   writeFileSync(file, JSON.stringify(settings, null, 2), 'utf8')
+}
+
+/**
+ * Wipe Plucker's persisted config (`~/.plucker/config.json`) entirely. Removing the file
+ * makes the next `loadSettings` fall through to `DEFAULT_SETTINGS`, so every setting and the
+ * download history reset to factory state. No-op when the file is already gone.
+ */
+export function resetSettings(file = settingsPath()): void {
+  rmSync(file, { force: true })
 }

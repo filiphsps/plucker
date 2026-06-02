@@ -141,6 +141,7 @@ const de: typeof en = {
       updates: 'Aktualisierungen',
       cache: 'Cache',
       developer: 'Entwickler',
+      reset: 'Zurücksetzen',
       about: 'Über'
     },
     cache: {
@@ -151,6 +152,13 @@ const de: typeof en = {
     developer: {
       console: 'Konsole aktivieren',
       consoleDesc: 'Eine Live-Protokollkonsole anzeigen (Terminal-Schaltfläche in der Kopfzeile)'
+    },
+    reset: {
+      label: 'Einstellungen zurücksetzen',
+      desc: 'Die gesamte Plucker-Konfiguration löschen und mit Werkseinstellungen neu starten',
+      button: 'Einstellungen zurücksetzen',
+      confirm:
+        'Alle Einstellungen zurücksetzen? Dies löscht deine Plucker-Konfiguration (Einstellungen und Download-Verlauf) dauerhaft und startet die App neu. Dies kann nicht rückgängig gemacht werden.'
     },
     language: {
       label: 'Sprache',

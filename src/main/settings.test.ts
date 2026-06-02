@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { loadSettings, saveSettings, expandHome, migrateConfigLocation } from './settings'
+import {
+  loadSettings,
+  saveSettings,
+  resetSettings,
+  expandHome,
+  migrateConfigLocation
+} from './settings'
 import { DEFAULT_SETTINGS } from '../shared/defaults'
 
 let dir: string
@@ -57,6 +63,21 @@ describe('saveSettings', () => {
     }
     saveSettings(file, next)
     expect(JSON.parse(readFileSync(file, 'utf8')).performance.parallel).toBe(8)
+  })
+})
+
+describe('resetSettings', () => {
+  it('deletes the config file so the next load returns defaults', () => {
+    saveSettings(file, { ...DEFAULT_SETTINGS, language: 'de' })
+    expect(existsSync(file)).toBe(true)
+
+    resetSettings(file)
+    expect(existsSync(file)).toBe(false)
+    expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('is a no-op when the file is already gone', () => {
+    expect(() => resetSettings(join(dir, 'missing.json'))).not.toThrow()
   })
 })
 
