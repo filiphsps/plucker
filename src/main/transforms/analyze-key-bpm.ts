@@ -7,6 +7,13 @@ import { decodePcm, ffmpegPcmDeps } from '../audio-pcm'
 import { estimateKey } from '../../shared/chroma'
 import { estimateBpm, type TempoRange } from '../../shared/tempo'
 import { keyToCamelot } from '../../shared/camelot'
+import {
+  getEssentia,
+  analyzeKeyEssentia,
+  analyzeBpmEssentia,
+  KEY_STRENGTH_MIN,
+  BPM_CONFIDENCE_MIN
+} from '../essentia'
 
 export interface AnalyzeKeyBpmConfig {
   detectKey: boolean
@@ -15,8 +22,10 @@ export interface AnalyzeKeyBpmConfig {
   maxBpm: number
 }
 
-/** Sample rate for analysis — low enough to be fast, high enough for tempo/key. */
-const ANALYSIS_SR = 11025
+// Essentia's KeyExtractor profiles and RhythmExtractor2013 are tuned for 44.1 kHz
+// (RhythmExtractor2013 in particular assumes it), so decode at that rate. The
+// pure-TS fallback estimators read the sample rate as a parameter and work here too.
+const ANALYSIS_SR = 44100
 
 /** Injectable collaborators so the orchestration is testable without ffmpeg/DSP. */
 export interface AnalyzeDeps {
@@ -92,8 +101,10 @@ const CONFIG_SCHEMA: ConfigField[] = [
 
 /**
  * Estimate the track's musical key and tempo from its audio and write them to
- * TKEY, TBPM, and a TXXX:CAMELOT frame. Pure-TS DSP over ffmpeg-decoded PCM;
- * skip-on-failure so a bad analysis never aborts the chain or drops other tags.
+ * TKEY, TBPM, and a TXXX:CAMELOT frame. Uses Essentia (WASM) when available and
+ * falls back to the pure-TS estimators otherwise; low-confidence results are
+ * dropped as inconclusive. Skip-on-failure so a bad analysis never aborts the
+ * chain or drops other tags.
  */
 export const analyzeKeyBpmTransform: TransformDefinition<AnalyzeKeyBpmConfig> = {
   type: 'analyze-key-bpm',
@@ -109,11 +120,46 @@ export const analyzeKeyBpmTransform: TransformDefinition<AnalyzeKeyBpmConfig> = 
     config: AnalyzeKeyBpmConfig,
     services: TransformServices
   ): Promise<void> {
+    // Boot Essentia once; null means it failed to load and we transparently fall
+    // back to the pure-TS estimators so a WASM problem never drops the tags.
+    const es = getEssentia((msg) => services.log.warn(msg))
+    services.log.debug(`analysis engine: ${es ? 'essentia (wasm)' : 'fallback DSP'}`)
+
     const { tags, samples } = await analyzeTrack(ctx.workingFile, config, {
       decode: (file, sr) =>
         decodePcm(file, sr, ffmpegPcmDeps(services.bin.ffmpeg, services.signal)),
-      estimateKey,
-      estimateBpm,
+      estimateKey: (pcm, sr) => {
+        if (es) {
+          try {
+            const r = analyzeKeyEssentia(es, pcm, sr)
+            services.log.debug(`key via essentia: ${r.key} strength=${r.strength.toFixed(2)}`)
+            if (r.strength >= KEY_STRENGTH_MIN) return r.key
+            services.log.debug(
+              `key strength ${r.strength.toFixed(2)} < ${KEY_STRENGTH_MIN}; inconclusive`
+            )
+            return null
+          } catch (err) {
+            services.log.warn(`essentia key failed, using fallback: ${String(err)}`)
+          }
+        }
+        return estimateKey(pcm, sr)
+      },
+      estimateBpm: (pcm, sr, range) => {
+        if (es) {
+          try {
+            const r = analyzeBpmEssentia(es, pcm, range)
+            services.log.debug(`bpm via essentia: ${r.bpm} confidence=${r.confidence.toFixed(2)}`)
+            if (r.confidence >= BPM_CONFIDENCE_MIN) return r.bpm
+            services.log.debug(
+              `bpm confidence ${r.confidence.toFixed(2)} < ${BPM_CONFIDENCE_MIN}; inconclusive`
+            )
+            return null
+          } catch (err) {
+            services.log.warn(`essentia bpm failed, using fallback: ${String(err)}`)
+          }
+        }
+        return estimateBpm(pcm, sr, range)
+      },
       keyToCamelot,
       writeTags: writeAnalysisTags
     })
