@@ -28,6 +28,7 @@ export default function App(): React.JSX.Element {
   } | null>(null)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(false)
+  const [consoleMode, setConsoleMode] = useState<'docked' | 'floating'>('docked')
   const [consoleHeight, setConsoleHeight] = useState(260)
   const [consoleAvailable, setConsoleAvailable] = useState(import.meta.env.DEV)
   // Index into the log buffer at the moment the current job started — the loader
@@ -45,6 +46,7 @@ export default function App(): React.JSX.Element {
       setConsoleAvailable(import.meta.env.DEV || s.developer.console)
       setUrlHistory(s.urlHistory)
     })
+    window.plucker.getConsoleState().then((s) => setConsoleMode(s.mode))
   }, [])
 
   // React live to settings changing elsewhere (developer-console toggle, URL-history
@@ -81,8 +83,27 @@ export default function App(): React.JSX.Element {
     return window.plucker.onInterruptedChanged(load)
   }, [])
 
-  // Toggle the console from the application menu (⌘J).
-  useEffect(() => window.plucker.onToggleConsole(() => setConsoleOpen((v) => !v)), [])
+  // Toggle the console from the application menu (⌘J): docked → flip the drawer;
+  // floating → show/hide the floating window.
+  useEffect(
+    () =>
+      window.plucker.onToggleConsole(() => {
+        if (consoleMode === 'floating') void window.plucker.toggleConsoleWindow()
+        else setConsoleOpen((v) => !v)
+      }),
+    [consoleMode]
+  )
+
+  // Main process reports docked/floating transitions (undock, redock, OS-close of
+  // the float). Returning to docked reopens the inline drawer so the console isn't lost.
+  useEffect(
+    () =>
+      window.plucker.onConsoleMode((mode) => {
+        setConsoleMode(mode)
+        if (mode === 'docked') setConsoleOpen(true)
+      }),
+    []
+  )
 
   // Esc closes the console while it's open.
   useEffect(() => {
@@ -186,7 +207,10 @@ export default function App(): React.JSX.Element {
         cacheActive={cacheOpen}
         consoleAvailable={consoleAvailable}
         consoleOpen={consoleOpen}
-        onToggleConsole={() => setConsoleOpen((v) => !v)}
+        onToggleConsole={() => {
+          if (consoleMode === 'floating') void window.plucker.toggleConsoleWindow()
+          else setConsoleOpen((v) => !v)
+        }}
         onNavigate={(v) => {
           setSettingsOpen(false)
           setCacheOpen(false)
@@ -271,13 +295,14 @@ export default function App(): React.JSX.Element {
         />
       )}
 
-      {consoleAvailable && consoleOpen && (
+      {consoleAvailable && consoleOpen && consoleMode === 'docked' && (
         <ConsoleDrawer
           entries={logEntries}
           height={consoleHeight}
           onHeightChange={setConsoleHeight}
           onClose={() => setConsoleOpen(false)}
           onClear={() => setLogEntries([])}
+          onUndock={() => void window.plucker.undockConsole()}
         />
       )}
     </div>
