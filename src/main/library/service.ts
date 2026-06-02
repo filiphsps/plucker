@@ -115,6 +115,31 @@ export function createLibraryService(deps: LibraryDeps) {
         summary: `Edited “${track.title}”`
       })
       emit('library:changed'); emit('library:activityChanged')
+    },
+
+    /** Fork a new named branch off any version and make it active. Returns its id. */
+    createBranch(trackId: string, fromVersionId: string, name: string): string {
+      const branchId = clock.idGen()
+      repo.insertBranch({ id: branchId, trackId, name, tipVersionId: fromVersionId })
+      repo.setActiveBranch(trackId, branchId)
+      repo.insertActivity({ id: clock.idGen(), type: 'branched', ts: clock.now(), trackId, summary: `Branched “${name}”` })
+      emit('library:changed'); emit('library:activityChanged')
+      return branchId
+    },
+    /** Make another branch active for a track. */
+    switchBranch(trackId: string, branchId: string): void {
+      repo.setActiveBranch(trackId, branchId)
+      const b = repo.getBranch(branchId)
+      repo.insertActivity({ id: clock.idGen(), type: 'switched', ts: clock.now(), trackId, summary: `Switched to “${b?.name ?? branchId}”` })
+      emit('library:changed'); emit('library:activityChanged')
+    },
+    renameBranch(branchId: string, name: string): void {
+      repo.setBranchName(branchId, name)
+      emit('library:changed')
+    },
+    renameVersion(versionId: string, label: string): void {
+      repo.setVersionLabel(versionId, label)
+      emit('library:changed')
     }
   }
 }

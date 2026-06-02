@@ -81,4 +81,30 @@ describe('LibraryService', () => {
     expect(repo.getBranch(before.activeBranchId)!.tipVersionId).toBe(child.id)
     expect(service.listActivity().some((a) => a.type === 'edited')).toBe(true)
   })
+
+  it('createBranch forks off a node, sets it active; editing then advances only that branch', () => {
+    const { service, repo } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const trackId = service.listCollections()[0].tracks[0].id
+    const main = repo.getBranch(repo.getTrack(trackId)!.activeBranchId)!
+    const rootTip = main.tipVersionId
+
+    const clubId = service.createBranch(trackId, rootTip, 'club edit')
+    const track = repo.getTrack(trackId)!
+    expect(track.activeBranchId).toBe(clubId) // new branch is active
+    expect(repo.getBranch(clubId)!.tipVersionId).toBe(rootTip) // starts at the fork point
+    expect(repo.listBranches(trackId).map((b) => b.name).sort()).toEqual(['club edit', 'main'])
+    expect(service.listActivity().some((a) => a.type === 'branched')).toBe(true)
+  })
+
+  it('switchBranch changes the active branch and logs activity', () => {
+    const { service, repo } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const trackId = service.listCollections()[0].tracks[0].id
+    const main = repo.getTrack(trackId)!.activeBranchId
+    service.createBranch(trackId, repo.getBranch(main)!.tipVersionId, 'b2')
+    service.switchBranch(trackId, main)
+    expect(repo.getTrack(trackId)!.activeBranchId).toBe(main)
+    expect(service.listActivity().some((a) => a.type === 'switched')).toBe(true)
+  })
 })
