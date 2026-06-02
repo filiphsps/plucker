@@ -85,7 +85,10 @@ export default {
     new: 'New',
     cancel: 'Cancel',
     dismiss: 'Dismiss',
+    startAll_one: 'Start {{count}} job',
+    startAll_other: 'Start {{count}} jobs',
     state: {
+      pending: 'Not started',
       running: 'Running',
       paused: 'Paused',
       queued: 'Queued',

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Download, X } from 'lucide-react'
-import type { JobStatus, LogEntry, PlaylistEntry } from '../../shared/types'
+import type { JobStatus, LogEntry, PlaylistEntry, ResolvedJob } from '../../shared/types'
 import type { JobView } from './job-view'
+import type { PendingJob } from './pending-job'
 import { isSupportedUrl } from '../../shared/url-providers'
 import { TrackRow } from './track-row'
 import { VirtualList } from './ui/virtual-list'
@@ -12,16 +13,6 @@ import { statusColumnWidth } from './status-column'
 import { ResolvePanel } from './resolve-panel'
 import { UrlSuggestions } from './ui/url-suggestions'
 import { removeEntry, moveEntry } from './staging-list'
-
-/** A resolved-but-not-started job awaiting the user's Start click. */
-interface StagedJob {
-  url: string
-  title: string
-  kind: 'playlist' | 'video'
-  entries: PlaylistEntry[]
-  /** Reuse a specific output folder (history redownload). */
-  folderOverride?: string
-}
 
 /** One row in the staging list: reorder + remove before the job starts. */
 function StagedRow({
@@ -145,32 +136,41 @@ function JobDetail({ job }: { job: JobView }): React.JSX.Element {
 
 export function DownloadView({
   job,
+  pendingJob,
   statusLog,
   resolveLog,
   urlHistory,
   redownloadRequest,
   prefill,
   onResolveStart,
-  onJobStarted,
+  onResolved,
+  onUpdatePending,
+  onStartPending,
   onClear,
   onRedownloadConsumed
 }: {
-  /** The selected job to show, or null to show the compose/stage flow. */
+  /** The selected running job to show, or null when composing / editing a pending job. */
   job: JobView | null
+  /** The selected pending (staged-not-started) job to edit, or null. */
+  pendingJob: PendingJob | null
   /** Resolving trigger: non-null while a job is starting, null once tracks arrive. */
   statusLog: JobStatus[] | null
   /** Live log lines for the current resolution (shared with the developer console). */
   resolveLog: LogEntry[]
   /** Past download URLs (most-recent-first) for the suggestions dropdown. */
   urlHistory: string[]
-  /** A history redownload request to auto-resolve into the staging list. */
+  /** A history redownload request to auto-resolve into a pending job. */
   redownloadRequest?: { url: string; folder: string } | null
   /** Set the URL field and focus it (File ▸ New Download clears with '', Open URL… prefills). */
   prefill?: { url: string; nonce: number } | null
   /** Resolution started — seed the resolve-log window upstream. */
   onResolveStart: () => void
-  /** A job was started; receives its jobId so the parent can select it. */
-  onJobStarted: (jobId: string) => void
+  /** A URL resolved into a job; the parent stages it as a pending rail entry. */
+  onResolved: (resolved: ResolvedJob, url: string, folderOverride?: string) => void
+  /** Reorder/remove tracks within a pending job (parent owns the pending list). */
+  onUpdatePending: (id: string, entries: PlaylistEntry[]) => void
+  /** Start one pending job now (parent fires it off and selects the new running job). */
+  onStartPending: (id: string) => void
   /** Reset the compose pane back to its empty state. */
   onClear: () => void
   /** Signal that a redownload request has been consumed (clear it upstream). */
@@ -180,11 +180,9 @@ export function DownloadView({
   const inputRef = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState('')
   const [resolving, setResolving] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [focused, setFocused] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
-  const [staged, setStaged] = useState<StagedJob | null>(null)
 
   const trimmed = url.trim()
   // In compose mode the bar locks only while resolving (each job runs in its own
@@ -193,7 +191,7 @@ export function DownloadView({
 
   const valid = isSupportedUrl(trimmed)
   const invalid = trimmed.length > 0 && !valid && !locked
-  const hasContent = statusLog !== null || staged !== null || trimmed.length > 0
+  const hasContent = statusLog !== null || trimmed.length > 0
 
   // Suggestions: filter history by case-insensitive substring. Hidden until the
   // input has at least one character so the dropdown doesn't show on empty focus.
@@ -236,39 +234,13 @@ export function DownloadView({
     onResolveStart() // clears prior status + seeds the resolve-log window
     try {
       const resolved = await window.plucker.resolveJob(u)
-      setStaged({
-        url: u,
-        title: resolved.title,
-        kind: resolved.kind,
-        entries: resolved.entries,
-        folderOverride
-      })
+      // Hand the resolved job up: the parent stages it as a pending rail entry and
+      // selects it, switching this view to that job's staging editor.
+      onResolved(resolved, u, folderOverride)
     } catch {
       // Resolve errors surface in the ResolvePanel via job:status.
     } finally {
       setResolving(false)
-    }
-  }
-
-  /** Start the curated, reordered staged job. */
-  async function startStaged(): Promise<void> {
-    if (!staged || staged.entries.length === 0) return
-    const req = {
-      url: staged.url,
-      title: staged.title,
-      kind: staged.kind,
-      entries: staged.entries,
-      folderOverride: staged.folderOverride
-    }
-    setStaged(null)
-    setBusy(true)
-    try {
-      const jobId = await window.plucker.startDownload(req)
-      onJobStarted(jobId) // parent selects the new job; its detail takes over
-    } catch {
-      // Start errors surface in the ResolvePanel via job:status.
-    } finally {
-      setBusy(false)
     }
   }
 
@@ -286,7 +258,6 @@ export function DownloadView({
     if (locked) return
     setUrl('')
     setHighlighted(-1)
-    setStaged(null)
     onClear()
   }
 
@@ -326,8 +297,8 @@ export function DownloadView({
     ])
   }
 
-  // A selected job shows its track list; the deck (rendered by the parent) drives
-  // its transport. The compose flow only renders when no job is selected.
+  // A selected running job shows its track list; the deck (rendered by the parent)
+  // drives its transport.
   if (job) {
     return (
       <div className="flex h-full flex-col">
@@ -336,6 +307,46 @@ export function DownloadView({
     )
   }
 
+  // A selected pending job shows its staging editor — reorder/remove tracks, then
+  // start it (or start every pending job at once from the rail's "Start all" button).
+  if (pendingJob) {
+    const { id, title, entries } = pendingJob
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2">
+          <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+            {title} · {t('download.tracks', { count: entries.length })}
+          </span>
+          <button
+            onClick={() => onStartPending(id)}
+            disabled={entries.length === 0}
+            className="flex h-8 shrink-0 items-center gap-2 rounded-[7px] bg-accent px-4 text-[12px] font-semibold text-white disabled:opacity-50"
+          >
+            <Download size={14} strokeWidth={2.2} />
+            {t('download.startDownload')}
+          </button>
+        </div>
+        <VirtualList
+          className="min-h-0 flex-1 overflow-auto"
+          items={entries}
+          getKey={(e, pos) => e.videoId + ':' + pos}
+          estimateSize={33}
+        >
+          {(e, pos) => (
+            <StagedRow
+              entry={e}
+              pos={pos}
+              count={entries.length}
+              onRemove={() => onUpdatePending(id, removeEntry(entries, pos))}
+              onMove={(to) => onUpdatePending(id, moveEntry(entries, pos, to))}
+            />
+          )}
+        </VirtualList>
+      </div>
+    )
+  }
+
+  // Otherwise: the compose flow ("New") — paste a URL and resolve it into a pending job.
   return (
     <div className="flex h-full flex-col" onContextMenu={onPageContextMenu}>
       {/* command bar */}
@@ -400,7 +411,7 @@ export function DownloadView({
         </div>
         <button
           onClick={() => void resolve(trimmed)}
-          disabled={busy || locked || !valid}
+          disabled={locked || !valid}
           className="flex h-9 items-center gap-[7px] rounded-[7px] bg-accent px-[22px] text-[13px] font-semibold text-white disabled:opacity-50"
         >
           <Download size={15} strokeWidth={2.2} />
@@ -408,43 +419,7 @@ export function DownloadView({
         </button>
       </div>
 
-      {staged ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2">
-            <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
-              {staged.title} · {t('download.tracks', { count: staged.entries.length })}
-            </span>
-            <button
-              onClick={startStaged}
-              disabled={busy || staged.entries.length === 0}
-              className="flex h-8 shrink-0 items-center gap-2 rounded-[7px] bg-accent px-4 text-[12px] font-semibold text-white disabled:opacity-50"
-            >
-              <Download size={14} strokeWidth={2.2} />
-              {t('download.startDownload')}
-            </button>
-          </div>
-          <VirtualList
-            className="min-h-0 flex-1 overflow-auto"
-            items={staged.entries}
-            getKey={(e, pos) => e.videoId + ':' + pos}
-            estimateSize={33}
-          >
-            {(e, pos) => (
-              <StagedRow
-                entry={e}
-                pos={pos}
-                count={staged.entries.length}
-                onRemove={() =>
-                  setStaged((s) => (s ? { ...s, entries: removeEntry(s.entries, pos) } : s))
-                }
-                onMove={(to) =>
-                  setStaged((s) => (s ? { ...s, entries: moveEntry(s.entries, pos, to) } : s))
-                }
-              />
-            )}
-          </VirtualList>
-        </div>
-      ) : statusLog !== null || resolving ? (
+      {statusLog !== null || resolving ? (
         <ResolvePanel entries={resolveLog} />
       ) : (
         <div className="flex flex-1 items-center justify-center text-ink-faint">

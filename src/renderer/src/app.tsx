@@ -14,8 +14,9 @@ import { useNetworkStatus } from './use-network-status'
 import { NetworkStatusBadge } from './network-status'
 import { applyLanguage } from './i18n'
 import { showContextMenu, type MenuItem } from './ui/context-menu'
-import type { JobStatus, LogEntry } from '../../shared/types'
+import type { JobStatus, LogEntry, PlaylistEntry, ResolvedJob } from '../../shared/types'
 import type { JobView } from './job-view'
+import type { PendingJob } from './pending-job'
 
 /** Track statuses that mean a job is still working (drives deck visibility). */
 const ACTIVE = new Set(['queued', 'downloading', 'transforming'])
@@ -27,6 +28,11 @@ export default function App(): React.JSX.Element {
   // All jobs (running + queued), keyed by jobId. Roster drives membership; the
   // jobId-tagged events fill each job's progress/paused detail.
   const [jobs, setJobs] = useState<Map<string, JobView>>(new Map())
+  // Pending (staged-not-started) jobs live only here — resolving a URL adds one, the
+  // rail lists them, and starting one (or all) hands it to the main-process pool.
+  const [pending, setPending] = useState<PendingJob[]>([])
+  const pendingNonce = useRef(0)
+  // The selected rail entry: a real jobId, a pending job's id, or null ("New").
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
   const [urlHistory, setUrlHistory] = useState<string[]>([])
@@ -272,19 +278,34 @@ export default function App(): React.JSX.Element {
 
   const overlayOpen = settingsOpen || cacheOpen
   const selectedJob = selectedJobId ? (jobs.get(selectedJobId) ?? null) : null
-  const railItems = [...jobs.values()].map((v) => ({
-    jobId: v.meta.jobId,
-    title: v.meta.title,
-    overall: v.progress?.overall ?? 0,
-    finished: !!v.finished,
-    state: v.finished ? ('done' as const) : v.meta.state
-  }))
+  const selectedPending = selectedJobId
+    ? (pending.find((p) => p.id === selectedJobId) ?? null)
+    : null
+  const railItems = [
+    ...[...jobs.values()].map((v) => ({
+      jobId: v.meta.jobId,
+      title: v.meta.title,
+      overall: v.progress?.overall ?? 0,
+      finished: !!v.finished,
+      state: v.finished ? ('done' as const) : v.meta.state
+    })),
+    // Pending jobs trail the real ones — no progress yet, a "Not started" label.
+    ...pending.map((p) => ({
+      jobId: p.id,
+      title: p.title,
+      overall: 0,
+      finished: false,
+      state: 'pending' as const
+    }))
+  ]
   // Show the rail when there's more than one job to switch between, a single
-  // multi-track playlist, or any finished job kept around for review (so it always
-  // has its dismiss affordance). A lone in-flight single-track download doesn't earn
-  // the space — the compose pane / its detail takes the full width.
+  // multi-track playlist, any finished job kept around for review (so it always has
+  // its dismiss affordance), or any pending job staged for start. A lone in-flight
+  // single-track download doesn't earn the space — the detail takes the full width.
   const showRail =
-    jobs.size >= 2 || [...jobs.values()].some((v) => v.finished || (v.progress?.total ?? 0) > 1)
+    jobs.size >= 2 ||
+    pending.length > 0 ||
+    [...jobs.values()].some((v) => v.finished || (v.progress?.total ?? 0) > 1)
   // Show the deck for the selected job only while it has work in flight.
   const deckJob =
     selectedJob && selectedJob.progress?.tracks.some((t) => ACTIVE.has(t.status))
@@ -299,6 +320,77 @@ export default function App(): React.JSX.Element {
       return next
     })
     setSelectedJobId((cur) => (cur === jobId ? null : cur))
+  }
+
+  /** Stage a freshly resolved URL as a pending job and select it for editing. */
+  const addPending = (resolved: ResolvedJob, url: string, folderOverride?: string): void => {
+    const id = `pending-${++pendingNonce.current}`
+    setPending((prev) => [
+      ...prev,
+      {
+        id,
+        url,
+        title: resolved.title,
+        kind: resolved.kind,
+        entries: resolved.entries,
+        folderOverride
+      }
+    ])
+    setStatusLog(null) // leave the resolve panel; the staging editor takes over
+    setSelectedJobId(id)
+  }
+
+  /** Reorder/remove tracks within a pending job. */
+  const updatePending = (id: string, entries: PlaylistEntry[]): void => {
+    setPending((prev) => prev.map((p) => (p.id === id ? { ...p, entries } : p)))
+  }
+
+  /** Drop a pending job without starting it (the rail's X). */
+  const removePending = (id: string): void => {
+    setPending((prev) => prev.filter((p) => p.id !== id))
+    setSelectedJobId((cur) => (cur === id ? null : cur))
+  }
+
+  /** Hand one pending job to the pool and select the resulting running job. */
+  const startPending = async (id: string): Promise<void> => {
+    const p = pending.find((x) => x.id === id)
+    if (!p || p.entries.length === 0) return
+    setPending((prev) => prev.filter((x) => x.id !== id))
+    try {
+      const jobId = await window.plucker.startDownload({
+        url: p.url,
+        title: p.title,
+        kind: p.kind,
+        entries: p.entries,
+        folderOverride: p.folderOverride
+      })
+      setSelectedJobId(jobId)
+    } catch {
+      // Start errors surface via job:status / History.
+    }
+  }
+
+  /** Start every pending job at once; select the first one that launches. */
+  const startAllPending = async (): Promise<void> => {
+    const toStart = pending.filter((p) => p.entries.length > 0)
+    if (toStart.length === 0) return
+    setPending([])
+    let firstId: string | null = null
+    for (const p of toStart) {
+      try {
+        const jobId = await window.plucker.startDownload({
+          url: p.url,
+          title: p.title,
+          kind: p.kind,
+          entries: p.entries,
+          folderOverride: p.folderOverride
+        })
+        firstId ??= jobId
+      } catch {
+        // Start errors surface via job:status / History.
+      }
+    }
+    if (firstId) setSelectedJobId(firstId)
   }
 
   const visibleInterrupted = interrupted.filter((j) => !dismissed.has(j.jobId))
@@ -375,15 +467,20 @@ export default function App(): React.JSX.Element {
               <JobRail
                 jobs={railItems}
                 selectedJobId={selectedJobId}
+                pendingCount={pending.length}
                 onSelect={setSelectedJobId}
-                onClose={(jobId, finished) =>
-                  finished ? dismissJob(jobId) : void window.plucker.cancel(jobId)
-                }
+                onClose={(jobId, finished) => {
+                  if (pending.some((p) => p.id === jobId)) removePending(jobId)
+                  else if (finished) dismissJob(jobId)
+                  else void window.plucker.cancel(jobId)
+                }}
+                onStartAll={() => void startAllPending()}
               />
             )}
             <div className="min-h-0 flex-1">
               <DownloadView
                 job={selectedJob}
+                pendingJob={selectedPending}
                 statusLog={statusLog}
                 resolveLog={logEntries.slice(jobLogStart)}
                 urlHistory={urlHistory}
@@ -394,10 +491,9 @@ export default function App(): React.JSX.Element {
                   setStatusLog([])
                   setJobLogStart(logLen.current)
                 }}
-                onJobStarted={(jobId) => {
-                  setSelectedJobId(jobId)
-                  setStatusLog(null)
-                }}
+                onResolved={addPending}
+                onUpdatePending={updatePending}
+                onStartPending={(id) => void startPending(id)}
                 onClear={() => setStatusLog(null)}
               />
             </div>

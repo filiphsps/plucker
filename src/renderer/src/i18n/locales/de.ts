@@ -86,7 +86,10 @@ const de: typeof en = {
     new: 'Neu',
     cancel: 'Abbrechen',
     dismiss: 'Verwerfen',
+    startAll_one: '{{count}} Job starten',
+    startAll_other: '{{count}} Jobs starten',
     state: {
+      pending: 'Nicht gestartet',
       running: 'Läuft',
       paused: 'Pausiert',
       queued: 'Warteschlange',

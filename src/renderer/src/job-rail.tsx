@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, X } from 'lucide-react'
+import { Play, Plus, X } from 'lucide-react'
 import type { JobState } from '../../shared/types'
 
 /** One job in the rail, flattened for display. */
@@ -9,8 +9,8 @@ export interface RailItem {
   title: string
   /** 0..1 overall progress for the mini bar. */
   overall: number
-  /** Display state — 'done' for finished jobs kept around for review. */
-  state: JobState | 'done'
+  /** Display state — 'done' for finished jobs, 'pending' for staged-not-started ones. */
+  state: JobState | 'done' | 'pending'
   /** True for a finished job (X dismisses it instead of cancelling). */
   finished: boolean
 }
@@ -35,13 +35,19 @@ function initialWidth(): number {
 export function JobRail({
   jobs,
   selectedJobId,
+  pendingCount,
   onSelect,
-  onClose
+  onClose,
+  onStartAll
 }: {
   jobs: RailItem[]
   selectedJobId: string | null
+  /** Number of staged-not-started jobs; drives the bottom "Start all" button. */
+  pendingCount: number
   onSelect: (jobId: string | null) => void
   onClose: (jobId: string, finished: boolean) => void
+  /** Start every pending job at once. */
+  onStartAll: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [width, setWidth] = useState(initialWidth)
@@ -65,8 +71,8 @@ export function JobRail({
   }
 
   return (
-    <div className="relative flex shrink-0" style={{ width }}>
-      <nav className="flex flex-1 flex-col gap-1 overflow-auto border-r border-line p-2">
+    <div className="relative flex shrink-0 flex-col border-r border-line" style={{ width }}>
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto p-2">
         <button
           type="button"
           onClick={() => onSelect(null)}
@@ -117,6 +123,19 @@ export function JobRail({
           </button>
         ))}
       </nav>
+      {/* Start-all footer: only rendered (and in the DOM) while jobs are staged. */}
+      {pendingCount > 0 && (
+        <div className="border-t border-line p-2">
+          <button
+            type="button"
+            onClick={onStartAll}
+            className="flex w-full items-center justify-center gap-2 rounded-[7px] bg-accent px-3 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <Play size={13} strokeWidth={2.4} />
+            {t('jobs.startAll', { count: pendingCount })}
+          </button>
+        </div>
+      )}
       <div
         onMouseDown={startDrag}
         className="absolute right-0 top-0 h-full w-1 cursor-col-resize transition-colors hover:bg-accent/40"
