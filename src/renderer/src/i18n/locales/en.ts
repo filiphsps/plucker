@@ -25,6 +25,7 @@ export default {
     copyUrl: 'Copy YouTube URL',
     openYouTube: 'Open on YouTube',
     redownload: 'Re-download',
+    retransform: 'Re-run transforms',
     editTags: 'Edit tags',
     deleteFile: 'Delete file',
     copyError: 'Copy error code',
@@ -64,7 +65,10 @@ export default {
     outcomeCancelled: 'CANCELLED',
     colFile: 'File',
     missing: 'File missing',
-    missingBadge: 'MISSING'
+    missingBadge: 'MISSING',
+    retransformSkipped_one: 'Skipped {{count}} track (no file)',
+    retransformSkipped_other: 'Skipped {{count}} tracks (no file)',
+    retransformNone: 'No re-transformable tracks selected'
   },
   download: {
     urlLabel: 'Paste a YouTube playlist or video URL',

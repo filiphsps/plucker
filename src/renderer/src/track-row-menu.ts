@@ -21,6 +21,7 @@ export function trackRowMenuItems(opts: {
   failed: boolean
   onReveal: () => void
   onRedownload?: () => void
+  onRetransform?: () => void
   onEditTags?: () => void
   onDelete?: () => void
 }): MenuItem[] {
@@ -44,6 +45,9 @@ export function trackRowMenuItems(opts: {
       { type: 'separator' },
       { label: t('context.redownload'), onClick: opts.onRedownload }
     )
+  }
+  if (variant === 'history' && opts.onRetransform) {
+    items.push({ label: t('context.retransform'), enabled: hasFile, onClick: opts.onRetransform })
   }
   if (variant === 'cache' && opts.onEditTags) {
     items.push({ type: 'separator' }, { label: t('context.editTags'), onClick: opts.onEditTags })

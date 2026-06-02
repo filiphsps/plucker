@@ -51,6 +51,8 @@ export function HistoryView({
   const [missing, setMissing] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<string | null>(null)
+  // Transient one-line notice (e.g. "Skipped N (no file)") shown in the header.
+  const [notice, setNotice] = useState<string | null>(null)
   // Manual collapse overrides, keyed by entry id. Entries not present here fall
   // back to the default (multi-track playlists outside the latest 3 collapse),
   // so newly-arrived downloads pick up the right default without re-seeding.
@@ -121,6 +123,7 @@ export function HistoryView({
     })
     setSelected(r.selected)
     setAnchor(r.anchor)
+    setNotice(null)
   }
 
   function revealTargets(keys: string[]): void {
@@ -140,6 +143,27 @@ export function HistoryView({
         await window.plucker.startDownload(watchUrl(hit.track.videoId), hit.entry.folder)
       }
     }
+  }
+
+  // Re-run the enabled transform chain on the selection, in place — no download.
+  // Only tracks with a real file on disk are eligible; the rest are reported.
+  async function retransformTargets(keys: string[]): Promise<void> {
+    const targets: { entryId: string; index: number }[] = []
+    let skipped = 0
+    for (const key of keys) {
+      const hit = lookup(key)
+      if (hit && deletable(hit.track)) targets.push({ entryId: hit.entry.id, index: hit.index })
+      else skipped++
+    }
+    if (targets.length === 0) {
+      if (keys.length > 0) setNotice(t('history.retransformNone'))
+      return
+    }
+    onNavigateDownload()
+    setNotice(skipped > 0 ? t('history.retransformSkipped', { count: skipped }) : null)
+    await window.plucker.retransform(targets)
+    setSelected(new Set())
+    setAnchor(null)
   }
 
   // Confirm once iff any target has a real file. Remove per entry in descending
@@ -203,6 +227,13 @@ export function HistoryView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, history, missing])
 
+  // The app-menu "Re-run Transforms on Selection" item acts on the live selection.
+  useEffect(() => {
+    return window.plucker.onRetransformSelection(() => void retransformTargets([...selected]))
+    // retransformTargets closes over history/missing/selected; re-bind when they change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, history, missing])
+
   if (history.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-ink-faint">
@@ -227,6 +258,12 @@ export function HistoryView({
           className="h-full w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-faint"
         />
       </div>
+
+      {notice && (
+        <div className="mb-3 rounded-md border border-line bg-raise px-3 py-1.5 text-[12px] text-ink-dim">
+          {notice}
+        </div>
+      )}
 
       {filtered.map((entry) => {
         const failed = entry.tracks.filter((tk) => tk.status === 'failed').length
@@ -356,6 +393,7 @@ export function HistoryView({
                           failed: tk.status === 'failed',
                           onReveal: () => revealTargets(targetsFor(selected, key)),
                           onRedownload: () => void redownloadTargets(targetsFor(selected, key)),
+                          onRetransform: () => void retransformTargets(targetsFor(selected, key)),
                           onDelete: () => void deleteTargets(targetsFor(selected, key))
                         })
                       )

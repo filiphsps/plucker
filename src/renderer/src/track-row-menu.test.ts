@@ -67,4 +67,32 @@ describe('trackRowMenuItems', () => {
     expect(history.some((i) => i.label === 'context.redownload')).toBe(true)
     expect(cache.some((i) => i.label === 'context.editTags')).toBe(true)
   })
+
+  it('adds an enabled Re-run transforms item for history rows with a file', () => {
+    const items = trackRowMenuItems({
+      t,
+      variant: 'history',
+      track: { title: 'S', file: '/a.mp3' },
+      missing: false,
+      failed: false,
+      onReveal: vi.fn(),
+      onRetransform: vi.fn()
+    })
+    const item = items.find((i) => i.label === 'context.retransform')
+    expect(item?.enabled).toBe(true)
+  })
+
+  it('disables Re-run transforms when the file is missing', () => {
+    const items = trackRowMenuItems({
+      t,
+      variant: 'history',
+      track: { title: 'S', file: '/a.mp3' },
+      missing: true,
+      failed: false,
+      onReveal: vi.fn(),
+      onRetransform: vi.fn()
+    })
+    const item = items.find((i) => i.label === 'context.retransform')
+    expect(item?.enabled).toBe(false)
+  })
 })

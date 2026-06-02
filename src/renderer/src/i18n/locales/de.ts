@@ -26,6 +26,7 @@ const de: typeof en = {
     copyUrl: 'YouTube-URL kopieren',
     openYouTube: 'Auf YouTube öffnen',
     redownload: 'Erneut herunterladen',
+    retransform: 'Transformationen erneut ausführen',
     editTags: 'Tags bearbeiten',
     deleteFile: 'Datei löschen',
     copyError: 'Fehlercode kopieren',
@@ -65,7 +66,10 @@ const de: typeof en = {
     outcomeCancelled: 'ABGEBROCHEN',
     colFile: 'Datei',
     missing: 'Datei fehlt',
-    missingBadge: 'FEHLT'
+    missingBadge: 'FEHLT',
+    retransformSkipped_one: '{{count}} Titel übersprungen (keine Datei)',
+    retransformSkipped_other: '{{count}} Titel übersprungen (keine Datei)',
+    retransformNone: 'Keine erneut transformierbaren Titel ausgewählt'
   },
   download: {
     urlLabel: 'YouTube-Playlist- oder Video-URL einfügen',
