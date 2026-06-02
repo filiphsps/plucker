@@ -20,6 +20,11 @@ export default function App(): React.JSX.Element {
   const [urlHistory, setUrlHistory] = useState<string[]>([])
   const [running, setRunning] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [trackPaused, setTrackPaused] = useState<Record<number, boolean>>({})
+  const [redownloadRequest, setRedownloadRequest] = useState<{
+    url: string
+    folder: string
+  } | null>(null)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleHeight, setConsoleHeight] = useState(260)
@@ -84,6 +89,14 @@ export default function App(): React.JSX.Element {
   )
 
   useEffect(() => window.plucker.onPaused(setPaused), [])
+
+  useEffect(
+    () =>
+      window.plucker.onTrackPaused((index, p) =>
+        setTrackPaused((prev) => ({ ...prev, [index]: p }))
+      ),
+    []
+  )
 
   useEffect(
     () =>
@@ -171,11 +184,15 @@ export default function App(): React.JSX.Element {
             statusLog={statusLog}
             resolveLog={logEntries.slice(jobLogStart)}
             urlHistory={urlHistory}
+            trackPaused={trackPaused}
+            redownloadRequest={redownloadRequest}
+            onRedownloadConsumed={() => setRedownloadRequest(null)}
             onRunningChange={setRunning}
             onStart={() => {
               setProgress(null)
               setStatusLog([])
               setJobLogStart(logLen.current)
+              setTrackPaused({})
             }}
             onClear={() => {
               setProgress(null)
@@ -188,6 +205,11 @@ export default function App(): React.JSX.Element {
             onNavigateDownload={() => {
               setSettingsOpen(false)
               setView('download')
+            }}
+            onRequestRedownload={(url, folder) => {
+              setSettingsOpen(false)
+              setView('download')
+              setRedownloadRequest({ url, folder })
             }}
           />
         </Page>

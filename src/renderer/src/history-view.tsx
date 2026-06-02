@@ -34,9 +34,12 @@ const OUTCOME_BADGE: Record<JobOutcome, { cls: string; labelKey: string; check?:
 }
 
 export function HistoryView({
-  onNavigateDownload
+  onNavigateDownload,
+  onRequestRedownload
 }: {
   onNavigateDownload: () => void
+  /** Route a redownload through the staging list on the download view. */
+  onRequestRedownload: (url: string, folder: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -97,8 +100,8 @@ export function HistoryView({
   }, [history])
 
   function redownload(url: string, folder: string): void {
-    onNavigateDownload()
-    window.plucker.startDownload(url, folder)
+    // Route through the staging list so the user can trim/reorder before re-downloading.
+    onRequestRedownload(url, folder)
   }
   // Only confirm when there's an actual downloaded file to lose. An entry whose
   // files are all absent/failed has nothing destructive to delete → no prompt.
@@ -145,12 +148,22 @@ export function HistoryView({
 
   // The main process runs one job at a time (job:start resolves when the job
   // finishes), so redownload each target sequentially rather than racing them.
+  // Each is a single video: resolve it, then start that one-entry job directly
+  // (no staging — bulk re-download is an explicit, already-curated action).
   async function redownloadTargets(keys: string[]): Promise<void> {
     onNavigateDownload()
     for (const key of keys) {
       const hit = lookup(key)
       if (hit?.track.videoId) {
-        await window.plucker.startDownload(watchUrl(hit.track.videoId), hit.entry.folder)
+        const url = watchUrl(hit.track.videoId)
+        const job = await window.plucker.resolveJob(url)
+        await window.plucker.startDownload({
+          url,
+          title: job.title,
+          kind: job.kind,
+          entries: job.entries,
+          folderOverride: hit.entry.folder
+        })
       }
     }
   }
