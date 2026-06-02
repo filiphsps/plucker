@@ -33,6 +33,8 @@ export type ConsoleMode = 'docked' | 'floating'
 export interface ConsoleWindowState {
   mode: ConsoleMode
   alwaysOnTop: boolean
+  /** Zoom factor of the floating console window, independent of the main window. */
+  zoom: number
 }
 
 export interface Settings {

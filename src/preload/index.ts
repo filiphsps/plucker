@@ -201,6 +201,9 @@ const api = {
   // Pin the floating console above other windows.
   setConsoleAlwaysOnTop: (on: boolean): Promise<void> =>
     ipcRenderer.invoke('console:alwaysOnTop', on),
+  // Scale the floating console independently of the main window; resolves to the
+  // applied (clamped) zoom factor.
+  setConsoleZoom: (zoom: number): Promise<number> => ipcRenderer.invoke('console:setZoom', zoom),
   // Initial { mode, alwaysOnTop } for whichever window asks.
   getConsoleState: (): Promise<ConsoleWindowState> => ipcRenderer.invoke('console:getState'),
   // Main → main-window: the console moved between docked and floating.

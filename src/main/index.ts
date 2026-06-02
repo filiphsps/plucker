@@ -53,6 +53,7 @@ import { buildRegistry } from './transforms/registry'
 import { transformLog } from './transforms/transform-logger'
 import { buildFileName } from './rename'
 import { addUrl, removeUrl } from '../shared/url-history'
+import { clampConsoleZoom } from '../shared/console-zoom'
 import type { TransformInstance } from '../shared/transforms'
 import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
@@ -233,6 +234,13 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('console:alwaysOnTop', (_e, on: boolean) => {
     consoleWindow?.setAlwaysOnTop(on)
     setConsoleSettings({ alwaysOnTop: on })
+  })
+  // Console zoom: scales the floating console independently of the main window.
+  ipcMain.handle('console:setZoom', (_e, zoom: number) => {
+    const clamped = clampConsoleZoom(zoom)
+    consoleWindow?.webContents.setZoomFactor(clamped)
+    setConsoleSettings({ zoom: clamped })
+    return clamped
   })
   ipcMain.handle('console:getState', () => loadSettings().developer.consoleWindow)
   ipcMain.handle('transforms:catalog', () => getCatalog())
@@ -525,7 +533,7 @@ function openConsoleWindow(getMain: () => BrowserWindow | null): void {
     )
       ? saved
       : null
-  const alwaysOnTop = loadSettings().developer.consoleWindow.alwaysOnTop
+  const { alwaysOnTop, zoom } = loadSettings().developer.consoleWindow
 
   const win = new BrowserWindow({
     width: onScreen?.width ?? 560,
@@ -536,10 +544,20 @@ function openConsoleWindow(getMain: () => BrowserWindow | null): void {
     backgroundColor: '#0a0b0e',
     alwaysOnTop,
     autoHideMenuBar: true,
+    // Custom frame so the console shows only its own in-app title bar instead of
+    // stacking a native one on top. macOS keeps the traffic lights (positioned into
+    // the compact bar); other platforms go fully frameless.
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 10, y: 7 } }
+      : { frame: false }),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false }
   })
   consoleWindow = win
   consoleRedockOnClose = true
+
+  // Apply the persisted zoom once the page is ready (setZoomFactor only sticks after
+  // a document is loaded). The console scales independently of the main window.
+  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(clampConsoleZoom(zoom)))
 
   // The shared index.html sets <title>Plucker</title>; keep our explicit
   // "Console — Plucker" window title instead of letting the page override it.

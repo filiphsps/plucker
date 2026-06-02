@@ -159,6 +159,8 @@ export default {
     undock: 'Undock',
     dock: 'Dock',
     pin: 'Keep on top',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
     title: 'Console',
     empty: 'No log output yet',
     clear: 'Clear',

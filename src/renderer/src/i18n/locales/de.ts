@@ -160,6 +160,8 @@ const de: typeof en = {
     undock: 'Abdocken',
     dock: 'Andocken',
     pin: 'Im Vordergrund',
+    zoomIn: 'Vergrößern',
+    zoomOut: 'Verkleinern',
     title: 'Konsole',
     empty: 'Noch keine Protokollausgabe',
     clear: 'Leeren',

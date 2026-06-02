@@ -58,7 +58,7 @@ describe('loadSettings', () => {
     writeFileSync(file, JSON.stringify({ version: 2, developer: { console: true } }))
     const s = loadSettings(file)
     expect(s.developer.console).toBe(true)
-    expect(s.developer.consoleWindow).toEqual({ mode: 'docked', alwaysOnTop: false })
+    expect(s.developer.consoleWindow).toEqual({ mode: 'docked', alwaysOnTop: false, zoom: 1 })
   })
 
   it('preserves a persisted floating consoleWindow', () => {
@@ -70,7 +70,7 @@ describe('loadSettings', () => {
       })
     )
     const s = loadSettings(file)
-    expect(s.developer.consoleWindow).toEqual({ mode: 'floating', alwaysOnTop: true })
+    expect(s.developer.consoleWindow).toEqual({ mode: 'floating', alwaysOnTop: true, zoom: 1 })
   })
 })
 

@@ -8,7 +8,9 @@ import {
   ArrowDownToLine,
   PictureInPicture2,
   PictureInPicture,
-  Pin
+  Pin,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react'
 import type { LogEntry, LogLevel } from '../../shared/types'
 import { filterEntries, logScopes } from './console-filter'
@@ -49,7 +51,10 @@ export function ConsolePanel({
   onClose,
   onDock,
   alwaysOnTop,
-  onToggleAlwaysOnTop
+  onToggleAlwaysOnTop,
+  zoom,
+  onZoomIn,
+  onZoomOut
 }: {
   entries: LogEntry[]
   onClear: () => void
@@ -61,6 +66,10 @@ export function ConsolePanel({
   onDock?: () => void
   alwaysOnTop?: boolean
   onToggleAlwaysOnTop?: () => void
+  /** Current zoom factor of the floating window (1 = 100%). */
+  zoom?: number
+  onZoomIn?: () => void
+  onZoomOut?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   // Filters track which values are *off* (default: everything on).
@@ -135,16 +144,18 @@ export function ConsolePanel({
     ? 'flex shrink-0 flex-col border-t border-line bg-[#0a0b0e]'
     : 'flex h-screen flex-col bg-[#0a0b0e]'
 
+  // The floating window has a custom frame, so its title bar is the drag region and —
+  // on macOS — must leave room for the overlaid traffic lights.
+  const isMac = typeof window !== 'undefined' && window.electron?.process?.platform === 'darwin'
+  const titleBarClass = docked
+    ? 'flex h-7 items-center gap-2 border-b border-line2 px-3 select-none cursor-ns-resize'
+    : 'drag flex h-7 items-center gap-2 border-b border-line2 pr-3 select-none ' +
+      (isMac ? 'pl-[68px]' : 'pl-3')
+
   return (
     <div className={containerClass} style={docked ? { height } : undefined}>
-      {/* title bar (drag handle / resize handle when docked) */}
-      <div
-        onPointerDown={docked ? onResizeStart : undefined}
-        className={
-          'flex h-7 items-center gap-2 border-b border-line2 px-3 select-none ' +
-          (docked ? 'cursor-ns-resize' : '')
-        }
-      >
+      {/* title bar (resize handle when docked, drag region when floating) */}
+      <div onPointerDown={docked ? onResizeStart : undefined} className={titleBarClass}>
         <span className="font-mono text-[10px] uppercase tracking-[1.5px] text-ink-faint">
           {t('console.title')}
         </span>
@@ -152,91 +163,118 @@ export function ConsolePanel({
           {t('console.counts', { shown: filtered.length, total: entries.length })}
         </span>
         <div className="flex-1" />
-        <button
-          onClick={() => setAutoScroll((v) => !v)}
-          aria-pressed={autoScroll}
-          className={
-            'flex h-5 items-center gap-1 px-1 ' +
-            (autoScroll ? 'text-accent' : 'text-ink-faint hover:text-ink')
-          }
-        >
-          <ArrowDownToLine size={12} />
-          <span className="font-mono text-[10px]">{t('console.autoScroll')}</span>
-        </button>
-        <button
-          onClick={() => void copyVisible()}
-          className="flex h-5 items-center gap-1 px-1 text-ink-faint hover:text-ink"
-        >
-          <Copy size={12} />
-          <span className="font-mono text-[10px]">
-            {copied ? t('console.copied') : t('console.copy')}
-          </span>
-        </button>
-        <Tooltip label={t('console.reveal')}>
+        {/* Interactive controls opt out of the custom-frame drag region. */}
+        <div className={(docked ? '' : 'no-drag ') + 'flex items-center gap-2'}>
           <button
-            onClick={() => void window.plucker.revealLog()}
-            aria-label={t('console.reveal')}
-            className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+            onClick={() => setAutoScroll((v) => !v)}
+            aria-pressed={autoScroll}
+            className={
+              'flex h-5 items-center gap-1 px-1 ' +
+              (autoScroll ? 'text-accent' : 'text-ink-faint hover:text-ink')
+            }
           >
-            <FolderOpen size={12} />
+            <ArrowDownToLine size={12} />
+            <span className="font-mono text-[10px]">{t('console.autoScroll')}</span>
           </button>
-        </Tooltip>
-        <Tooltip label={t('console.clear')}>
           <button
-            onClick={onClear}
-            aria-label={t('console.clear')}
-            className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+            onClick={() => void copyVisible()}
+            className="flex h-5 items-center gap-1 px-1 text-ink-faint hover:text-ink"
           >
-            <Trash2 size={12} />
+            <Copy size={12} />
+            <span className="font-mono text-[10px]">
+              {copied ? t('console.copied') : t('console.copy')}
+            </span>
           </button>
-        </Tooltip>
-        {docked ? (
-          <Tooltip label={t('console.undock')}>
+          <Tooltip label={t('console.reveal')}>
             <button
-              onClick={onUndock}
-              aria-label={t('console.undock')}
+              onClick={() => void window.plucker.revealLog()}
+              aria-label={t('console.reveal')}
               className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
             >
-              <PictureInPicture2 size={13} />
+              <FolderOpen size={12} />
             </button>
           </Tooltip>
-        ) : (
-          <>
-            <Tooltip label={t('console.pin')}>
+          <Tooltip label={t('console.clear')}>
+            <button
+              onClick={onClear}
+              aria-label={t('console.clear')}
+              className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+            >
+              <Trash2 size={12} />
+            </button>
+          </Tooltip>
+          {docked ? (
+            <Tooltip label={t('console.undock')}>
               <button
-                onClick={onToggleAlwaysOnTop}
-                aria-pressed={alwaysOnTop}
-                aria-label={t('console.pin')}
-                className={
-                  'flex h-5 items-center px-1 ' +
-                  (alwaysOnTop ? 'text-accent' : 'text-ink-faint hover:text-ink')
-                }
-              >
-                <Pin size={13} />
-              </button>
-            </Tooltip>
-            <Tooltip label={t('console.dock')}>
-              <button
-                onClick={onDock}
-                aria-label={t('console.dock')}
+                onClick={onUndock}
+                aria-label={t('console.undock')}
                 className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
               >
-                <PictureInPicture size={13} />
+                <PictureInPicture2 size={13} />
               </button>
             </Tooltip>
-          </>
-        )}
-        {docked && onClose && (
-          <Tooltip label={t('console.toggle')}>
-            <button
-              onClick={onClose}
-              aria-label={t('console.toggle')}
-              className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
-            >
-              <X size={13} />
-            </button>
-          </Tooltip>
-        )}
+          ) : (
+            <>
+              {/* Console-only zoom: scales this window independently of the main one. */}
+              <span className="flex items-center">
+                <Tooltip label={t('console.zoomOut')}>
+                  <button
+                    onClick={onZoomOut}
+                    aria-label={t('console.zoomOut')}
+                    className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+                  >
+                    <ZoomOut size={13} />
+                  </button>
+                </Tooltip>
+                <span className="w-8 text-center font-mono text-[10px] tabular-nums text-ink-faint">
+                  {Math.round((zoom ?? 1) * 100)}%
+                </span>
+                <Tooltip label={t('console.zoomIn')}>
+                  <button
+                    onClick={onZoomIn}
+                    aria-label={t('console.zoomIn')}
+                    className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+                  >
+                    <ZoomIn size={13} />
+                  </button>
+                </Tooltip>
+              </span>
+              <Tooltip label={t('console.pin')}>
+                <button
+                  onClick={onToggleAlwaysOnTop}
+                  aria-pressed={alwaysOnTop}
+                  aria-label={t('console.pin')}
+                  className={
+                    'flex h-5 items-center px-1 ' +
+                    (alwaysOnTop ? 'text-accent' : 'text-ink-faint hover:text-ink')
+                  }
+                >
+                  <Pin size={13} />
+                </button>
+              </Tooltip>
+              <Tooltip label={t('console.dock')}>
+                <button
+                  onClick={onDock}
+                  aria-label={t('console.dock')}
+                  className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+                >
+                  <PictureInPicture size={13} />
+                </button>
+              </Tooltip>
+            </>
+          )}
+          {docked && onClose && (
+            <Tooltip label={t('console.toggle')}>
+              <button
+                onClick={onClose}
+                aria-label={t('console.toggle')}
+                className="flex h-5 items-center px-1 text-ink-faint hover:text-ink"
+              >
+                <X size={13} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {/* filter bar */}
