@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences, screen } from 'electron'
 import { join } from 'path'
 import { arch } from 'node:os'
 import { rmSync, existsSync } from 'node:fs'
@@ -13,8 +13,10 @@ import {
   resetSettings,
   expandHome,
   logPath,
-  migrateLegacyConfig
+  migrateLegacyConfig,
+  pluckerDir
 } from './settings'
+import { loadWindowBounds, saveWindowBounds, isOnScreen } from './window-state'
 import { log, addLogTransport, getLogTail, installProcessErrorHandlers } from './log'
 import { createFileTransport } from './log-file'
 import { binaryPaths, type BinaryPaths } from './binaries'
@@ -368,11 +370,31 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   })
 }
 
+/** Path of the persisted window-geometry file under the plucker app-data dir. */
+function windowStatePath(): string {
+  return join(pluckerDir(), 'window-state.json')
+}
+
 function createWindow(): void {
+  // Restore the last window geometry so a relaunch — including an electron-vite dev
+  // hot-restart on every main-process edit — reopens where the user left it instead of
+  // re-centering the default size on top of whatever they were doing. Fall back to the
+  // default size when there's no saved state or it would land off every display.
+  const saved = loadWindowBounds(windowStatePath())
+  const onScreen =
+    saved &&
+    isOnScreen(
+      saved,
+      screen.getAllDisplays().map((d) => d.workArea)
+    )
+      ? saved
+      : null
+
   // Create the browser window.
   const win = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: onScreen?.width ?? 900,
+    height: onScreen?.height ?? 670,
+    ...(onScreen ? { x: onScreen.x, y: onScreen.y } : {}),
     show: false,
     autoHideMenuBar: true,
     // Custom frame: hide the OS title bar but keep the real macOS traffic lights,
@@ -391,12 +413,21 @@ function createWindow(): void {
   mainWindow = win
 
   win.on('ready-to-show', () => {
-    // The screenshot tooling (scripts/build-screenshots.mjs) shows the window
-    // without activating it, so generating images never steals focus or pops a
-    // window to the foreground. Everywhere else, show + focus as usual.
-    if (process.env.PLUCKER_SCREENSHOT) win.showInactive()
+    // The screenshot tooling (scripts/build-screenshots.mjs) shows the window without
+    // activating it, so generating images never steals focus. In dev we do the same:
+    // electron-vite restarts the whole app on every main-process edit, and a focus-
+    // stealing show() would yank you out of your editor on each save. In production
+    // (a real launch) we show + focus as usual.
+    if (process.env.PLUCKER_SCREENSHOT || is.dev) win.showInactive()
     else win.show()
   })
+
+  // Persist window geometry so the next launch / dev hot-restart reopens in place.
+  // 'moved'/'resized' coalesce native drag/resize gestures into one event each.
+  const persistBounds = (): void => saveWindowBounds(windowStatePath(), win.getBounds())
+  win.on('moved', persistBounds)
+  win.on('resized', persistBounds)
+  win.on('close', persistBounds)
 
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
