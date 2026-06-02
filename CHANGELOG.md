@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/filiphsps/plucker/compare/plucker-v0.10.1...plucker-v0.11.0) (2026-06-02)
+
+
+### Features
+
+* **download:** url history, suggestions, input lock and clear action ([75e0651](https://github.com/filiphsps/plucker/commit/75e0651e6716cf30f85d20a21274463014097265))
+* **waveform:** add real waveform to the expanded track panel ([e4dece0](https://github.com/filiphsps/plucker/commit/e4dece01a7b25594e1ad22c35286a73af6e5bd61))
+
+
+### Bug Fixes
+
+* **cache:** stop nav tab from highlighting while cache overlay is open ([3e8b43a](https://github.com/filiphsps/plucker/commit/3e8b43a3b2704c06846a5c134952351730e4faef))
+
 ## [0.10.1](https://github.com/filiphsps/plucker/compare/plucker-v0.10.0...plucker-v0.10.1) (2026-06-02)
 
 
