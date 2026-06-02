@@ -217,6 +217,32 @@ export interface HistoryEntry {
   tracks: HistoryTrack[]
 }
 
+/** One entry in a resolved playlist/video, before download. */
+export interface PlaylistEntry {
+  videoId: string
+  title: string
+  index: number
+  /** Per-entry page URL from the flat playlist, used to download this video alone. */
+  url?: string
+}
+
+/** Result of resolving a URL without downloading. */
+export interface ResolvedJob {
+  kind: 'playlist' | 'video'
+  title: string
+  entries: PlaylistEntry[]
+}
+
+/** Curated, reordered job the user confirmed in the staging list. */
+export interface StartJobRequest {
+  url: string
+  title: string
+  kind: 'playlist' | 'video'
+  entries: PlaylistEntry[]
+  /** Force a specific output folder (history redownload reuses the original). */
+  folderOverride?: string
+}
+
 export interface ParsedTitle {
   artist: string | null
   title: string

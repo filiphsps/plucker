@@ -6,8 +6,12 @@ import type {
   JobStatus,
   JobOutcome,
   TrackProgress,
-  HistoryTrack
+  HistoryTrack,
+  PlaylistEntry,
+  ResolvedJob
 } from '../shared/types'
+
+export type { PlaylistEntry, ResolvedJob } from '../shared/types'
 import { watchUrl } from '../shared/youtube-url'
 import { sanitizeFileName } from './rename'
 import {
@@ -46,20 +50,6 @@ export function destFolderFor(
 ): string {
   if (kind === 'video' || !perPlaylistSubfolder) return base
   return join(base, sanitizeFileName(jobTitle))
-}
-
-export interface PlaylistEntry {
-  videoId: string
-  title: string
-  index: number
-  /** Per-entry page URL from the flat playlist, used to download this video alone. */
-  url?: string
-}
-
-export interface ResolvedJob {
-  kind: 'playlist' | 'video'
-  title: string
-  entries: PlaylistEntry[]
 }
 
 /** Pure: turn a yt-dlp --dump-single-json object into kind/title/entries. */
