@@ -59,14 +59,18 @@ jobs:
       # upload the assets ourselves below.
       - run: pnpm exec electron-builder --mac zip --arm64 --x64 --config electron-builder.yml --publish never
 
-      # Upload the electron-updater metadata (latest-mac.yml) plus the zips it
-      # references. nullglob keeps this resilient if a glob matches nothing.
+      # Upload the electron-updater metadata (latest-mac.yml), the zips it
+      # references, and their .blockmap sidecars. The blockmaps are required by
+      # Plucker's differential updater (src/main/differential.ts): it downloads
+      # the new zip's blockmap to diff against the cached previous zip and fetch
+      # only the changed byte ranges. nullglob keeps this resilient if a glob
+      # matches nothing. (`dist/*.zip` does not match `*.zip.blockmap`.)
       - name: Upload update metadata
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
-          assets=(dist/*.zip dist/latest-mac.yml)
+          assets=(dist/*.zip dist/*.zip.blockmap dist/latest-mac.yml)
           gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
 
       # Render UI screenshots from the freshly built app (out/ exists after build)

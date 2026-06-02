@@ -9,11 +9,38 @@
 // We therefore use electron-updater only to *detect* a new version (it parses the
 // release's latest-mac.yml, no Squirrel involved) and fetch the per-arch `.zip`
 // ourselves straight from the GitHub release via the public API.
+//
+// `downloadMacUpdate` is the entry point. When a previous build is cached it does
+// a *differential* download — diffing the new zip's blockmap against the cached
+// one (see differential.ts) and fetching only the changed byte ranges over HTTP
+// Range requests, copying the rest (the bulk: bundled binaries) from the cached
+// zip. It verifies the assembled zip's SHA-512 and falls back to a full download
+// on any problem (no cache, missing blockmap, Range unsupported, or mismatch).
 import { net } from 'electron'
-import { createWriteStream } from 'node:fs'
+import { createWriteStream, createReadStream, openSync, readSync, closeSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
+import { log } from './log'
+import { parseBlockmap } from './blockmap'
+import {
+  planDifferential,
+  shouldUseDifferential,
+  chunkDownloadOps,
+  reconstruct,
+  type Op
+} from './differential'
+import { findCachedUpdate, storeCachedUpdate } from './update-cache'
 
 const LATEST_RELEASE_API = 'https://api.github.com/repos/filiphsps/plucker/releases/latest'
+
+/** Cap on a single HTTP range request, so a large changed region streams in pieces. */
+const MAX_RANGE_CHUNK = 8 * 1024 * 1024
+/** Fold copyable gaps smaller than this into a download to keep request counts low. */
+const MERGE_GAP = 64 * 1024
+
+/** Raised when the server ignored our Range header (HTTP 200), so we fall back to a full download. */
+class RangeUnsupportedError extends Error {}
 
 export interface GithubAsset {
   name: string
@@ -34,6 +61,11 @@ export function pickArchZip(assets: GithubAsset[], arch: string): GithubAsset | 
   // Older electron-builder defaults omit the arch tag from the x64 artifact name.
   if (arch === 'x64') return zips.find((a) => !a.name.includes('arm64')) ?? null
   return null
+}
+
+/** Find the `.blockmap` asset that accompanies a given zip (named `<zip>.blockmap`). */
+export function pickBlockmapFor(assets: GithubAsset[], zipName: string): GithubAsset | null {
+  return assets.find((a) => a.name === `${zipName}.blockmap`) ?? null
 }
 
 /** GET a URL via Electron's net stack and parse the JSON body (follows redirects). */
@@ -99,21 +131,168 @@ function downloadToFile(
   })
 }
 
+/** Base64 SHA-512 of a file — the format electron-builder records in latest-mac.yml. */
+export function sha512OfFile(path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha512')
+    const stream = createReadStream(path)
+    stream.on('error', reject)
+    stream.on('data', (c) => hash.update(c))
+    stream.on('end', () => resolve(hash.digest('base64')))
+  })
+}
+
+/** Fetch bytes [start, end) from `url` via an HTTP range request. Throws if the server ignores it. */
+function fetchRange(url: string, start: number, end: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const req = net.request({ url, method: 'GET' })
+    req.setHeader('User-Agent', 'Plucker-Updater')
+    req.setHeader('Range', `bytes=${start}-${end - 1}`) // HTTP ranges are inclusive
+    req.on('response', (res) => {
+      const status = res.statusCode ?? 0
+      if (status === 200) {
+        // Range ignored — the whole body would stream back. Abort and bail to a full download.
+        req.abort()
+        reject(new RangeUnsupportedError('server ignored Range header'))
+        return
+      }
+      if (status !== 206) {
+        reject(new Error(`range request failed: HTTP ${status}`))
+        return
+      }
+      const chunks: Buffer[] = []
+      res.on('data', (c) => chunks.push(c))
+      res.on('end', () => resolve(Buffer.concat(chunks)))
+      res.on('error', reject)
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+/** Read `size` bytes from an open file descriptor at `offset`. */
+function readAt(fd: number, offset: number, size: number): Buffer {
+  const buf = Buffer.allocUnsafe(size)
+  let read = 0
+  while (read < size) {
+    const n = readSync(fd, buf, read, size - read, offset + read)
+    if (n === 0) break
+    read += n
+  }
+  return buf
+}
+
 /**
- * Download the latest macOS release zip for the running architecture into `destDir`
- * and resolve its on-disk path. Throws when the latest release has no matching asset.
+ * Reconstruct the new zip at `destPath` from the cached old zip plus ranged
+ * downloads of the new zip, following `ops`. Streams to a write stream; copies
+ * are read from the old zip's fd. Throws `RangeUnsupportedError` if the CDN
+ * ignores Range, letting the caller fall back to a full download.
  */
-export async function downloadLatestMacZip(opts: {
+async function assembleDifferential(opts: {
+  ops: Op[]
+  oldZipPath: string
+  newZipUrl: string
+  destPath: string
+  downloadBytes: number
+  onProgress?: (percent: number) => void
+}): Promise<void> {
+  const out = createWriteStream(opts.destPath)
+  const write = (chunk: Buffer): Promise<void> =>
+    new Promise((resolve, reject) => out.write(chunk, (err) => (err ? reject(err) : resolve())))
+  const oldFd = openSync(opts.oldZipPath, 'r')
+  try {
+    const plan = { ops: opts.ops, downloadBytes: opts.downloadBytes, copyBytes: 0, totalBytes: 0 }
+    await reconstruct(
+      plan,
+      async (offset, size) => readAt(oldFd, offset, size),
+      async (start, end) => fetchRange(opts.newZipUrl, start, end),
+      write,
+      (downloaded) => {
+        if (opts.downloadBytes > 0) {
+          opts.onProgress?.(Math.round((downloaded / opts.downloadBytes) * 100))
+        }
+      }
+    )
+  } finally {
+    closeSync(oldFd)
+    await new Promise<void>((resolve) => out.end(resolve))
+  }
+}
+
+/**
+ * Download the macOS update zip for `arch`, using a differential download when a
+ * cached previous zip is available and worthwhile, otherwise a full download.
+ * Verifies the result against `expectedSha512` (when provided), refreshes the
+ * cache for next time, and resolves the on-disk zip path. Any differential
+ * failure (missing pieces, range unsupported, checksum mismatch) transparently
+ * falls back to a full download.
+ */
+export async function downloadMacUpdate(opts: {
   destDir: string
+  cacheDir: string
   arch: string
+  expectedSha512?: string
   onProgress?: (percent: number) => void
 }): Promise<string> {
+  const { destDir, cacheDir, arch, expectedSha512, onProgress } = opts
   const release = await fetchJson(LATEST_RELEASE_API)
-  const asset = pickArchZip(release.assets ?? [], opts.arch)
-  if (!asset) {
-    throw new Error(`no macOS ${opts.arch} update asset in the latest release`)
+  const assets = release.assets ?? []
+  const zipAsset = pickArchZip(assets, arch)
+  if (!zipAsset) throw new Error(`no macOS ${arch} update asset in the latest release`)
+  const blockmapAsset = pickBlockmapFor(assets, zipAsset.name)
+  const zipDest = join(destDir, zipAsset.name)
+
+  let newBlockmapPath: string | null = null
+  let differential = false
+
+  const base = findCachedUpdate(cacheDir)
+  if (base && blockmapAsset && expectedSha512) {
+    try {
+      newBlockmapPath = join(destDir, blockmapAsset.name)
+      await downloadToFile(blockmapAsset.browser_download_url, newBlockmapPath)
+      const oldBlocks = parseBlockmap(await readFile(base.blockmapPath)).blocks
+      const newBlocks = parseBlockmap(await readFile(newBlockmapPath)).blocks
+      const plan = planDifferential(oldBlocks, newBlocks, { mergeGap: MERGE_GAP })
+      if (shouldUseDifferential(plan)) {
+        const saved = Math.round((plan.copyBytes / plan.totalBytes) * 100)
+        log.info('app', `differential update: reusing ${saved}% from the cached build`)
+        await assembleDifferential({
+          ops: chunkDownloadOps(plan.ops, MAX_RANGE_CHUNK),
+          oldZipPath: base.zipPath,
+          newZipUrl: zipAsset.browser_download_url,
+          destPath: zipDest,
+          downloadBytes: plan.downloadBytes,
+          onProgress
+        })
+        if ((await sha512OfFile(zipDest)) === expectedSha512) {
+          differential = true
+        } else {
+          log.warn('app', 'differential result failed verification, downloading full zip')
+        }
+      }
+    } catch (err) {
+      const why = err instanceof RangeUnsupportedError ? 'range requests unsupported' : err
+      log.warn('app', 'differential update failed, downloading full zip:', why)
+    }
   }
-  const dest = join(opts.destDir, asset.name)
-  await downloadToFile(asset.browser_download_url, dest, opts.onProgress)
-  return dest
+
+  if (!differential) {
+    await downloadToFile(zipAsset.browser_download_url, zipDest, onProgress)
+    if (expectedSha512 && (await sha512OfFile(zipDest)) !== expectedSha512) {
+      throw new Error('update verification failed: SHA-512 mismatch')
+    }
+  }
+
+  // Refresh the cache so the next update can diff against this build.
+  try {
+    if (!newBlockmapPath && blockmapAsset) {
+      newBlockmapPath = join(destDir, blockmapAsset.name)
+      await downloadToFile(blockmapAsset.browser_download_url, newBlockmapPath)
+    }
+    if (newBlockmapPath) storeCachedUpdate(cacheDir, zipDest, newBlockmapPath)
+  } catch (err) {
+    log.warn('app', 'could not refresh update cache:', err)
+  }
+
+  return zipDest
 }

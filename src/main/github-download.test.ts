@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { pickArchZip, type GithubAsset } from './github-download'
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { pickArchZip, pickBlockmapFor, sha512OfFile, type GithubAsset } from './github-download'
 
 const asset = (name: string): GithubAsset => ({
   name,
@@ -35,5 +39,39 @@ describe('pickArchZip', () => {
   it('returns null when no matching zip is present', () => {
     expect(pickArchZip([asset('Plucker-0.7.0-arm64-mac.zip')], 'x64')).toBeNull()
     expect(pickArchZip([], 'arm64')).toBeNull()
+  })
+})
+
+describe('pickBlockmapFor', () => {
+  it('finds the blockmap that accompanies a zip', () => {
+    const assets = [
+      asset('Plucker-0.7.0-arm64-mac.zip'),
+      asset('Plucker-0.7.0-arm64-mac.zip.blockmap'),
+      asset('Plucker-0.7.0-arm64.dmg')
+    ]
+    expect(pickBlockmapFor(assets, 'Plucker-0.7.0-arm64-mac.zip')?.name).toBe(
+      'Plucker-0.7.0-arm64-mac.zip.blockmap'
+    )
+  })
+
+  it('returns null when the blockmap is absent', () => {
+    expect(
+      pickBlockmapFor([asset('Plucker-0.7.0-arm64-mac.zip')], 'Plucker-0.7.0-arm64-mac.zip')
+    ).toBeNull()
+  })
+})
+
+describe('sha512OfFile', () => {
+  it('matches crypto.createHash base64 SHA-512', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'plucker-sha-'))
+    try {
+      const file = join(dir, 'blob.bin')
+      const body = Buffer.from('the quick brown fox')
+      writeFileSync(file, body)
+      const expected = createHash('sha512').update(body).digest('base64')
+      expect(await sha512OfFile(file)).toBe(expected)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

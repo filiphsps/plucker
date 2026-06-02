@@ -12,11 +12,12 @@
 // On other platforms we stay notify-only: point the user at the releases page to download
 // manually. Nothing is auto-installed there.
 import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import { autoUpdater, type UpdateInfo } from 'electron-updater'
+import { join } from 'node:path'
 import { log } from './log'
 import { logPath } from './settings'
 import { appBundlePath, installMacUpdate } from './mac-installer'
-import { downloadLatestMacZip } from './github-download'
+import { downloadMacUpdate, pickArchZip } from './github-download'
 import type { UpdateState } from '../shared/types'
 
 export const RELEASES_URL = 'https://github.com/filiphsps/plucker/releases/latest'
@@ -26,8 +27,29 @@ export type GetWindow = () => BrowserWindow | null
 let wired = false
 /** Path of the downloaded update zip, set by a successful `downloadUpdateForUi()`. */
 let pendingZipPath: string | null = null
+/** Most recent check result, so the download path can read the expected SHA-512. */
+let lastUpdateInfo: UpdateInfo | null = null
 
 const errMsg = (err: unknown): string => (err instanceof Error ? err.message : String(err))
+
+/** Where the previous update zip + blockmap are cached as a differential diff base. */
+function updateCacheDir(): string {
+  return join(app.getPath('userData'), 'update-cache')
+}
+
+/**
+ * The expected SHA-512 (base64) of the arch-matching update zip, read from the
+ * checked release's file list. Reuses `pickArchZip`'s name-matching so it tracks
+ * the same asset the downloader picks. Undefined when unavailable.
+ */
+function expectedSha512(info: UpdateInfo | null, arch: string): string | undefined {
+  const files = info?.files ?? []
+  const picked = pickArchZip(
+    files.map((f) => ({ name: f.url, browser_download_url: f.url, size: f.size ?? 0 })),
+    arch
+  )
+  return picked ? files.find((f) => f.url === picked.name)?.sha512 : undefined
+}
 
 /** Whether this build can install an update itself (a packaged macOS .app bundle). */
 function canSelfInstall(): boolean {
@@ -62,12 +84,16 @@ function notify(
 /**
  * Download the per-arch update zip straight from the GitHub release and resolve its
  * on-disk path. Bypasses electron-updater's download path (which would invoke
- * Squirrel.Mac and fail the unsigned-app signature check).
+ * Squirrel.Mac and fail the unsigned-app signature check). Uses a differential
+ * download (reusing the cached previous zip) when possible, falling back to a
+ * full download — see `downloadMacUpdate`.
  */
 function downloadUpdateZip(onProgress?: (percent: number) => void): Promise<string> {
-  return downloadLatestMacZip({
+  return downloadMacUpdate({
     destDir: app.getPath('temp'),
+    cacheDir: updateCacheDir(),
     arch: process.arch,
+    expectedSha512: expectedSha512(lastUpdateInfo, process.arch),
     onProgress
   })
 }
@@ -87,6 +113,7 @@ async function checkForUpdatesUi(): Promise<UpdateState> {
   ensureWired()
   try {
     const result = await autoUpdater.checkForUpdates()
+    if (result?.updateInfo) lastUpdateInfo = result.updateInfo
     if (!result || !result.isUpdateAvailable) {
       return { phase: 'upToDate', currentVersion, canSelfInstall: self }
     }
@@ -247,6 +274,7 @@ export async function checkForUpdates(
   ensureWired()
   try {
     const result = await autoUpdater.checkForUpdates()
+    if (result?.updateInfo) lastUpdateInfo = result.updateInfo
     if (!result || !result.isUpdateAvailable) {
       if (!silent) {
         await notify(getWindow, {
