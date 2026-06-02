@@ -13,7 +13,8 @@ import type {
   LogEntry,
   UpdateState,
   ResolvedJob,
-  StartJobRequest
+  StartJobRequest,
+  ConsoleWindowState
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
 import type { MenuDescriptor } from '../shared/context-menu'
@@ -139,6 +140,22 @@ const api = {
   },
   getLogTail: (): Promise<LogEntry[]> => ipcRenderer.invoke('log:tail'),
   revealLog: (): Promise<void> => ipcRenderer.invoke('log:reveal'),
+  // Undock / redock the console into its own floating window.
+  undockConsole: (): Promise<void> => ipcRenderer.invoke('console:undock'),
+  redockConsole: (): Promise<void> => ipcRenderer.invoke('console:redock'),
+  // Show/hide the floating console window (⌘J while floating).
+  toggleConsoleWindow: (): Promise<void> => ipcRenderer.invoke('console:toggleWindow'),
+  // Pin the floating console above other windows.
+  setConsoleAlwaysOnTop: (on: boolean): Promise<void> =>
+    ipcRenderer.invoke('console:alwaysOnTop', on),
+  // Initial { mode, alwaysOnTop } for whichever window asks.
+  getConsoleState: (): Promise<ConsoleWindowState> => ipcRenderer.invoke('console:getState'),
+  // Main → main-window: the console moved between docked and floating.
+  onConsoleMode: (cb: (mode: ConsoleWindowState['mode']) => void): (() => void) => {
+    const fn = (_: unknown, mode: ConsoleWindowState['mode']): void => cb(mode)
+    ipcRenderer.on('console:mode', fn)
+    return () => ipcRenderer.removeListener('console:mode', fn)
+  },
   // Chrome-style updater for the About card: check → download → relaunch-to-install.
   checkForUpdates: (): Promise<UpdateState> => ipcRenderer.invoke('updates:check'),
   downloadUpdate: (): Promise<UpdateState> => ipcRenderer.invoke('updates:download'),
