@@ -15,8 +15,17 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # Native addon: ship only the JS loader + the staged prebuilds/Module.node — never
+  # SwiftPM's .build tree (hundreds of MB), the Swift sources, or the build toolchain.
+  - '!node_modules/@plucker/native-context-menu/.build/**'
+  - '!node_modules/@plucker/native-context-menu/Sources/**'
+  - '!node_modules/@plucker/native-context-menu/scripts/**'
+  - '!node_modules/@plucker/native-context-menu/node_modules/**'
+  - '!node_modules/@plucker/native-context-menu/{Package.swift,Package.resolved,.swiftpm}'
 asarUnpack:
   - resources/**
+  # The native .node must live on disk (can't be loaded from inside the asar).
+  - node_modules/@plucker/native-context-menu/prebuilds/**
 win:
   executableName: plucker
 nsis:
