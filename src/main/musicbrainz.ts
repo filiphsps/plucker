@@ -39,7 +39,7 @@ export class MusicBrainzClient {
       .filter(Boolean)
       .join(' AND ')
     const q = encodeURIComponent(parts)
-    return this.getJson(`${BASE}/recording?query=${q}&fmt=json&limit=5`)
+    return this.getJson(`${BASE}/recording?query=${q}&fmt=json&limit=10`)
   }
 
   async getRelease(releaseId: string): Promise<unknown> {

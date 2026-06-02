@@ -1,3 +1,5 @@
+import { verifyMatch, type VerifyTarget, type VerifyOptions } from './mb-verify'
+
 export interface MbMatch {
   /** MusicBrainz relevance score (0–100) of the chosen recording. */
   score: number
@@ -9,6 +11,8 @@ export interface MbMatch {
   year: string | null
   releaseId: string | null
   releaseGroupId: string | null
+  /** Recording length in milliseconds, when MusicBrainz reports it. */
+  lengthMs: number | null
 }
 
 interface MbRelease {
@@ -21,6 +25,7 @@ interface MbRecording {
   id?: string
   score?: number
   title?: string
+  length?: number
   'artist-credit'?: Array<{ artist?: { name?: string } }>
   releases?: MbRelease[]
 }
@@ -54,6 +59,50 @@ export function selectBestMatch(json: unknown, minScore: number): MbMatch | null
     date: rel?.date ?? null,
     year: year(rel?.date),
     releaseId: rel?.id ?? null,
-    releaseGroupId: rel?.['release-group']?.id ?? null
+    releaseGroupId: rel?.['release-group']?.id ?? null,
+    lengthMs: rec.length ?? null
   }
+}
+
+/**
+ * Pick the best MusicBrainz recording that both clears `minScore` AND passes the
+ * duration/name verification gate against the local target. Returns null when no
+ * candidate verifies (the caller then keeps local tags).
+ */
+export function selectVerifiedMatch(
+  json: unknown,
+  minScore: number,
+  target: VerifyTarget,
+  opts: VerifyOptions
+): MbMatch | null {
+  const recs = (json as { recordings?: MbRecording[] })?.recordings ?? []
+  const ranked = recs
+    .filter((r) => (r.score ?? 0) >= minScore && r.id)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  for (const rec of ranked) {
+    const verdict = verifyMatch(
+      {
+        lengthMs: rec.length,
+        artist: rec['artist-credit']?.[0]?.artist?.name ?? null,
+        title: rec.title
+      },
+      target,
+      opts
+    )
+    if (!verdict.ok) continue
+    const rel = pickRelease(rec.releases)
+    return {
+      score: rec.score ?? 0,
+      recordingId: rec.id as string,
+      artist: rec['artist-credit']?.[0]?.artist?.name ?? null,
+      title: rec.title ?? '',
+      album: rel?.title ?? null,
+      date: rel?.date ?? null,
+      year: year(rel?.date),
+      releaseId: rel?.id ?? null,
+      releaseGroupId: rel?.['release-group']?.id ?? null,
+      lengthMs: rec.length ?? null
+    }
+  }
+  return null
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selectBestMatch } from './mb-select'
+import { selectBestMatch, selectVerifiedMatch } from './mb-select'
 
 const json = {
   recordings: [
@@ -74,5 +74,36 @@ describe('selectBestMatch', () => {
   it('returns null on empty/garbage input', () => {
     expect(selectBestMatch({}, 80)).toBeNull()
     expect(selectBestMatch({ recordings: [] }, 80)).toBeNull()
+  })
+})
+
+describe('selectVerifiedMatch', () => {
+  const target = { durationSec: 200, artist: 'Daft Punk', title: 'Da Funk' }
+  const opts = { durationToleranceSec: 5, nameSimilarityThreshold: 70 }
+  const json = {
+    recordings: [
+      {
+        id: 'wrong',
+        score: 100,
+        title: 'Da Funk',
+        length: 240000,
+        'artist-credit': [{ artist: { name: 'Daft Punk' } }],
+        releases: []
+      },
+      {
+        id: 'right',
+        score: 95,
+        title: 'Da Funk',
+        length: 201000,
+        'artist-credit': [{ artist: { name: 'Daft Punk' } }],
+        releases: []
+      }
+    ]
+  }
+  it('skips the high-score wrong-duration candidate and picks the verified one', () => {
+    expect(selectVerifiedMatch(json, 80, target, opts)?.recordingId).toBe('right')
+  })
+  it('returns null when nothing verifies', () => {
+    expect(selectVerifiedMatch(json, 80, { ...target, durationSec: 999 }, opts)).toBeNull()
   })
 })
