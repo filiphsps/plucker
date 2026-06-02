@@ -13,11 +13,17 @@ function load() {
     loadError = new Error('native context menu is macOS-only')
     return null
   }
-  try {
-    // Produced by `node-swift rebuild` (see scripts/build.mjs).
-    native = require('./.build/Module.node')
-  } catch (err) {
-    loadError = err
+  // Prefer the packaged copy (prebuilds/), fall back to SwiftPM's build output (.build/)
+  // for local dev. scripts/build.mjs copies the built .node into prebuilds/ so releases
+  // ship only the binary, not the whole multi-hundred-MB .build tree.
+  for (const path of ['./prebuilds/Module.node', './.build/Module.node']) {
+    try {
+      native = require(path)
+      loadError = null
+      return native
+    } catch (err) {
+      loadError = err
+    }
   }
   return native
 }

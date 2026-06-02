@@ -1,4 +1,5 @@
 /.build
+/prebuilds
 /Package.resolved
 /.swiftpm
 node_modules

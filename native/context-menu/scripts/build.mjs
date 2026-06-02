@@ -11,6 +11,7 @@
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import { mkdirSync, copyFileSync, realpathSync } from 'node:fs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const pkgDir = resolve(here, '..')
@@ -28,3 +29,11 @@ execSync(`node node_modules/node-swift/lib/cli.js ${cmd}${mode}`, {
   cwd: pkgDir,
   stdio: 'inherit'
 })
+
+// Stage the built binary into prebuilds/ (resolving the .build/Module.node symlink) so
+// packaging ships just the .node — never SwiftPM's heavy .build tree.
+const built = realpathSync(resolve(pkgDir, '.build/Module.node'))
+const out = resolve(pkgDir, 'prebuilds')
+mkdirSync(out, { recursive: true })
+copyFileSync(built, resolve(out, 'Module.node'))
+console.log('[native-context-menu] staged prebuilds/Module.node')
