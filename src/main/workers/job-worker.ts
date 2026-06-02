@@ -24,7 +24,12 @@ import { addLogTransport } from '../log'
 import type { OffThreadAnalyze, AnalyzeLogLine } from './analyze-protocol'
 import type { OffThreadMedia } from './media-protocol'
 import type { TransformLog } from '../transforms/types'
-import type { JobWorkerCommand, JobWorkerEvent, JobDepsConfig, JobStartPayload } from './job-protocol'
+import type {
+  JobWorkerCommand,
+  JobWorkerEvent,
+  JobDepsConfig,
+  JobStartPayload
+} from './job-protocol'
 
 if (!parentPort) throw new Error('job-worker must be run as a worker thread')
 const port = parentPort

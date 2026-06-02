@@ -2,15 +2,20 @@ import { describe, it, expect, vi } from 'vitest'
 import { createJobPool } from './job-pool'
 import type { JobClient, JobClientHandlers } from './workers/job-client'
 
+interface FakeRec {
+  handlers: JobClientHandlers
+  started: string[]
+  limits: number[]
+  cancelled: boolean
+  terminated: boolean
+}
+
 /** A fake JobClient that records commands and lets the test drive its handlers. */
-function makeFakeClientFactory() {
-  const clients: Array<{
-    handlers: JobClientHandlers
-    started: string[]
-    limits: number[]
-    cancelled: boolean
-    terminated: boolean
-  }> = []
+function makeFakeClientFactory(): {
+  factory: (handlers: JobClientHandlers) => JobClient
+  clients: FakeRec[]
+} {
+  const clients: FakeRec[] = []
   const factory = (handlers: JobClientHandlers): JobClient => {
     const rec = {
       handlers,
@@ -35,7 +40,13 @@ function makeFakeClientFactory() {
   return { factory, clients }
 }
 
-const cfg = () => ({
+const cfg = (): {
+  bin: never
+  settings: never
+  homeBase: string
+  cacheDir: string
+  jobsDir: string
+} => ({
   bin: {} as never,
   settings: {} as never,
   homeBase: '/h',
@@ -43,7 +54,7 @@ const cfg = () => ({
   jobsDir: '/j'
 })
 
-const dl = () => ({ kind: 'download' as const, req: {} as never })
+const dl = (): { kind: 'download'; req: never } => ({ kind: 'download', req: {} as never })
 
 describe('createJobPool', () => {
   it('runs at most N=parallel jobs and queues the rest', () => {

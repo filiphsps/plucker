@@ -16,7 +16,7 @@ function fakeWorker(): JobWorkerLike & {
     on(event: string, cb: (arg: never) => void) {
       ;(listeners[event] ??= []).push(cb as (arg: unknown) => void)
     },
-    terminate() {},
+    terminate: () => undefined,
     emit(e) {
       listeners['message']?.forEach((cb) => cb(e))
     },
