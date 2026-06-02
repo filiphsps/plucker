@@ -20,7 +20,13 @@ import { loadWindowBounds, saveWindowBounds, isOnScreen } from './window-state'
 import { log, addLogTransport, getLogTail, installProcessErrorHandlers } from './log'
 import { createFileTransport } from './log-file'
 import { binaryPaths, type BinaryPaths } from './binaries'
-import { runJob, runPipeline } from './pipeline'
+import {
+  runPipeline,
+  resolveJob,
+  buildDownloadSourceFromEntries,
+  type JobControls,
+  type RunJobDeps
+} from './pipeline'
 import { buildRetransformSource, type RetransformTarget } from './retransform-source'
 import { getAnalyzeClient, terminateAnalyzeClient } from './workers/analyze-host'
 import { getMediaClient, terminateMediaClient } from './workers/media-host'
@@ -36,7 +42,13 @@ import { registerContextMenuIpc } from './context-menu'
 import { buildAppMenu } from './menu'
 import { getAccentColor } from './accent'
 import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
-import type { Settings, HistoryEntry, CachedTrack, TrackTags } from '../shared/types'
+import type {
+  Settings,
+  HistoryEntry,
+  CachedTrack,
+  TrackTags,
+  StartJobRequest
+} from '../shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel
 // (built when the app becomes ready) read "Plucker" instead of "Electron".
@@ -49,6 +61,10 @@ installProcessErrorHandlers()
 let mainWindow: BrowserWindow | null = null
 let abort: AbortController | null = null
 let metaCache: MetadataCache | null = null
+/** Per-track controls for the live job, set by runPipeline via onControls. */
+let jobControls: JobControls | null = null
+/** Cookie file exported during the last job:resolve, reused by the next job:start. */
+let pendingResolve: { url: string; cookieFile?: string } | null = null
 
 /** Resolve the bundled binary paths for the current runtime. */
 function currentBin(): BinaryPaths {
@@ -224,31 +240,64 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     resumeAllChildren()
     getWindow()?.webContents.send('job:paused', false)
   })
-  ipcMain.handle('job:start', async (_e, url: string, folderOverride?: string) => {
+  // Per-track controls routed to the live job's controls handle.
+  ipcMain.handle('job:skipTrack', (_e, index: number) => jobControls?.skipTrack(index))
+  ipcMain.handle('job:pauseTrack', (_e, index: number) => {
+    jobControls?.pauseTrack(index)
+    getWindow()?.webContents.send('job:trackPaused', index, true)
+  })
+  ipcMain.handle('job:resumeTrack', (_e, index: number) => {
+    jobControls?.resumeTrack(index)
+    getWindow()?.webContents.send('job:trackPaused', index, false)
+  })
+
+  // Resolve a URL to its entries WITHOUT downloading, for the staging list. Stash
+  // any exported cookie file so the subsequent job:start can reuse it.
+  ipcMain.handle('job:resolve', async (_e, url: string) => {
+    const settings = loadSettings()
+    abort = new AbortController()
+    const { job, cookieFile } = await resolveJob(url, {
+      bin: currentBin(),
+      settings,
+      onStatus: (s) => getWindow()?.webContents.send('job:status', s),
+      signal: abort.signal
+    })
+    pendingResolve = { url, cookieFile }
+    return job
+  })
+
+  ipcMain.handle('job:start', async (_e, req: StartJobRequest) => {
     const settings = loadSettings()
     // A fresh job always starts unpaused; clear any lingering paused state from a
     // prior run that was cancelled mid-pause.
     resumeAllChildren()
     getWindow()?.webContents.send('job:paused', false)
     abort = new AbortController()
+    // Reuse the cookie file exported while resolving this exact URL (if any).
+    const cookieFile = pendingResolve?.url === req.url ? pendingResolve.cookieFile : undefined
+    pendingResolve = null
+    const deps: RunJobDeps = {
+      bin: currentBin(),
+      settings,
+      homeBase: expandHome(settings.downloads.baseFolder),
+      cache: getMetaCache(),
+      analyze: (file, config) =>
+        getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
+      media: getMediaClient(),
+      onProgress: (p) => {
+        const win = getWindow()
+        win?.webContents.send('job:progress', p)
+        win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
+      },
+      onStatus: (s) => getWindow()?.webContents.send('job:status', s),
+      signal: abort.signal,
+      folderOverride: req.folderOverride,
+      onControls: (c) => {
+        jobControls = c
+      }
+    }
     try {
-      const result = await runJob(url, {
-        bin: currentBin(),
-        settings,
-        homeBase: expandHome(settings.downloads.baseFolder),
-        cache: getMetaCache(),
-        analyze: (file, config) =>
-          getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
-        media: getMediaClient(),
-        onProgress: (p) => {
-          const win = getWindow()
-          win?.webContents.send('job:progress', p)
-          win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
-        },
-        onStatus: (s) => getWindow()?.webContents.send('job:status', s),
-        signal: abort.signal,
-        folderOverride
-      })
+      const result = await runPipeline(buildDownloadSourceFromEntries(req, deps, cookieFile), deps)
       getWindow()?.setProgressBar(-1)
 
       // Record every resolved job — including all-failed and cancelled ones —
@@ -272,16 +321,15 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       const cancelled = abort?.signal.aborted ?? false
       const message = err instanceof Error ? err.message : String(err)
 
-      // The job threw before producing a result — typically resolution failed
-      // (bad URL, yt-dlp error). Record a minimal failed/cancelled entry so the
-      // attempt is still visible in history.
+      // The job threw before producing a result. Record a minimal failed/cancelled
+      // entry so the attempt is still visible in history.
       const fresh = loadSettings()
       const entry: HistoryEntry = {
         id: randomUUID(),
-        url,
-        title: url,
-        folder: folderOverride ?? expandHome(fresh.downloads.baseFolder),
-        kind: 'video',
+        url: req.url,
+        title: req.title || req.url,
+        folder: req.folderOverride ?? expandHome(fresh.downloads.baseFolder),
+        kind: req.kind,
         completedAt: new Date().toISOString(),
         outcome: cancelled ? 'cancelled' : 'failed',
         reason: message,
@@ -298,6 +346,8 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
         log.info('app', 'job cancelled')
       }
       throw err
+    } finally {
+      jobControls = null
     }
   })
 

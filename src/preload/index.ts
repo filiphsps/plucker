@@ -11,7 +11,9 @@ import type {
   CachedTrack,
   TrackTags,
   LogEntry,
-  UpdateState
+  UpdateState,
+  ResolvedJob,
+  StartJobRequest
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
 import type { MenuDescriptor } from '../shared/context-menu'
@@ -35,11 +37,22 @@ const api = {
     ipcRenderer.invoke('urlHistory:remove', url),
   getTransformCatalog: (): Promise<TransformManifest[]> => ipcRenderer.invoke('transforms:catalog'),
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFolder'),
-  startDownload: (url: string, folderOverride?: string): Promise<void> =>
-    ipcRenderer.invoke('job:start', url, folderOverride),
+  // Resolve a URL to its entries without downloading (drives the staging list).
+  resolveJob: (url: string): Promise<ResolvedJob> => ipcRenderer.invoke('job:resolve', url),
+  // Start a download of a curated, reordered entry list confirmed in staging.
+  startDownload: (req: StartJobRequest): Promise<void> => ipcRenderer.invoke('job:start', req),
   cancel: (): Promise<void> => ipcRenderer.invoke('job:cancel'),
   pause: (): Promise<void> => ipcRenderer.invoke('job:pause'),
   resume: (): Promise<void> => ipcRenderer.invoke('job:resume'),
+  // Per-track controls for the live job.
+  skipTrack: (index: number): Promise<void> => ipcRenderer.invoke('job:skipTrack', index),
+  pauseTrack: (index: number): Promise<void> => ipcRenderer.invoke('job:pauseTrack', index),
+  resumeTrack: (index: number): Promise<void> => ipcRenderer.invoke('job:resumeTrack', index),
+  onTrackPaused: (cb: (index: number, paused: boolean) => void): (() => void) => {
+    const fn = (_: unknown, index: number, paused: boolean): void => cb(index, paused)
+    ipcRenderer.on('job:trackPaused', fn)
+    return () => ipcRenderer.removeListener('job:trackPaused', fn)
+  },
   onPaused: (cb: (paused: boolean) => void): (() => void) => {
     const fn = (_: unknown, paused: boolean): void => cb(paused)
     ipcRenderer.on('job:paused', fn)
