@@ -25,7 +25,7 @@ import { getTrackMetadata, forBinaries } from './metadata'
 import { getWaveform, forWaveform } from './waveform'
 import { addEntry, entryFiles, removeEntry, removeTrack } from './history'
 import { addUrl, removeUrl } from '../shared/url-history'
-import { killAllChildren } from './spawn'
+import { killAllChildren, pauseAllChildren, resumeAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
 import { registerContextMenuIpc } from './context-menu'
 import { buildAppMenu } from './menu'
@@ -205,10 +205,26 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   })
 
   ipcMain.handle('job:cancel', () => {
+    // SIGKILL reaches stopped processes fine, but a paused job leaves the
+    // module-level flag set — clear it so the next job's children aren't frozen.
+    resumeAllChildren()
+    getWindow()?.webContents.send('job:paused', false)
     abort?.abort()
+  })
+  ipcMain.handle('job:pause', () => {
+    pauseAllChildren()
+    getWindow()?.webContents.send('job:paused', true)
+  })
+  ipcMain.handle('job:resume', () => {
+    resumeAllChildren()
+    getWindow()?.webContents.send('job:paused', false)
   })
   ipcMain.handle('job:start', async (_e, url: string, folderOverride?: string) => {
     const settings = loadSettings()
+    // A fresh job always starts unpaused; clear any lingering paused state from a
+    // prior run that was cancelled mid-pause.
+    resumeAllChildren()
+    getWindow()?.webContents.send('job:paused', false)
     abort = new AbortController()
     try {
       const result = await runJob(url, {

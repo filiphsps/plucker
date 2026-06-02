@@ -69,6 +69,8 @@ export default {
     pluck: 'Pluck',
     plucking: 'Plucking…',
     cancel: 'Cancel',
+    pause: 'Pause',
+    resume: 'Resume',
     clear: 'Clear',
     clearTitle: 'Clear page',
     invalidUrl: 'Not a supported URL',

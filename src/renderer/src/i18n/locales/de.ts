@@ -70,6 +70,8 @@ const de: typeof en = {
     pluck: 'Laden',
     plucking: 'Lädt …',
     cancel: 'Abbrechen',
+    pause: 'Pausieren',
+    resume: 'Fortsetzen',
     clear: 'Leeren',
     clearTitle: 'Seite leeren',
     invalidUrl: 'Keine unterstützte URL',

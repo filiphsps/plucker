@@ -24,6 +24,37 @@ const live = new Set<ChildProcess>()
 const isWindows = process.platform === 'win32'
 
 /**
+ * Whether managed children are currently paused. While true, any child spawned
+ * mid-pause is stopped the moment it comes up — the download pool launches
+ * yt-dlp processes over time, so a slot that frees during a pause must not let a
+ * fresh process race ahead of the frozen ones.
+ */
+let paused = false
+
+/**
+ * Deliver a job-control signal to a child and (on POSIX) its whole process group
+ * — so yt-dlp's ffmpeg grandchild freezes/wakes alongside it. Best-effort: a
+ * missing process (ESRCH) just means it already exited. No-op on Windows, which
+ * has no SIGSTOP/SIGCONT (the app ships macOS builds).
+ */
+function signalGroup(child: ChildProcess, sig: 'SIGSTOP' | 'SIGCONT'): void {
+  if (isWindows) return
+  const pid = child.pid
+  if (pid === undefined) return
+  try {
+    // Negative pid targets the whole group (the child leads its own group
+    // because it was spawned detached), so the ffmpeg grandchild stops/resumes too.
+    process.kill(-pid, sig)
+  } catch {
+    try {
+      process.kill(pid, sig)
+    } catch {
+      /* already exited */
+    }
+  }
+}
+
+/**
  * Force-kill a child and (on POSIX) its whole process group — covering
  * grandchildren like the ffmpeg yt-dlp spawns. Best-effort: a missing process
  * (ESRCH) just means it already exited.
@@ -81,6 +112,10 @@ export function spawnManaged(
   }) as ChildProcessWithoutNullStreams
   live.add(child)
 
+  // Came up while the job is paused — freeze it immediately so it doesn't run
+  // ahead of the already-stopped processes until the next resume.
+  if (paused) signalGroup(child, 'SIGSTOP')
+
   if (priority !== undefined && child.pid !== undefined) {
     try {
       setPriority(child.pid, priority)
@@ -112,4 +147,25 @@ export function spawnManaged(
 export function killAllChildren(): void {
   for (const child of live) hardKill(child)
   live.clear()
+}
+
+/**
+ * Pause every running managed child (and any spawned later) by stopping it with
+ * SIGSTOP. The process freezes in place — a partial download keeps its bytes, a
+ * mid-flight transform holds its state — and resumes exactly where it left off.
+ */
+export function pauseAllChildren(): void {
+  paused = true
+  for (const child of live) signalGroup(child, 'SIGSTOP')
+}
+
+/** Resume every paused managed child with SIGCONT and clear the paused flag. */
+export function resumeAllChildren(): void {
+  paused = false
+  for (const child of live) signalGroup(child, 'SIGCONT')
+}
+
+/** Whether managed children are currently paused. */
+export function isPaused(): boolean {
+  return paused
 }

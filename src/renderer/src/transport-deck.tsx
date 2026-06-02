@@ -1,6 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Music, X } from 'lucide-react'
+import { Music, Pause, Play, X } from 'lucide-react'
 import type { JobProgress } from '../../shared/types'
 import { formatSpeed } from './ui/meta/format'
 
@@ -27,9 +27,13 @@ function Meter({ value }: { value: number }): React.JSX.Element {
  */
 export function TransportDeck({
   progress,
+  paused,
+  onTogglePause,
   onCancel
 }: {
   progress: JobProgress
+  paused: boolean
+  onTogglePause: () => void
   onCancel: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -84,6 +88,13 @@ export function TransportDeck({
           </div>
         )}
       </div>
+      <button
+        onClick={onTogglePause}
+        aria-label={paused ? t('download.resume') : t('download.pause')}
+        className="flex h-10 w-10 items-center justify-center rounded-md border border-line bg-raise text-accent"
+      >
+        {paused ? <Play size={15} /> : <Pause size={15} />}
+      </button>
       <button
         onClick={onCancel}
         aria-label={t('download.cancel')}

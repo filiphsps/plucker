@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { spawnManaged, killAllChildren } from './spawn'
+import { describe, it, expect, afterEach } from 'vitest'
+import { execSync } from 'node:child_process'
+import {
+  spawnManaged,
+  killAllChildren,
+  pauseAllChildren,
+  resumeAllChildren,
+  isPaused
+} from './spawn'
 
 // Process groups / SIGKILL semantics are POSIX-only; the app ships macOS builds.
 const itPosix = process.platform === 'win32' ? it.skip : it
@@ -23,6 +30,51 @@ describe('spawnManaged', () => {
     const child = spawnManaged('sleep', ['30'], {}, ac.signal)
     await closed(child)
     expect(child.signalCode).toBe('SIGKILL')
+  })
+})
+
+/** Wait a beat for an async job-control signal to be delivered + reflected by ps. */
+const tick = (): Promise<void> => new Promise((res) => setTimeout(res, 80))
+
+/** Process state letter from `ps` — 'T' means stopped (SIGSTOP), 'S'/'R' running. */
+const procState = (pid: number): string => {
+  try {
+    return execSync(`ps -o stat= -p ${pid}`).toString().trim()[0] ?? ''
+  } catch {
+    return '' // process gone
+  }
+}
+
+describe('pause/resume', () => {
+  afterEach(() => {
+    resumeAllChildren() // clear the module-level paused flag between tests
+    killAllChildren()
+  })
+
+  itPosix('toggles the paused flag', () => {
+    expect(isPaused()).toBe(false)
+    pauseAllChildren()
+    expect(isPaused()).toBe(true)
+    resumeAllChildren()
+    expect(isPaused()).toBe(false)
+  })
+
+  itPosix('stops a running child and resumes it', async () => {
+    const child = spawnManaged('sleep', ['30'])
+    const pid = child.pid as number
+    pauseAllChildren()
+    await tick()
+    expect(procState(pid)).toBe('T') // stopped
+    resumeAllChildren()
+    await tick()
+    expect(procState(pid)).not.toBe('T') // running again
+  })
+
+  itPosix('starts a child stopped when spawned during a pause', async () => {
+    pauseAllChildren()
+    const child = spawnManaged('sleep', ['30'])
+    await tick()
+    expect(procState(child.pid as number)).toBe('T')
   })
 })
 

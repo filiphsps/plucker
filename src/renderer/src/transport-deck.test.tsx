@@ -18,13 +18,28 @@ const base: JobProgress = {
 
 describe('TransportDeck', () => {
   it('shows the active (downloading) track title and the done/total counter', () => {
-    const html = renderToStaticMarkup(<TransportDeck progress={base} onCancel={() => {}} />)
+    const html = renderToStaticMarkup(
+      <TransportDeck progress={base} paused={false} onTogglePause={() => {}} onCancel={() => {}} />
+    )
     expect(html).toContain('Avril 14th') // active downloading track
     expect(html).toContain('1/24') // 1 done of 24
   })
 
+  it('labels the transport button Pause while running and Resume while paused', () => {
+    const playing = renderToStaticMarkup(
+      <TransportDeck progress={base} paused={false} onTogglePause={() => {}} onCancel={() => {}} />
+    )
+    expect(playing).toContain('aria-label="Pause"')
+    const stopped = renderToStaticMarkup(
+      <TransportDeck progress={base} paused={true} onTogglePause={() => {}} onCancel={() => {}} />
+    )
+    expect(stopped).toContain('aria-label="Resume"')
+  })
+
   it('renders a labelled cancel control', () => {
-    const html = renderToStaticMarkup(<TransportDeck progress={base} onCancel={() => {}} />)
+    const html = renderToStaticMarkup(
+      <TransportDeck progress={base} paused={false} onTogglePause={() => {}} onCancel={() => {}} />
+    )
     expect(html).toContain('aria-label="Cancel"')
   })
 
@@ -37,7 +52,14 @@ describe('TransportDeck', () => {
         { index: 3, title: 'C', status: 'done', speedBytesPerSec: 9999 }
       ]
     }
-    const html = renderToStaticMarkup(<TransportDeck progress={progress} onCancel={() => {}} />)
+    const html = renderToStaticMarkup(
+      <TransportDeck
+        progress={progress}
+        paused={false}
+        onTogglePause={() => {}}
+        onCancel={() => {}}
+      />
+    )
     expect(html).toContain('2.0 MB/s') // 1 MB/s + 1 MB/s, done track excluded
   })
 
@@ -52,7 +74,14 @@ describe('TransportDeck', () => {
         { index: 4, title: 'D', status: 'downloading', percent: 10 }
       ]
     }
-    const html = renderToStaticMarkup(<TransportDeck progress={progress} onCancel={() => {}} />)
+    const html = renderToStaticMarkup(
+      <TransportDeck
+        progress={progress}
+        paused={false}
+        onTogglePause={() => {}}
+        onCancel={() => {}}
+      />
+    )
     expect(html).toContain('3/4') // done + failed + skipped count toward the total
     expect(html).toContain('1 FAILED')
   })

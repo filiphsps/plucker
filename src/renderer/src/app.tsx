@@ -19,6 +19,7 @@ export default function App(): React.JSX.Element {
   const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
   const [urlHistory, setUrlHistory] = useState<string[]>([])
   const [running, setRunning] = useState(false)
+  const [paused, setPaused] = useState(false)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleHeight, setConsoleHeight] = useState(260)
@@ -81,6 +82,8 @@ export default function App(): React.JSX.Element {
       }),
     []
   )
+
+  useEffect(() => window.plucker.onPaused(setPaused), [])
 
   useEffect(
     () =>
@@ -208,7 +211,12 @@ export default function App(): React.JSX.Element {
       </div>
 
       {deckVisible && progress && (
-        <TransportDeck progress={progress} onCancel={() => window.plucker.cancel()} />
+        <TransportDeck
+          progress={progress}
+          paused={paused}
+          onTogglePause={() => (paused ? window.plucker.resume() : window.plucker.pause())}
+          onCancel={() => window.plucker.cancel()}
+        />
       )}
 
       {consoleAvailable && consoleOpen && (

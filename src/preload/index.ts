@@ -38,6 +38,13 @@ const api = {
   startDownload: (url: string, folderOverride?: string): Promise<void> =>
     ipcRenderer.invoke('job:start', url, folderOverride),
   cancel: (): Promise<void> => ipcRenderer.invoke('job:cancel'),
+  pause: (): Promise<void> => ipcRenderer.invoke('job:pause'),
+  resume: (): Promise<void> => ipcRenderer.invoke('job:resume'),
+  onPaused: (cb: (paused: boolean) => void): (() => void) => {
+    const fn = (_: unknown, paused: boolean): void => cb(paused)
+    ipcRenderer.on('job:paused', fn)
+    return () => ipcRenderer.removeListener('job:paused', fn)
+  },
   onProgress: (cb: (p: JobProgress) => void): (() => void) => {
     const fn = (_: unknown, p: JobProgress): void => cb(p)
     ipcRenderer.on('job:progress', fn)
