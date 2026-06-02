@@ -7,7 +7,8 @@ import {
   markCancelledTracks,
   toHistoryTracks,
   jobOutcome,
-  classifyDownload
+  classifyDownload,
+  classifySettled
 } from './pipeline'
 import type { TrackProgress, HistoryTrack } from '../shared/types'
 
@@ -17,6 +18,25 @@ const tp = (index: number, status: TrackProgress['status']): TrackProgress => ({
   status,
   percent: 0,
   transformPercent: 0
+})
+
+describe('classifySettled', () => {
+  it('marks a skip-requested track as skipped, not failed', () => {
+    const t = tp(1, 'downloading')
+    classifySettled(t, { skipRequested: true, jobAborted: false, fallback: 'failed' })
+    expect(t.status).toBe('skipped')
+    expect(t.reason).toBe('Skipped by user')
+  })
+  it('uses the fallback when no skip was requested', () => {
+    const t = tp(1, 'downloading')
+    classifySettled(t, { skipRequested: false, jobAborted: false, fallback: 'failed' })
+    expect(t.status).toBe('failed')
+  })
+  it('does not override a job-wide cancel', () => {
+    const t = tp(1, 'downloading')
+    classifySettled(t, { skipRequested: true, jobAborted: true, fallback: 'failed' })
+    expect(t.status).toBe('downloading') // left for markCancelledTracks
+  })
 })
 
 describe('classifyDownload', () => {

@@ -1,5 +1,7 @@
 import { mkdirSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { randomUUID } from 'node:crypto'
 import type {
   Settings,
   JobProgress,
@@ -21,7 +23,7 @@ import {
   type ProgressEvent,
   type SpawnResult
 } from './ytdlp'
-import { spawnManaged } from './spawn'
+import { spawnManaged, killGroup, pauseGroup, resumeGroup } from './spawn'
 import {
   needsCookieEscalation,
   isCookiePermissionError,
@@ -158,6 +160,13 @@ function readSidecar(path: string): { id?: string; title?: string; source?: Sour
   }
 }
 
+/** Per-track controls handed to the IPC layer for a live job. */
+export interface JobControls {
+  skipTrack(index: number): void
+  pauseTrack(index: number): void
+  resumeTrack(index: number): void
+}
+
 export interface RunJobDeps {
   bin: BinaryPaths
   settings: Settings
@@ -175,6 +184,8 @@ export interface RunJobDeps {
   analyze?: OffThreadAnalyze
   /** Off-thread media I/O (ID3 tags + audio hashing); keeps the main thread free. */
   media?: OffThreadMedia
+  /** Receives a controls handle once the track list exists, for skip/pause/resume IPC. */
+  onControls?: (controls: JobControls) => void
 }
 
 export interface JobResult {
@@ -213,6 +224,25 @@ export function finalizePendingTracks(tracks: TrackProgress[]): TrackProgress[] 
     rescued.push(t)
   }
   return rescued
+}
+
+/**
+ * Settle a track that just came out of an aborted/finished stage. A user skip
+ * wins over the generic fallback (failed) but never over a job-wide cancel —
+ * that case is left untouched for {@link markCancelledTracks} to relabel.
+ */
+export function classifySettled(
+  t: TrackProgress,
+  opts: { skipRequested: boolean; jobAborted: boolean; fallback: TrackProgress['status'] }
+): void {
+  if (opts.jobAborted) return
+  if (opts.skipRequested) {
+    t.status = 'skipped'
+    t.stage = undefined
+    t.reason = 'Skipped by user'
+    return
+  }
+  t.status = opts.fallback
 }
 
 /**
@@ -319,8 +349,15 @@ export interface SourceEntry {
   /**
    * Acquire the local working file for this entry. `report` flushes a progress
    * frame to the deck; `provide` may update `t` (title/percent/speed) as it goes.
+   * `tempDir`, when given, is a per-track scratch dir for partial/intermediate
+   * files so a skipped/killed acquire leaves nothing in the shared output folder.
    */
-  provide(t: TrackProgress, report: () => void, signal?: AbortSignal): Promise<ProvideOutcome>
+  provide(
+    t: TrackProgress,
+    report: () => void,
+    signal?: AbortSignal,
+    tempDir?: string
+  ): Promise<ProvideOutcome>
 }
 
 /** A pluggable acquire phase. `entries()` is called after `resolve()`. */
@@ -339,6 +376,10 @@ export interface JobSource {
 export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<JobResult> {
   const { bin, settings, onProgress, signal } = deps
   const jobSpan = startSpan('job', 'pipeline')
+  // Per-track scratch root; partial/intermediate download files live here so a
+  // skipped/killed track leaves nothing in the shared output folder. Declared at
+  // function scope so the outer `finally` can always reap it.
+  let tempRoot = ''
 
   try {
     const resolved = await source.resolve(signal)
@@ -357,6 +398,34 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       percent: 0,
       transformPercent: 0
     }))
+
+    // Per-track abort + skip bookkeeping. Each track gets its own controller,
+    // combined with the job signal so a skip aborts just that track's work.
+    const trackAbort = new Map<number, AbortController>()
+    const skipRequested = new Set<number>()
+    for (const t of tracks) trackAbort.set(t.index, new AbortController())
+    const signalFor = (index: number): AbortSignal | undefined => {
+      const ac = trackAbort.get(index)
+      if (!ac) return signal
+      return signal ? AbortSignal.any([signal, ac.signal]) : ac.signal
+    }
+
+    tempRoot = join(tmpdir(), 'plucker', randomUUID())
+    const tempDirFor = (index: number): string => join(tempRoot, String(index))
+
+    deps.onControls?.({
+      skipTrack(index) {
+        skipRequested.add(index)
+        trackAbort.get(index)?.abort()
+        killGroup(index)
+      },
+      pauseTrack(index) {
+        pauseGroup(index)
+      },
+      resumeTrack(index) {
+        resumeGroup(index)
+      }
+    })
 
     const overall = (): number =>
       tracks.length ? tracks.reduce((sum, t) => sum + trackProgress(t), 0) / tracks.length : 0
@@ -403,6 +472,10 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
     ): Promise<void> => {
       const sidecarPath = filePath.replace(/\.mp3$/i, '.info.json')
       const sidecar = readSidecar(sidecarPath)
+      // Per-track services: a skip aborts only this track's transform, and its
+      // ffmpeg children register under this track's group so per-track pause works.
+      const trackSig = signalFor(t.index)
+      const trackServices = { ...services, signal: trackSig, groupKey: t.index }
       // Hash the audio frames once (tag-independent), so auto-tag + probe can reuse
       // cached results and history can point straight at the cache entry.
       t.speedBytesPerSec = undefined
@@ -439,7 +512,7 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
         },
         enabled,
         registry,
-        services,
+        trackServices,
         (f) => {
           t.transformPercent = Math.round(f * 100)
           emit()
@@ -475,7 +548,7 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
           emit()
           deps.cache.writeAudio(hash, {
             ...(await timed('probe', 'pipeline', () =>
-              probeAudio(bin.ffmpeg, res.outputFile, signal)
+              probeAudio(bin.ffmpeg, res.outputFile, trackSig)
             )),
             sizeBytes
           })
@@ -523,11 +596,17 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
           await finishTrack(t, file, entry)
           t.elapsedMs = Math.round(trackSpan.end(t.title))
         } catch (err) {
-          t.status = 'failed'
-          t.stage = undefined
-          t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
-          t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
-          log.warn('transform', `track failed "${t.title}": ${t.reason}`)
+          // A skip during transform aborts the chain — settle as skipped, not failed.
+          classifySettled(t, {
+            skipRequested: skipRequested.has(t.index),
+            jobAborted: signal?.aborted ?? false,
+            fallback: 'failed'
+          })
+          if (t.status === 'failed') {
+            t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
+          }
+          t.elapsedMs = Math.round(trackSpan.end(`${t.title} (${t.status})`))
+          log.warn('transform', `track ${t.status} "${t.title}": ${t.reason}`)
         }
         emit()
       })
@@ -540,9 +619,23 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
      */
     const acquireEntry = async (entry: SourceEntry, t: TrackProgress): Promise<void> => {
       const trackSpan = startSpan('track-process', 'pipeline')
-      const outcome = await entry.provide(t, emit, signal)
+      const tempDir = tempDirFor(t.index)
+      mkdirSync(tempDir, { recursive: true })
+      const outcome = await entry.provide(t, emit, signalFor(t.index), tempDir)
+      // Reap this track's scratch dir as soon as the download stage ends, so a
+      // skipped/killed download leaves no orphaned `.part` files behind.
+      rmSync(tempDir, { recursive: true, force: true })
       t.stage = undefined
       t.speedBytesPerSec = undefined
+      // A user skip during download settles as 'skipped', regardless of how the
+      // killed yt-dlp's exit code was otherwise classified.
+      if (skipRequested.has(t.index) && !(signal?.aborted ?? false)) {
+        t.status = 'skipped'
+        t.reason = 'Skipped by user'
+        t.elapsedMs = Math.round(trackSpan.end(`${t.title} (skipped)`))
+        emit()
+        return
+      }
       if (outcome.kind === 'skipped') {
         t.status = 'skipped'
         t.reason = outcome.reason
@@ -608,6 +701,15 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
     }
   } finally {
     source.cleanup?.()
+    // Backstop: reap any per-track scratch dirs the per-track cleanup missed
+    // (e.g. a throw before the download stage's own rmSync).
+    if (tempRoot) {
+      try {
+        rmSync(tempRoot, { recursive: true, force: true })
+      } catch {
+        /* already gone */
+      }
+    }
   }
 }
 
