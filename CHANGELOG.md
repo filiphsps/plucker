@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.14.1](https://github.com/filiphsps/plucker/compare/plucker-v0.14.0...plucker-v0.14.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* **analyze-key-bpm:** tempo prior + comb for BPM, tuning-corrected Temperley chroma for key ([3b28d31](https://github.com/filiphsps/plucker/commit/3b28d316cb01c198a2c6dd1ad0dd08b62ab61104))
+* **auto-tag:** album cover always overrides YouTube thumbnail, with release-group fallback ([560172c](https://github.com/filiphsps/plucker/commit/560172cb462b97f1cada3c376fd437cb83fd1a42))
+* **transforms:** log what each transform actually did ([d64edc1](https://github.com/filiphsps/plucker/commit/d64edc15d5107a3262b733e385f3c7d1f66b67ea))
+
 ## [0.14.0](https://github.com/filiphsps/plucker/compare/plucker-v0.13.0...plucker-v0.14.0) (2026-06-02)
 
 
