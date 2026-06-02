@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
 import { TrackRow } from './track-row'
+import { showContextMenu } from './ui/context-menu'
+import { trackRowMenuItems } from './track-row-menu'
 import { statusColumnWidth } from './status-column'
 import { ResolvePanel } from './resolve-panel'
 
@@ -93,6 +95,19 @@ export function DownloadView({
                 track={tr}
                 active={tr.index === activeIndex}
                 source={{ videoId: tr.videoId }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  void showContextMenu(
+                    trackRowMenuItems({
+                      t,
+                      variant: 'download',
+                      track: tr,
+                      missing: false,
+                      failed: tr.status === 'failed',
+                      onReveal: () => tr.file && window.plucker.revealFile(tr.file)
+                    })
+                  )
+                }}
               />
             ))}
           </div>

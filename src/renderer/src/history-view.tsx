@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Music, Folder, RotateCw, Trash2, Search, Check } from 'lucide-react'
 import type { HistoryEntry, JobOutcome } from '../../shared/types'
 import { TrackRow } from './track-row'
-
-function watchUrl(videoId: string): string {
-  return `https://www.youtube.com/watch?v=${videoId}`
-}
+import { watchUrl } from '../../shared/youtube-url'
+import { showContextMenu } from './ui/context-menu'
+import { trackRowMenuItems } from './track-row-menu'
+import { historyCardMenuItems } from './history-card-menu'
 
 /** Per-outcome badge styling + i18n label key for a history entry. */
 const OUTCOME_BADGE: Record<JobOutcome, { cls: string; labelKey: string; check?: boolean }> = {
@@ -99,7 +99,21 @@ export function HistoryView({
             key={entry.id}
             className="mb-3.5 overflow-hidden rounded-[10px] border border-line bg-panel2"
           >
-            <div className="flex items-center gap-3 border-b border-line bg-panel px-3.5 py-[11px]">
+            <div
+              className="flex items-center gap-3 border-b border-line bg-panel px-3.5 py-[11px]"
+              onContextMenu={(e) => {
+                e.preventDefault()
+                void showContextMenu(
+                  historyCardMenuItems({
+                    t,
+                    url: entry.url,
+                    onOpenFolder: () => window.plucker.openFolder(entry.folder),
+                    onRedownload: () => redownload(entry.url, entry.folder),
+                    onDelete: () => deleteEntry(entry.id)
+                  })
+                )
+              }}
+            >
               <button
                 onClick={() => window.plucker.openFolder(entry.folder)}
                 className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md border border-line bg-[#23272e] text-ink-faint"
@@ -162,6 +176,22 @@ export function HistoryView({
                 track={tk}
                 missing={!!tk.file && missing.has(tk.file)}
                 source={{ videoId: tk.videoId, downloadedAt: entry.completedAt }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  void showContextMenu(
+                    trackRowMenuItems({
+                      t,
+                      variant: 'history',
+                      track: tk,
+                      missing: !!tk.file && missing.has(tk.file),
+                      failed: tk.status === 'failed',
+                      onReveal: () => tk.file && window.plucker.revealFile(tk.file),
+                      onRedownload: () =>
+                        tk.videoId && redownload(watchUrl(tk.videoId), entry.folder),
+                      onDelete: () => deleteTrack(entry.id, i)
+                    })
+                  )
+                }}
                 actions={
                   <>
                     {tk.file && (

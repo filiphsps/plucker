@@ -53,14 +53,14 @@ Key properties:
 
 ## Files
 
-| File | Responsibility |
-| --- | --- |
-| `src/shared/context-menu.ts` | Shared descriptor types: `MenuItemDescriptor`, `MenuDescriptor`. |
-| `src/main/context-menu.ts` | `registerContextMenuIpc(getWindow)` and a pure, testable `buildMenuTemplate(descriptor, onClick)` that maps a descriptor to an Electron `MenuItemConstructorOptions[]`. |
+| File                                  | Responsibility                                                                                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/context-menu.ts`          | Shared descriptor types: `MenuItemDescriptor`, `MenuDescriptor`.                                                                                                                                                                      |
+| `src/main/context-menu.ts`            | `registerContextMenuIpc(getWindow)` and a pure, testable `buildMenuTemplate(descriptor, onClick)` that maps a descriptor to an Electron `MenuItemConstructorOptions[]`.                                                               |
 | `src/renderer/src/ui/context-menu.ts` | `showContextMenu(items)` — serialize → invoke → dispatch. Exports the renderer-facing `MenuItem` type (label + optional `onClick`, `type`, `role`, `enabled`). Optional `useContextMenu` helper returning an `onContextMenu` handler. |
-| co-located item factories | Small pure functions `(data) => MenuItem[]` for each surface (track row, history card, cache row, console line). Unit-tested for labels, `enabled` states, and ordering. |
-| `src/preload/index.ts` | Add `popupMenu(descriptor): Promise<string \| null>` and `copyText(text): Promise<void>`. |
-| `src/main/index.ts` | Call `registerContextMenuIpc(...)` during setup (alongside the other IPC registrations). |
+| co-located item factories             | Small pure functions `(data) => MenuItem[]` for each surface (track row, history card, cache row, console line). Unit-tested for labels, `enabled` states, and ordering.                                                              |
+| `src/preload/index.ts`                | Add `popupMenu(descriptor): Promise<string \| null>` and `copyText(text): Promise<void>`.                                                                                                                                             |
+| `src/main/index.ts`                   | Call `registerContextMenuIpc(...)` during setup (alongside the other IPC registrations).                                                                                                                                              |
 
 ### Descriptor shape
 
@@ -88,7 +88,7 @@ All labels come from a new `context.*` i18n namespace (en + de), reusing existin
 
 - **Track row** (`download` / `history` / `cache` variants):
   Reveal in Finder · Copy title · Copy YouTube URL · Open on YouTube ·
-  *(history)* Re-download · *(cache)* Edit tags · Delete file.
+  _(history)_ Re-download · _(cache)_ Edit tags · Delete file.
   Failed rows append Copy error code.
   Items are `enabled: false` when their precondition is missing (file gone → no
   Reveal/Delete; no `videoId` → no Copy URL / Open on YouTube).

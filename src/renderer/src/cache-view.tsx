@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Search, Trash2, Pencil, ChevronLeft } from 'lucide-react'
 import type { CachedTrack, TrackTags } from '../../shared/types'
 import { TrackRow } from './track-row'
+import { showContextMenu } from './ui/context-menu'
+import { trackRowMenuItems } from './track-row-menu'
 import { formatBytes } from './ui/meta/format'
 
 export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element {
@@ -94,7 +96,16 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
             <span className="w-[64px]" />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div
+            className="min-h-0 flex-1 overflow-auto"
+            onContextMenu={(e) => {
+              if (e.defaultPrevented) return
+              e.preventDefault()
+              void showContextMenu([
+                { label: t('context.clearCache'), enabled: items.length > 0, onClick: clearAll }
+              ])
+            }}
+          >
             {filtered.map((it, i) => {
               const missing = !!it.track?.file && !it.fileExists
               return (
@@ -116,6 +127,25 @@ export function CacheView({ onBack }: { onBack: () => void }): React.JSX.Element
                   editing={editing === it.hash}
                   onSaveTags={(tags) => save(it.hash, tags)}
                   onCancelEdit={() => setEditing(null)}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    void showContextMenu(
+                      trackRowMenuItems({
+                        t,
+                        variant: 'cache',
+                        track: {
+                          title: it.mb?.title || it.track?.title || `${it.hash.slice(0, 8)}…`,
+                          file: it.track?.file,
+                          videoId: it.track?.videoId
+                        },
+                        missing,
+                        failed: false,
+                        onReveal: () => it.track?.file && window.plucker.revealFile(it.track.file),
+                        onEditTags: () => setEditing(it.hash),
+                        onDelete: () => remove(it.hash)
+                      })
+                    )
+                  }}
                   actions={
                     <>
                       <button

@@ -66,7 +66,8 @@ export function TrackRow({
   missing = false,
   editing = false,
   onSaveTags,
-  onCancelEdit
+  onCancelEdit,
+  onContextMenu
 }: {
   variant: 'download' | 'history' | 'cache'
   index: number
@@ -85,6 +86,8 @@ export function TrackRow({
   editing?: boolean
   onSaveTags?: (tags: TrackTags) => void
   onCancelEdit?: () => void
+  /** Native right-click handler for the row (built by the parent view). */
+  onContextMenu?: (e: React.MouseEvent) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const statusWidth = statusColumnWidth(t)
@@ -235,7 +238,7 @@ export function TrackRow({
           : 'hover:bg-white/[0.018]')
       }
     >
-      <div className="group flex h-12 items-center gap-3 pl-1.5 pr-4">
+      <div className="group flex h-12 items-center gap-3 pl-1.5 pr-4" onContextMenu={onContextMenu}>
         <button
           aria-label="expand"
           onClick={() => setOpen((v) => !v)}

@@ -8,6 +8,7 @@ import { Header, type View } from './header'
 import { ConsoleDrawer } from './console-drawer'
 import { Page } from './ui/page'
 import { applyLanguage } from './i18n'
+import { showContextMenu, type MenuItem } from './ui/context-menu'
 import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
 
 export default function App(): React.JSX.Element {
@@ -111,7 +112,30 @@ export default function App(): React.JSX.Element {
   const overlayOpen = settingsOpen || cacheOpen
 
   return (
-    <div className="flex h-screen flex-col bg-surface text-ink">
+    <div
+      className="flex h-screen flex-col bg-surface text-ink"
+      onContextMenu={(e) => {
+        // Fallback Edit menu for text inputs / selected text — only when no surface
+        // (track row, history card, console line, …) already handled the event.
+        if (e.defaultPrevented) return
+        const target = e.target as HTMLElement
+        const editable =
+          target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+        const hasSelection = !!window.getSelection()?.toString()
+        if (!editable && !hasSelection) return
+        e.preventDefault()
+        const items: MenuItem[] = editable
+          ? [
+              { role: 'cut' },
+              { role: 'copy' },
+              { role: 'paste' },
+              { type: 'separator' },
+              { role: 'selectAll' }
+            ]
+          : [{ role: 'copy' }]
+        void showContextMenu(items)
+      }}
+    >
       <Header
         view={view}
         settingsActive={settingsOpen}

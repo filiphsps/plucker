@@ -17,6 +17,24 @@ const de: typeof en = {
     reveal: 'Im Ordner anzeigen',
     confirmDelete: 'Von der Festplatte löschen? Dies kann nicht rückgängig gemacht werden.'
   },
+  context: {
+    reveal: 'Im Ordner anzeigen',
+    copyTitle: 'Titel kopieren',
+    copyUrl: 'YouTube-URL kopieren',
+    openYouTube: 'Auf YouTube öffnen',
+    redownload: 'Erneut herunterladen',
+    editTags: 'Tags bearbeiten',
+    deleteFile: 'Datei löschen',
+    copyError: 'Fehlercode kopieren',
+    openFolder: 'Ordner öffnen',
+    redownloadAll: 'Alle erneut herunterladen',
+    copyPlaylistUrl: 'Playlist-URL kopieren',
+    deleteEntry: 'Eintrag löschen',
+    clearCache: 'Cache leeren',
+    copyLine: 'Zeile kopieren',
+    copyAll: 'Alles kopieren',
+    revealLog: 'Protokolldatei anzeigen'
+  },
   track: {
     coverAlt: 'Albumcover'
   },

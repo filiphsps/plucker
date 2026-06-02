@@ -4,7 +4,7 @@
 
 **Goal:** Add a native (Electron `Menu.popup`) context-menu abstraction and wire right-click menus into track rows, history cards, the cache view, the console drawer, and text inputs.
 
-**Architecture:** One IPC channel (`menu:popup`) carries a serializable menu *descriptor* from renderer to main; main builds a native menu, pops it at the cursor, and resolves the invoke with the clicked item's id (or `null`). The renderer keeps the `onClick` closures and dispatches the one matching the returned id — handlers never cross IPC. Labels are localized in the renderer; role items (Cut/Copy/Paste) are handled natively.
+**Architecture:** One IPC channel (`menu:popup`) carries a serializable menu _descriptor_ from renderer to main; main builds a native menu, pops it at the cursor, and resolves the invoke with the clicked item's id (or `null`). The renderer keeps the `onClick` closures and dispatches the one matching the returned id — handlers never cross IPC. Labels are localized in the renderer; role items (Cut/Copy/Paste) are handled natively.
 
 **Tech Stack:** Electron (`Menu`, `clipboard`, `ipcMain`/`ipcRenderer`), React 19 + TypeScript, i18next, Vitest, pnpm.
 
@@ -17,6 +17,7 @@
 ## Task 1: Shared descriptor types + main `buildMenuTemplate`
 
 **Files:**
+
 - Create: `src/shared/context-menu.ts`
 - Create: `src/main/context-menu.ts`
 - Test: `src/main/context-menu.test.ts`
@@ -67,10 +68,7 @@ describe('buildMenuTemplate', () => {
 
   it('passes separators and roles through without a click handler', () => {
     const onClick = vi.fn()
-    const descriptor: MenuDescriptor = [
-      { type: 'separator' },
-      { role: 'copy', label: 'Copy' }
-    ]
+    const descriptor: MenuDescriptor = [{ type: 'separator' }, { role: 'copy', label: 'Copy' }]
     const template = buildMenuTemplate(descriptor, onClick)
     expect(template[0]).toEqual({ type: 'separator' })
     expect(template[1].role).toBe('copy')
@@ -171,6 +169,7 @@ git commit -m "feat(menu): add native context-menu IPC service"
 ## Task 2: Wire the IPC into the main process
 
 **Files:**
+
 - Modify: `src/main/index.ts` (import near line 26; call near line 323)
 
 - [ ] **Step 1: Import the registrar**
@@ -186,7 +185,7 @@ import { registerContextMenuIpc } from './context-menu'
 In `app.whenReady().then(...)`, right after `registerUpdaterIpc(() => mainWindow)` (around line 324):
 
 ```ts
-  registerContextMenuIpc(() => mainWindow)
+registerContextMenuIpc(() => mainWindow)
 ```
 
 - [ ] **Step 3: Typecheck the main project**
@@ -206,6 +205,7 @@ git commit -m "feat(menu): register context-menu IPC on app start"
 ## Task 3: Expose `popupMenu` + `copyText` in preload
 
 **Files:**
+
 - Modify: `src/preload/index.ts`
 
 - [ ] **Step 1: Import the descriptor type**
@@ -247,6 +247,7 @@ git commit -m "feat(menu): expose popupMenu and copyText to the renderer"
 ## Task 4: Renderer `showContextMenu` helper + serializer
 
 **Files:**
+
 - Create: `src/renderer/src/ui/context-menu.ts`
 - Test: `src/renderer/src/ui/context-menu.test.ts`
 
@@ -383,6 +384,7 @@ git commit -m "feat(menu): add renderer showContextMenu helper"
 ## Task 5: Add `context.*` i18n strings (en + de)
 
 **Files:**
+
 - Modify: `src/renderer/src/i18n/locales/en.ts`
 - Modify: `src/renderer/src/i18n/locales/de.ts`
 
@@ -457,6 +459,7 @@ git commit -m "feat(menu): add context-menu i18n strings (en/de)"
 ## Task 6: Track-row menu factory + `onContextMenu` prop
 
 **Files:**
+
 - Create: `src/renderer/src/track-row-menu.ts`
 - Test: `src/renderer/src/track-row-menu.test.ts`
 - Modify: `src/renderer/src/track-row.tsx`
@@ -595,7 +598,10 @@ export function trackRowMenuItems(opts: {
   }
 
   if (variant === 'history' && opts.onRedownload) {
-    items.push({ type: 'separator' }, { label: t('context.redownload'), onClick: opts.onRedownload })
+    items.push(
+      { type: 'separator' },
+      { label: t('context.redownload'), onClick: opts.onRedownload }
+    )
   }
   if (variant === 'cache' && opts.onEditTags) {
     items.push({ type: 'separator' }, { label: t('context.editTags'), onClick: opts.onEditTags })
@@ -660,6 +666,7 @@ git commit -m "feat(menu): add track-row context-menu factory and prop"
 ## Task 7: Wire track context menus in the three views
 
 **Files:**
+
 - Modify: `src/renderer/src/download-view.tsx`
 - Modify: `src/renderer/src/history-view.tsx`
 - Modify: `src/renderer/src/cache-view.tsx`
@@ -768,6 +775,7 @@ git commit -m "feat(menu): add right-click menus to track rows in all views"
 ## Task 8: History-card menu factory + wiring
 
 **Files:**
+
 - Create: `src/renderer/src/history-card-menu.ts`
 - Test: `src/renderer/src/history-card-menu.test.ts`
 - Modify: `src/renderer/src/history-view.tsx`
@@ -840,7 +848,10 @@ export function historyCardMenuItems(opts: {
     { label: t('context.redownloadAll'), onClick: opts.onRedownload }
   ]
   if (url) {
-    items.push({ label: t('context.copyPlaylistUrl'), onClick: () => void window.plucker.copyText(url) })
+    items.push({
+      label: t('context.copyPlaylistUrl'),
+      onClick: () => void window.plucker.copyText(url)
+    })
   }
   items.push({ type: 'separator' }, { label: t('context.deleteEntry'), onClick: opts.onDelete })
   return items
@@ -894,6 +905,7 @@ git commit -m "feat(menu): add right-click menu to history cards"
 ## Task 9: Cache empty-space + console-line menus
 
 **Files:**
+
 - Create: `src/renderer/src/console-line-menu.ts`
 - Test: `src/renderer/src/console-line-menu.test.ts`
 - Modify: `src/renderer/src/cache-view.tsx`
@@ -1014,6 +1026,7 @@ git commit -m "feat(menu): add console-line and cache clear context menus"
 ## Task 10: Text-input Edit menu fallback + final verification
 
 **Files:**
+
 - Modify: `src/renderer/src/app.tsx`
 
 A single root-level `onContextMenu` provides Cut/Copy/Paste/Select All for text
@@ -1074,6 +1087,7 @@ Expected: completes without errors (icon build + typecheck + electron-vite build
 
 Run: `pnpm dev`
 Verify by right-clicking:
+
 - a track row in Download / History / Cache → reveal/copy/YouTube (+ delete/edit/re-download per variant);
 - a history card → open folder / re-download all / copy URL / delete;
 - empty space in Cache → Clear cache;

@@ -16,6 +16,24 @@ export default {
     reveal: 'Reveal in folder',
     confirmDelete: 'Delete from disk? This cannot be undone.'
   },
+  context: {
+    reveal: 'Reveal in folder',
+    copyTitle: 'Copy title',
+    copyUrl: 'Copy YouTube URL',
+    openYouTube: 'Open on YouTube',
+    redownload: 'Re-download',
+    editTags: 'Edit tags',
+    deleteFile: 'Delete file',
+    copyError: 'Copy error code',
+    openFolder: 'Open folder',
+    redownloadAll: 'Re-download all',
+    copyPlaylistUrl: 'Copy playlist URL',
+    deleteEntry: 'Delete entry',
+    clearCache: 'Clear cache',
+    copyLine: 'Copy line',
+    copyAll: 'Copy all',
+    revealLog: 'Reveal log file'
+  },
   track: {
     coverAlt: 'Album cover'
   },
