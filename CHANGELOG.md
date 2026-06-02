@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.0](https://github.com/filiphsps/plucker/compare/plucker-v0.12.0...plucker-v0.13.0) (2026-06-02)
+
+
+### Features
+
+* **download:** add pause/resume for the active job ([b2847d8](https://github.com/filiphsps/plucker/commit/b2847d83a757b931423409ac8859fda212c5d811))
+* **history:** add opt-in selection to TrackRow ([9ae193d](https://github.com/filiphsps/plucker/commit/9ae193d848aa40fadbc503212daee66c8cbb9ffd))
+* **history:** add track selection util ([74f7db6](https://github.com/filiphsps/plucker/commit/74f7db61167d046e0d1eb0d939075a7eda42cce2))
+* **history:** multi-select tracks with bulk actions, clear button, tooltips ([49a4ea3](https://github.com/filiphsps/plucker/commit/49a4ea39ffc4b6666c8fef8ae1bf4954be48d86d))
+* **icon:** mask app icon for macOS 13–26 (squircle + Icon Composer) ([0a67aaa](https://github.com/filiphsps/plucker/commit/0a67aaacb2c82170fa3831ae7178498223fa1fd4))
+
+
+### Bug Fixes
+
+* **history:** skip delete confirmation for tracks with no file to lose ([8e33f99](https://github.com/filiphsps/plucker/commit/8e33f99a81d3a01b1884ff11a090e266e76290c3))
+
 ## [0.12.0](https://github.com/filiphsps/plucker/compare/plucker-v0.11.0...plucker-v0.12.0) (2026-06-02)
 
 
