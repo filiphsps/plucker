@@ -284,6 +284,20 @@ export interface StartJobRequest {
   folderOverride?: string
 }
 
+/** Which JobSource builder a worker uses for a job. */
+export type JobKind = 'download' | 'retransform' | 'resume'
+
+/** Lifecycle state of a job as shown in the renderer rail. */
+export type JobState = 'queued' | 'running' | 'paused'
+
+/** Roster entry for one job (queued or running), shared main↔preload↔renderer. */
+export interface JobMeta {
+  jobId: string
+  title: string
+  kind: JobKind
+  state: JobState
+}
+
 export interface ParsedTitle {
   artist: string | null
   title: string
