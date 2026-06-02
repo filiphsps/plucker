@@ -206,6 +206,13 @@ export interface HistoryTrack {
   videoId?: string
   /** Tag-independent audio-content hash; cache key for extracted metadata. */
   hash?: string
+  /**
+   * The raw yt-dlp download (before the transform chain ran), kept so the Library can
+   * capture it as the version-graph root. Only present when the pipeline preserved it.
+   */
+  rawFile?: string
+  /** The enabled transform instances that ran, as recipe steps (Library two-node ingest). */
+  appliedChain?: { type: string; config: Record<string, unknown> }[]
 }
 
 /** Overall outcome of a recorded job, driving the history entry badge. */
