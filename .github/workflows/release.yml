@@ -22,82 +22,12 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Update metadata first, in one job: build both arch zips together so the single
-  # latest-mac.yml electron-updater reads lists both slices with matching hashes.
-  # latest-mac.yml references the *zips* (the macOS update artifacts) — never the
-  # DMGs — so the heavy DMG compression can run independently in the matrix below.
-  # Screenshots are rendered + committed here too, since this job already builds the app.
-  build-update-metadata:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      # The app icon is generated (not committed) during the build via Playwright,
-      # and the screenshot pass drives the same Chromium binary.
-      - run: pnpm exec playwright install chromium
-
-      # Both arches' yt-dlp + ffmpeg, needed to package the universal zips.
-      - run: node scripts/fetch-binaries.mjs --all
-
-      - run: pnpm run build
-
-      # zip-only target → produces both arch zips + the combined latest-mac.yml.
-      # --publish never: the release already exists (release-please made it); we
-      # upload the assets ourselves below.
-      - run: pnpm exec electron-builder --mac zip --arm64 --x64 --config electron-builder.yml --publish never
-
-      # Upload only the electron-updater metadata (latest-mac.yml). nullglob keeps
-      # this resilient if the glob matches nothing.
-      - name: Upload update metadata
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          shopt -s nullglob
-          assets=(dist/latest-mac.yml)
-          gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
-
-      # Render UI screenshots from the freshly built app (out/ exists after build)
-      # into .github/img/. These are committed back to master so the README images
-      # track every release. Screenshots are cosmetic, so a failure here must not
-      # fail the release job — continue-on-error keeps the release green either way.
-      - run: pnpm build:screenshots
-        continue-on-error: true
-
-      # Commit the refreshed screenshots back to master. The release commit (= this tag)
-      # is master's tip at release time, so the screenshot commit fast-forwards onto it.
-      # [skip ci] avoids a redundant CI run; the chore: prefix opens no new release PR.
-      # Also continue-on-error: a failed screenshot commit must not fail the release.
-      - name: Commit refreshed screenshots
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if git diff --quiet -- .github/img; then
-            echo "screenshots: no changes to commit"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/img/*.png
-          git commit -m "chore(screenshots): refresh for ${{ needs.release-please.outputs.tag_name }} [skip ci]"
-          git push origin HEAD:master
-
-  # One job per arch so the slow DMG compression runs in parallel. DMGs are
-  # standalone install artifacts (not part of latest-mac.yml), so they upload
-  # independently of the update metadata — no dependency on build-update-metadata.
+  # One job per arch so the slow DMG compression runs in parallel. Each arch builds
+  # the app once and produces BOTH its distributable zip (the electron-updater
+  # artifact, with its differential .blockmap) and its DMG (standalone installer),
+  # plus that arch's slice of latest-mac.yml. The per-arch yml is stashed on the
+  # release under a distinct name so finalize-metadata can merge the two slices
+  # without the parallel arch jobs racing on a shared asset.
   build-macos:
     needs: [release-please]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
@@ -123,17 +53,108 @@ jobs:
       # build:icon (part of `pnpm run build`) renders the icon via Playwright Chromium.
       - run: pnpm exec playwright install chromium
 
+      # --all: an arm64 runner's postinstall only fetches arm64 binaries, so the x64
+      # slice needs the cross-arch yt-dlp + ffmpeg to package.
       - run: node scripts/fetch-binaries.mjs --all
 
       - run: pnpm run build
 
-      # DMG-only build for this arch — the expensive UDZO compression, parallelized.
-      - run: pnpm exec electron-builder --mac dmg --${{ matrix.arch }} --config electron-builder.yml --publish never
+      # One build → this arch's zip (+ blockmap) and DMG, plus its latest-mac.yml.
+      - run: pnpm exec electron-builder --mac zip dmg --${{ matrix.arch }} --config electron-builder.yml --publish never
 
-      - name: Upload DMG
+      # The zip + its differential blockmap are the electron-updater artifacts; the
+      # DMG is the standalone installer. Blockmaps are required by Plucker's
+      # differential updater (src/main/differential.ts): it diffs the new zip's
+      # blockmap against the cached previous one to fetch only changed byte ranges.
+      # nullglob keeps this resilient if a glob matches nothing.
+      - name: Upload zip + DMG
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
-          assets=(dist/*.dmg)
+          assets=(dist/*.zip dist/*.zip.blockmap dist/*.dmg)
           gh release upload "${{ needs.release-please.outputs.tag_name }}" "${assets[@]}" --clobber
+
+      # Stash this arch's latest-mac.yml under a distinct name. Distinct names mean
+      # the two parallel arch jobs never race; finalize-metadata merges them into the
+      # single latest-mac.yml electron-updater reads.
+      - name: Upload per-arch update metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp dist/latest-mac.yml "latest-mac-${{ matrix.arch }}.yml"
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" "latest-mac-${{ matrix.arch }}.yml" --clobber
+
+  # Runs after both arch builds. Merges the per-arch latest-mac.yml slices into the
+  # single combined metadata electron-updater consumes, then renders the UI
+  # screenshots and attaches them to the release body. Builds the app for the
+  # screenshot pass.
+  finalize-metadata:
+    needs: [release-please, build-macos]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Merge the two per-arch latest-mac.yml slices into one. Start from arm64 as the
+      # primary (version/path/releaseDate) and append x64's files entry, so the
+      # combined `files` array lists both arch zips with their real hashes. Then drop
+      # the per-arch temporaries. yq is preinstalled on GitHub-hosted runners.
+      - name: Merge update metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          gh release download "$TAG" -p 'latest-mac-*.yml'
+          yq -i '.files += load("latest-mac-x64.yml").files' latest-mac-arm64.yml
+          cp latest-mac-arm64.yml latest-mac.yml
+          gh release upload "$TAG" latest-mac.yml --clobber
+          gh release delete-asset "$TAG" latest-mac-arm64.yml latest-mac-x64.yml -y
+
+      # The screenshot pass drives Playwright Chromium (also used by build:icon).
+      - run: pnpm exec playwright install chromium
+
+      - run: pnpm run build
+
+      # Render UI screenshots from the freshly built app (out/ exists after build)
+      # into .github/img/. Cosmetic, so continue-on-error keeps the release green.
+      - run: pnpm build:screenshots
+        continue-on-error: true
+
+      # Attach the screenshots to the release: upload them as assets and reference
+      # them from the release body so they're visible on the release page (instead
+      # of committing them back to master). The sed range strips any prior
+      # "## Screenshots" section first, so re-runs stay idempotent. Cosmetic, so
+      # continue-on-error keeps the release green.
+      - name: Attach screenshots to release
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          shots=(.github/img/*.png)
+          if [ ${#shots[@]} -eq 0 ]; then
+            echo "screenshots: none rendered, nothing to attach"
+            exit 0
+          fi
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          gh release upload "$TAG" "${shots[@]}" --clobber
+          gh release view "$TAG" --json body -q .body | sed '/^## Screenshots$/,$d' > body.md
+          printf '\n## Screenshots\n\n' >> body.md
+          for f in "${shots[@]}"; do
+            name=$(basename "$f")
+            printf '![%s](https://github.com/%s/releases/download/%s/%s)\n\n' \
+              "$name" "$GITHUB_REPOSITORY" "$TAG" "$name" >> body.md
+          done
+          gh release edit "$TAG" --notes-file body.md
