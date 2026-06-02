@@ -388,10 +388,15 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       cache: deps.cache,
       analyze: deps.analyze
     }
-    // One slot per concurrent track pipeline. Each slot owns a single entry's
-    // acquire *and* its transform, so `performance.parallel` is the number of full
-    // track pipelines running at once.
-    const pool = createPool(Math.max(1, settings.performance.parallel))
+    // Two independent stages, each with its own concurrency budget, so the
+    // pipeline behaves like decoupled worker queues: a slow transform never holds
+    // a download slot (and a slow download never holds a transform slot). The
+    // download stage (I/O-bound: yt-dlp child processes) feeds the transform stage
+    // (CPU-bound, now mostly off-thread) the moment each file lands, so both run
+    // concurrently instead of competing for a single shared pool.
+    const limit = Math.max(1, settings.performance.parallel)
+    const downloadPool = createPool(limit)
+    const transformPool = createPool(limit)
     // Collect history by track index so the recorded order is stable regardless
     // of which concurrent track finishes first.
     const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
@@ -507,8 +512,37 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       emit()
     }
 
-    /** Acquire one entry's file via the source, then hand it to {@link finishTrack}. */
-    const processEntry = async (entry: SourceEntry, t: TrackProgress): Promise<void> => {
+    /** Run the transform stage for an acquired file on the transform pool. */
+    const runTransformStage = (
+      entry: SourceEntry,
+      t: TrackProgress,
+      file: string,
+      trackSpan: ReturnType<typeof startSpan>
+    ): void => {
+      transformPool.run(async () => {
+        // A throw inside finishTrack (hash/transform/probe) would otherwise leave the
+        // track stuck in `transforming`. Mark it failed here so the row settles
+        // immediately rather than waiting on the end-of-job backstop.
+        try {
+          await finishTrack(t, file, entry)
+          t.elapsedMs = Math.round(trackSpan.end(t.title))
+        } catch (err) {
+          t.status = 'failed'
+          t.stage = undefined
+          t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
+          t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
+          log.warn('transform', `track failed "${t.title}": ${t.reason}`)
+        }
+        emit()
+      })
+    }
+
+    /**
+     * Download stage: acquire one entry's file via the source. On success, hand it
+     * off to the transform stage (its own pool) and return immediately — freeing
+     * this download slot to start the next entry while the transform runs.
+     */
+    const acquireEntry = async (entry: SourceEntry, t: TrackProgress): Promise<void> => {
       const trackSpan = startSpan('track-process', 'pipeline')
       const outcome = await entry.provide(t, emit, signal)
       t.stage = undefined
@@ -528,24 +562,15 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
         emit()
         return
       }
-      // A throw inside finishTrack (hash/transform/probe) would otherwise leave the
-      // track stuck in `transforming`. Mark it failed here so the row settles
-      // immediately rather than waiting on the end-of-job backstop.
-      try {
-        await finishTrack(t, outcome.file, entry)
-        t.elapsedMs = Math.round(trackSpan.end(t.title))
-      } catch (err) {
-        t.status = 'failed'
-        t.stage = undefined
-        t.reason = t.reason ?? (err instanceof Error ? err.message : 'Transform failed')
-        t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
-        log.warn('transform', `track failed "${t.title}": ${t.reason}`)
-      }
-      emit()
+      runTransformStage(entry, t, outcome.file, trackSpan)
     }
 
-    entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
-    await pool.drain()
+    // Kick off every download on the download pool. Each acquireEntry enqueues its
+    // transform on the transform pool before resolving, so once downloads drain,
+    // every transform has been queued — then drain transforms.
+    entries.forEach((entry, i) => downloadPool.run(() => acquireEntry(entry, tracks[i])))
+    await downloadPool.drain()
+    await transformPool.drain()
 
     const aborted = signal?.aborted ?? false
     if (aborted) {
