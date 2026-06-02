@@ -97,4 +97,26 @@ describe('buildMenuTemplate', () => {
     expect(find(edit, 'Copy').role).toBe('copy')
     expect(find(edit, 'Paste').role).toBe('paste')
   })
+
+  it('attaches an icon to every labelled item when an icon resolver is provided', () => {
+    const seen: string[] = []
+    const resolveIcon = (s: string): string => {
+      seen.push(s)
+      return `icon:${s}`
+    }
+    const t = buildMenuTemplate(ctx({ resolveIcon }), actions())
+    const leaves = t.flatMap((top) =>
+      sub(top).filter((i) => i.type !== 'separator' && i.role !== 'window')
+    )
+    expect(leaves.length).toBeGreaterThan(0)
+    for (const item of leaves) expect(item.icon, item.label).toBeDefined()
+    // Spot-check the mapping covers app-specific commands and standard roles alike.
+    expect(seen).toEqual(expect.arrayContaining(['gearshape', 'terminal', 'scissors', 'link']))
+  })
+
+  it('omits icons when no resolver is provided', () => {
+    const t = buildMenuTemplate(ctx(), actions())
+    expect(find(sub(find(t, 'File')), 'New Download').icon).toBeUndefined()
+    expect(find(sub(find(t, 'Edit')), 'Copy').icon).toBeUndefined()
+  })
 })

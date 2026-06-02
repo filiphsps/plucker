@@ -1,14 +1,22 @@
 // Builds the native application menu as a fully custom template. Every label comes from
 // our i18n catalog (src/shared/menu-strings.ts); leaf items keep `role:` so macOS still
 // provides correct native behavior (edit semantics, services, window management) while
-// we own placement, labels, and accelerators. `buildMenuTemplate` is pure and testable;
-// `buildAppMenu` resolves language/platform/settings and wires the action callbacks.
-import { app, Menu, shell, clipboard, type MenuItemConstructorOptions } from 'electron'
+// we own placement, labels, accelerators, and icons. Every menu *item* carries an SF
+// Symbol icon rendered by the native addon (top-level bar titles are text-only on macOS
+// — a platform constraint). `buildMenuTemplate` is pure and testable; `buildAppMenu`
+// resolves language/platform/settings, wires the action callbacks, and supplies the
+// icon resolver. Icons must be primed once via `primeMenuIcons()` before the first build.
+import { app, Menu, shell, clipboard, nativeImage, type MenuItemConstructorOptions } from 'electron'
 import { menu as MENU, type MenuLang, type MenuStrings } from '../shared/menu-strings'
 import { ACCELERATORS } from '../shared/shortcuts'
 import { loadSettings } from './settings'
 import { checkForUpdates, RELEASES_URL, type GetWindow } from './updater'
+import { log } from './log'
 import type { MenuNavTarget } from '../shared/types'
+
+/** Resolves an SF Symbol name to a menu icon (NativeImage), or undefined when icons are
+ * unavailable (non-macOS / addon not built) or the symbol name is unknown. */
+type IconResolver = (symbol: string) => MenuItemConstructorOptions['icon'] | undefined
 
 export interface MenuContext {
   t: MenuStrings
@@ -19,6 +27,8 @@ export interface MenuContext {
   /** Toggle Console item. */
   consoleAvailable: boolean
   accelerators: typeof ACCELERATORS
+  /** Maps an SF Symbol name to an icon; omitted in tests / when icons are unavailable. */
+  resolveIcon?: IconResolver
 }
 
 export interface MenuActions {
@@ -35,48 +45,63 @@ export interface MenuActions {
 export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemConstructorOptions[] {
   const { t, isMac, appName, devToolsAvailable, consoleAvailable, accelerators } = ctx
   const sep: MenuItemConstructorOptions = { type: 'separator' }
+  const ic = (symbol: string): MenuItemConstructorOptions['icon'] | undefined =>
+    ctx.resolveIcon?.(symbol)
 
   const settingsItem: MenuItemConstructorOptions = {
     label: t.settings,
+    icon: ic('gearshape'),
     accelerator: 'CmdOrCtrl+,',
     click: () => a.navigate('settings')
   }
   const checkForUpdatesItem: MenuItemConstructorOptions = {
     label: t.checkForUpdates,
+    icon: ic('arrow.down.circle'),
     click: () => a.checkForUpdates()
   }
 
   const appMenu: MenuItemConstructorOptions = {
     label: appName,
     submenu: [
-      { role: 'about', label: t.about },
+      { role: 'about', label: t.about, icon: ic('info.circle') },
       checkForUpdatesItem,
       sep,
       settingsItem,
       sep,
-      { role: 'services', label: t.services },
+      { role: 'services', label: t.services, icon: ic('square.grid.2x2') },
       sep,
-      { role: 'hide', label: t.hide },
-      { role: 'hideOthers', label: t.hideOthers },
-      { role: 'unhide', label: t.unhide },
+      { role: 'hide', label: t.hide, icon: ic('eye.slash') },
+      { role: 'hideOthers', label: t.hideOthers, icon: ic('eye.slash.fill') },
+      { role: 'unhide', label: t.unhide, icon: ic('eye') },
       sep,
-      { role: 'quit', label: t.quit }
+      { role: 'quit', label: t.quit, icon: ic('power') }
     ]
   }
 
   const fileMenu: MenuItemConstructorOptions = {
     label: t.file,
     submenu: [
-      { label: t.newDownload, accelerator: accelerators.newDownload, click: () => a.newDownload() },
-      { label: t.openUrl, accelerator: accelerators.openUrl, click: () => a.openUrl() },
+      {
+        label: t.newDownload,
+        icon: ic('plus.circle'),
+        accelerator: accelerators.newDownload,
+        click: () => a.newDownload()
+      },
+      {
+        label: t.openUrl,
+        icon: ic('link'),
+        accelerator: accelerators.openUrl,
+        click: () => a.openUrl()
+      },
       sep,
       {
         label: t.retransformSelection,
+        icon: ic('arrow.triangle.2.circlepath'),
         accelerator: accelerators.retransform,
         click: () => a.retransform()
       },
       sep,
-      { label: t.manageCache, click: () => a.navigate('cache') },
+      { label: t.manageCache, icon: ic('internaldrive'), click: () => a.navigate('cache') },
       ...(!isMac ? [sep, settingsItem] : [])
     ]
   }
@@ -84,13 +109,13 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
   const editMenu: MenuItemConstructorOptions = {
     label: t.edit,
     submenu: [
-      { role: 'undo', label: t.undo },
-      { role: 'redo', label: t.redo },
+      { role: 'undo', label: t.undo, icon: ic('arrow.uturn.backward') },
+      { role: 'redo', label: t.redo, icon: ic('arrow.uturn.forward') },
       sep,
-      { role: 'cut', label: t.cut },
-      { role: 'copy', label: t.copy },
-      { role: 'paste', label: t.paste },
-      { role: 'selectAll', label: t.selectAll }
+      { role: 'cut', label: t.cut, icon: ic('scissors') },
+      { role: 'copy', label: t.copy, icon: ic('doc.on.doc') },
+      { role: 'paste', label: t.paste, icon: ic('clipboard') },
+      { role: 'selectAll', label: t.selectAll, icon: ic('checkmark.circle') }
     ]
   }
 
@@ -99,9 +124,9 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
   const devGroup: MenuItemConstructorOptions[] = devToolsAvailable
     ? [
         sep,
-        { role: 'reload', label: t.reload },
-        { role: 'forceReload', label: t.forceReload },
-        { role: 'toggleDevTools', label: t.toggleDevTools }
+        { role: 'reload', label: t.reload, icon: ic('arrow.clockwise') },
+        { role: 'forceReload', label: t.forceReload, icon: ic('arrow.clockwise.circle') },
+        { role: 'toggleDevTools', label: t.toggleDevTools, icon: ic('hammer') }
       ]
     : []
   const consoleGroup: MenuItemConstructorOptions[] = consoleAvailable
@@ -109,6 +134,7 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
         sep,
         {
           label: t.toggleConsole,
+          icon: ic('terminal'),
           accelerator: accelerators.toggleConsole,
           click: () => a.toggleConsole()
         }
@@ -118,26 +144,44 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
   const viewMenu: MenuItemConstructorOptions = {
     label: t.view,
     submenu: [
-      { label: t.download, accelerator: 'CmdOrCtrl+1', click: () => a.navigate('download') },
-      { label: t.history, accelerator: 'CmdOrCtrl+2', click: () => a.navigate('history') },
+      {
+        label: t.download,
+        icon: ic('arrow.down.to.line'),
+        accelerator: 'CmdOrCtrl+1',
+        click: () => a.navigate('download')
+      },
+      {
+        label: t.history,
+        icon: ic('clock.arrow.circlepath'),
+        accelerator: 'CmdOrCtrl+2',
+        click: () => a.navigate('history')
+      },
       ...devGroup,
       ...consoleGroup,
       sep,
-      { role: 'togglefullscreen', label: t.enterFullScreen }
+      {
+        role: 'togglefullscreen',
+        label: t.enterFullScreen,
+        icon: ic('arrow.up.left.and.arrow.down.right')
+      }
     ]
   }
 
   const windowMenu: MenuItemConstructorOptions = {
     label: t.window,
     submenu: [
-      { role: 'minimize', label: t.minimize },
-      { role: 'zoom', label: t.zoom },
+      { role: 'minimize', label: t.minimize, icon: ic('minus.circle') },
+      { role: 'zoom', label: t.zoom, icon: ic('plus.magnifyingglass') },
       // `role: 'window'` makes Electron append the live window list (main + floating
       // console) on macOS.
       ...(isMac
         ? [
             sep,
-            { role: 'front', label: t.bringAllToFront } as MenuItemConstructorOptions,
+            {
+              role: 'front',
+              label: t.bringAllToFront,
+              icon: ic('square.on.square')
+            } as MenuItemConstructorOptions,
             sep,
             { role: 'window' } as MenuItemConstructorOptions
           ]
@@ -149,12 +193,62 @@ export function buildMenuTemplate(ctx: MenuContext, a: MenuActions): MenuItemCon
     label: t.help,
     submenu: [
       ...(!isMac ? [checkForUpdatesItem, sep] : []),
-      { label: t.viewReleases, click: () => a.viewReleases() }
+      { label: t.viewReleases, icon: ic('tag'), click: () => a.viewReleases() }
     ]
   }
 
   return [...(isMac ? [appMenu] : []), fileMenu, editMenu, viewMenu, windowMenu, helpMenu]
 }
+
+// --- Icon rendering (native SF Symbols) ------------------------------------------------
+
+/** symbolPng(name, pointSize) from @plucker/native-context-menu, loaded once. */
+type SymbolPng = (name: string, pointSize?: number) => Buffer | null
+let symbolPng: SymbolPng | null = null
+const iconCache = new Map<string, Electron.NativeImage | null>()
+
+/** Load the native addon and confirm the SF-Symbol renderer is usable. macOS-only; the
+ * import specifier is kept opaque to the bundler so the addon stays an optional runtime
+ * dependency (missing/unbuilt → menus simply render without icons). Call once before the
+ * first `buildAppMenu`. */
+export async function primeMenuIcons(): Promise<void> {
+  if (process.platform !== 'darwin') return
+  try {
+    const specifier = ['@plucker', 'native-context-menu'].join('/')
+    const imported = (await import(/* @vite-ignore */ specifier)) as Record<string, unknown> & {
+      default?: Record<string, unknown>
+    }
+    const mod = ('symbolPng' in imported ? imported : imported.default) as
+      | { isAvailable?: () => boolean; symbolPng?: SymbolPng }
+      | undefined
+    if (mod?.isAvailable?.() && typeof mod.symbolPng === 'function') {
+      symbolPng = mod.symbolPng
+      log.debug('menu', 'native menu icons enabled')
+    }
+  } catch (err) {
+    symbolPng = null
+    log.warn('menu', 'native menu icons unavailable, using text-only menus:', err)
+  }
+}
+
+/** Render (and cache) the icon for an SF Symbol as a template NativeImage. */
+function iconFor(symbol: string): MenuItemConstructorOptions['icon'] | undefined {
+  if (!symbolPng) return undefined
+  if (iconCache.has(symbol)) return iconCache.get(symbol) ?? undefined
+  let image: Electron.NativeImage | null = null
+  const buf = symbolPng(symbol, 15)
+  if (buf) {
+    const img = nativeImage.createFromBuffer(buf, { scaleFactor: 2 })
+    if (!img.isEmpty()) {
+      img.setTemplateImage(true)
+      image = img
+    }
+  }
+  iconCache.set(symbol, image)
+  return image ?? undefined
+}
+
+// --- Assembly ---------------------------------------------------------------------------
 
 /** Resolve the menu language from settings ('system' follows the OS locale). */
 function resolveLang(): MenuLang {
@@ -177,7 +271,8 @@ export function buildAppMenu(getWindow: GetWindow): void {
       appName: app.name,
       devToolsAvailable: devAvailable,
       consoleAvailable: devAvailable,
-      accelerators: ACCELERATORS
+      accelerators: ACCELERATORS,
+      resolveIcon: iconFor
     },
     {
       navigate: (target) => send('menu:navigate', target),

@@ -51,7 +51,7 @@ import { addUrl, removeUrl } from '../shared/url-history'
 import { killAllChildren, pauseAllChildren, resumeAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
 import { registerContextMenuIpc } from './context-menu'
-import { buildAppMenu } from './menu'
+import { buildAppMenu, primeMenuIcons } from './menu'
 import { getAccentColor } from './accent'
 import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
 import type {
@@ -823,7 +823,7 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Relocate the legacy ~/.plucker.json config into ~/.plucker/config.json before any
   // settings read, so existing installs carry their settings over transparently.
   migrateLegacyConfig()
@@ -858,6 +858,9 @@ app.whenReady().then(() => {
     mainWindow?.webContents.send('accent:changed', getAccentColor())
   )
 
+  // Prime SF-Symbol icons (native, macOS-only) before building so the menu shows them
+  // on first paint; a no-op off macOS or when the addon isn't built.
+  await primeMenuIcons()
   buildAppMenu(() => mainWindow)
 
   createWindow()
