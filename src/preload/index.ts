@@ -27,6 +27,10 @@ const api = {
   },
   getSettings: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: Settings): Promise<void> => ipcRenderer.invoke('settings:save', s),
+  // URL history (command-bar suggestions). Both return the updated, deduped list.
+  addUrlHistory: (url: string): Promise<string[]> => ipcRenderer.invoke('urlHistory:add', url),
+  removeUrlHistory: (url: string): Promise<string[]> =>
+    ipcRenderer.invoke('urlHistory:remove', url),
   getTransformCatalog: (): Promise<TransformManifest[]> => ipcRenderer.invoke('transforms:catalog'),
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFolder'),
   startDownload: (url: string, folderOverride?: string): Promise<void> =>

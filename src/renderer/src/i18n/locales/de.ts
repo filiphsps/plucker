@@ -71,6 +71,11 @@ const de: typeof en = {
     plucking: 'Lädt …',
     cancel: 'Abbrechen',
     clear: 'Leeren',
+    clearTitle: 'Seite leeren',
+    invalidUrl: 'Keine unterstützte URL',
+    history: {
+      delete: 'Aus Verlauf entfernen'
+    },
     colTrack: 'Titel',
     colSpeed: 'Tempo',
     colProgress: 'Fortschritt',

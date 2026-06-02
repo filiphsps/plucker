@@ -70,6 +70,11 @@ export default {
     plucking: 'Plucking…',
     cancel: 'Cancel',
     clear: 'Clear',
+    clearTitle: 'Clear page',
+    invalidUrl: 'Not a supported URL',
+    history: {
+      delete: 'Remove from history'
+    },
     colTrack: 'Track',
     colSpeed: 'Speed',
     colProgress: 'Progress',

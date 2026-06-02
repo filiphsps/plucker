@@ -33,6 +33,20 @@ describe('loadSettings', () => {
     const s = loadSettings(file)
     expect(s).toEqual(DEFAULT_SETTINGS)
   })
+
+  it('preserves a stored urlHistory and defaults it to [] when absent or invalid', () => {
+    writeFileSync(
+      file,
+      JSON.stringify({ urlHistory: ['https://youtu.be/a', 'https://youtu.be/b'] })
+    )
+    expect(loadSettings(file).urlHistory).toEqual(['https://youtu.be/a', 'https://youtu.be/b'])
+
+    writeFileSync(file, JSON.stringify({ audio: { preferredBitrate: 192 } }))
+    expect(loadSettings(file).urlHistory).toEqual([])
+
+    writeFileSync(file, JSON.stringify({ urlHistory: 'nope' }))
+    expect(loadSettings(file).urlHistory).toEqual([])
+  })
 })
 
 describe('saveSettings', () => {

@@ -17,6 +17,7 @@ export default function App(): React.JSX.Element {
   const [cacheOpen, setCacheOpen] = useState(false)
   const [progress, setProgress] = useState<JobProgress | null>(null)
   const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
+  const [urlHistory, setUrlHistory] = useState<string[]>([])
   const [running, setRunning] = useState(false)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(false)
@@ -31,15 +32,18 @@ export default function App(): React.JSX.Element {
     window.plucker.getSettings().then((s) => {
       applyLanguage(s.language)
       setConsoleAvailable(import.meta.env.DEV || s.developer.console)
+      setUrlHistory(s.urlHistory)
     })
   }, [])
 
-  // React live to the developer-console setting being toggled in Settings.
+  // React live to settings changing elsewhere (developer-console toggle, URL-history
+  // add/remove from the command bar) — both broadcast the full settings object.
   useEffect(
     () =>
-      window.plucker.onSettingsChanged((s) =>
+      window.plucker.onSettingsChanged((s) => {
         setConsoleAvailable(import.meta.env.DEV || s.developer.console)
-      ),
+        setUrlHistory(s.urlHistory)
+      }),
     []
   )
 
@@ -163,11 +167,16 @@ export default function App(): React.JSX.Element {
             progress={progress}
             statusLog={statusLog}
             resolveLog={logEntries.slice(jobLogStart)}
+            urlHistory={urlHistory}
             onRunningChange={setRunning}
             onStart={() => {
               setProgress(null)
               setStatusLog([])
               setJobLogStart(logLen.current)
+            }}
+            onClear={() => {
+              setProgress(null)
+              setStatusLog(null)
             }}
           />
         </Page>

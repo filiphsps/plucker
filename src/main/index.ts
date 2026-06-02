@@ -23,6 +23,7 @@ import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { getWaveform, forWaveform } from './waveform'
 import { addEntry, removeEntry, removeTrack } from './history'
+import { addUrl, removeUrl } from '../shared/url-history'
 import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
 import { registerContextMenuIpc } from './context-menu'
@@ -92,6 +93,19 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     applyConsoleLogging(getWindow)
     getWindow()?.webContents.send('settings:changed', s)
   })
+  // URL history: scoped add/remove that mutate just the urlHistory list, so the command
+  // bar never has to round-trip the whole Settings object (avoids clobbering the panel).
+  const mutateUrlHistory = (fn: (list: string[]) => string[]): string[] => {
+    const current = loadSettings()
+    const next = { ...current, urlHistory: fn(current.urlHistory) }
+    saveSettings(settingsPath(), next)
+    getWindow()?.webContents.send('settings:changed', next)
+    return next.urlHistory
+  }
+  ipcMain.handle('urlHistory:add', (_e, url: string) => mutateUrlHistory((l) => addUrl(l, url)))
+  ipcMain.handle('urlHistory:remove', (_e, url: string) =>
+    mutateUrlHistory((l) => removeUrl(l, url))
+  )
   // Developer console: buffered tail (seeds the overlay on open) + reveal the log file.
   ipcMain.handle('log:tail', () => getLogTail())
   ipcMain.handle('log:reveal', () => shell.showItemInFolder(logPath()))

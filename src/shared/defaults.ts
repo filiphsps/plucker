@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   version: 2,
   language: 'system',
   history: [],
+  urlHistory: [],
   downloads: { baseFolder: '~/Music/Plucker', perPlaylistSubfolder: true },
   audio: { format: 'mp3', preferredBitrate: 320, minBitrate: null, sampleRate: null },
   cookies: { source: 'auto' },
