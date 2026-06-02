@@ -17,19 +17,21 @@ import {
   pluckerDir
 } from './settings'
 import { loadWindowBounds, saveWindowBounds, isOnScreen } from './window-state'
-import { log, addLogTransport, getLogTail, installProcessErrorHandlers } from './log'
+import {
+  log,
+  addLogTransport,
+  getLogTail,
+  installProcessErrorHandlers,
+  replayLogEntry
+} from './log'
 import { createFileTransport } from './log-file'
 import { binaryPaths, type BinaryPaths } from './binaries'
+import { resolveJob, type JobResult } from './pipeline'
+import { type RetransformTarget } from './retransform-source'
+import { createJobPool, type JobPool } from './job-pool'
+import { spawnJobClient } from './workers/job-host'
+import type { JobStartPayload } from './workers/job-protocol'
 import {
-  runPipeline,
-  resolveJob,
-  buildDownloadSourceFromEntries,
-  type JobControls,
-  type RunJobDeps
-} from './pipeline'
-import { buildRetransformSource, type RetransformTarget } from './retransform-source'
-import {
-  createCheckpointSink,
   listCheckpoints,
   deleteCheckpoint,
   dismissCheckpoint,
@@ -41,15 +43,15 @@ import {
   outcomeFromTracks,
   synthesizeEntry
 } from './resume-merge'
-import { getAnalyzeClient, terminateAnalyzeClient } from './workers/analyze-host'
-import { getMediaClient, terminateMediaClient } from './workers/media-host'
+import { terminateAnalyzeClient } from './workers/analyze-host'
+import { terminateMediaClient } from './workers/media-host'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { getWaveform, forWaveform } from './waveform'
 import { addEntry, entryFiles, removeEntry, removeTrack, updateTrack } from './history'
 import { addUrl, removeUrl } from '../shared/url-history'
-import { killAllChildren, pauseAllChildren, resumeAllChildren } from './spawn'
+import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
 import { registerContextMenuIpc } from './context-menu'
 import { buildAppMenu, primeMenuIcons } from './menu'
@@ -78,14 +80,13 @@ let consoleWindow: BrowserWindow | null = null
 // shutdown / main-window-close path sets this false so a floating console is
 // remembered and reopens floating next launch.
 let consoleRedockOnClose = true
-let abort: AbortController | null = null
-/** Checkpoint id of the job currently running (download or resume), for resumability. */
-let activeJobId: string | null = null
 let metaCache: MetadataCache | null = null
-/** Per-track controls for the live job, set by runPipeline via onControls. */
-let jobControls: JobControls | null = null
 /** Cookie file exported during the last job:resolve, reused by the next job:start. */
 let pendingResolve: { url: string; cookieFile?: string } | null = null
+/** Own abort for job:resolve (decoupled from running jobs, which abort per-worker). */
+let resolveAbort: AbortController | null = null
+/** The job scheduler (bounded pool + queue). Created in registerIpc. */
+let jobPool: JobPool | null = null
 
 /** Resolve the bundled binary paths for the current runtime. */
 function currentBin(): BinaryPaths {
@@ -97,9 +98,14 @@ function currentBin(): BinaryPaths {
   })
 }
 
+/** Directory holding the content-addressed metadata cache. */
+function metaCacheDir(): string {
+  return join(app.getPath('userData'), 'metadata-cache')
+}
+
 /** Lazily-created global metadata cache under the app's userData dir. */
 function getMetaCache(): MetadataCache {
-  if (!metaCache) metaCache = createMetadataCache(join(app.getPath('userData'), 'metadata-cache'))
+  if (!metaCache) metaCache = createMetadataCache(metaCacheDir())
   return metaCache
 }
 
@@ -278,146 +284,215 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     return history
   })
 
-  ipcMain.handle('job:cancel', () => {
-    // SIGKILL reaches stopped processes fine, but a paused job leaves the
-    // module-level flag set — clear it so the next job's children aren't frozen.
-    resumeAllChildren()
-    getWindow()?.webContents.send('job:paused', false)
-    abort?.abort()
-  })
-  ipcMain.handle('job:pause', () => {
-    pauseAllChildren()
-    getWindow()?.webContents.send('job:paused', true)
-  })
-  ipcMain.handle('job:resume', () => {
-    resumeAllChildren()
-    getWindow()?.webContents.send('job:paused', false)
-  })
-  // Per-track controls routed to the live job's controls handle.
-  ipcMain.handle('job:skipTrack', (_e, index: number) => jobControls?.skipTrack(index))
-  ipcMain.handle('job:pauseTrack', (_e, index: number) => {
-    jobControls?.pauseTrack(index)
-    getWindow()?.webContents.send('job:trackPaused', index, true)
-  })
-  ipcMain.handle('job:resumeTrack', (_e, index: number) => {
-    jobControls?.resumeTrack(index)
-    getWindow()?.webContents.send('job:trackPaused', index, false)
-  })
+  const win = (): BrowserWindow | null => getWindow()
+  const setBar = (overall: number): void =>
+    win()?.setProgressBar(overall > 0 && overall < 1 ? overall : overall >= 1 ? 1 : -1)
+
+  /** Fold a finished job's result into history. Main is the sole history writer. */
+  const foldJobResult = (jobId: string, payload: JobStartPayload, result: JobResult): void => {
+    win()?.setProgressBar(-1)
+    if (payload.kind === 'retransform') {
+      // result.tracks is index-aligned with the targets; skip non-done so a failed
+      // transform never clobbers a still-intact original.
+      const latest = loadSettings()
+      let history = latest.history
+      result.tracks.forEach((tk, i) => {
+        if (tk.status !== 'done') return
+        const tgt = payload.targets[i]
+        history = updateTrack(history, tgt.entryId, tgt.index, {
+          file: tk.file,
+          title: tk.title,
+          artist: tk.artist,
+          album: tk.album,
+          year: tk.year,
+          hash: tk.hash
+        })
+      })
+      saveSettings(settingsPath(), { ...latest, history })
+      win()?.webContents.send('history:changed')
+      return
+    }
+
+    // runPipeline resolves even on cancel, returning a partial result with
+    // outcome 'cancelled'; record that as a resumable `interrupted` entry.
+    const cancelled = result.outcome === 'cancelled'
+
+    if (payload.kind === 'retryFailed') {
+      const latest = loadSettings()
+      const current = latest.history.find((h) => h.id === payload.entryId)?.tracks ?? []
+      const tracks = [...current]
+      result.tracks.forEach((rt, i) => {
+        if (rt.status === 'done') tracks[payload.failedIndices[i]] = rt
+      })
+      const history = latest.history.map((h) =>
+        h.id === payload.entryId ? { ...h, tracks, outcome: outcomeFromTracks(tracks) } : h
+      )
+      saveSettings(settingsPath(), { ...latest, history })
+      win()?.webContents.send('history:changed')
+      return
+    }
+
+    if (payload.kind === 'resume') {
+      const resumed = result.tracks.map((track, i) => ({
+        index: payload.req.entries[i].index,
+        track
+      }))
+      const merged = mergeResumed(payload.completed, resumed)
+      const fresh = loadSettings()
+      const entry: HistoryEntry = {
+        id: fresh.history.find((h) => h.jobId === jobId)?.id ?? randomUUID(),
+        jobId,
+        url: payload.req.url,
+        title: payload.req.title,
+        folder: payload.req.folderOverride ?? expandHome(fresh.downloads.baseFolder),
+        kind: payload.req.kind,
+        completedAt: new Date().toISOString(),
+        outcome: cancelled ? 'interrupted' : outcomeFromTracks(merged),
+        tracks: merged
+      }
+      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+      win()?.webContents.send('history:changed')
+      if (!cancelled) deleteCheckpoint(jobsDir(), jobId)
+      win()?.webContents.send('jobs:interruptedChanged')
+      return
+    }
+
+    // download
+    const fresh = loadSettings()
+    const entry: HistoryEntry = {
+      id: randomUUID(),
+      jobId,
+      url: result.url,
+      title: result.title,
+      folder: result.folder,
+      kind: result.kind,
+      completedAt: new Date().toISOString(),
+      outcome: cancelled ? 'interrupted' : result.outcome,
+      tracks: result.tracks
+    }
+    saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+    win()?.webContents.send('history:changed')
+    if (!cancelled) deleteCheckpoint(jobsDir(), jobId)
+    if (cancelled) win()?.webContents.send('jobs:interruptedChanged')
+  }
+
+  /** Handle a job that rejected before producing a result (resolve failure / cancel). */
+  const foldJobError = (
+    jobId: string,
+    payload: JobStartPayload,
+    e: { message: string; cancelled: boolean }
+  ): void => {
+    win()?.setProgressBar(-1)
+    if (payload.kind === 'retransform') {
+      if (!e.cancelled) {
+        log.error('app', 'retransform failed:', e.message)
+        win()?.webContents.send('job:status', jobId, { phase: 'error', error: e.message })
+      }
+      return
+    }
+    if (payload.kind === 'resume') {
+      if (!e.cancelled) {
+        log.error('app', 'resume failed:', e.message)
+        win()?.webContents.send('job:status', jobId, { phase: 'error', error: e.message })
+      }
+      return
+    }
+    if (payload.kind === 'retryFailed') {
+      if (!e.cancelled) log.error('app', 'retry-failed failed:', e.message)
+      return
+    }
+    // download: record a minimal failed/cancelled entry so the attempt is visible.
+    const fresh = loadSettings()
+    const entry: HistoryEntry = {
+      id: randomUUID(),
+      jobId,
+      url: payload.req.url,
+      title: payload.req.title || payload.req.url,
+      folder: payload.req.folderOverride ?? expandHome(fresh.downloads.baseFolder),
+      kind: payload.req.kind,
+      completedAt: new Date().toISOString(),
+      outcome: e.cancelled ? 'cancelled' : 'failed',
+      reason: e.message,
+      tracks: []
+    }
+    saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
+    win()?.webContents.send('history:changed')
+    // A throw-before-result left no useful checkpoint to resume — drop it.
+    deleteCheckpoint(jobsDir(), jobId)
+    if (!e.cancelled) {
+      log.error('app', 'job failed:', e.message)
+      win()?.webContents.send('job:status', jobId, { phase: 'error', error: e.message })
+    } else {
+      log.info('app', 'job cancelled')
+    }
+  }
+
+  const pool = (jobPool = createJobPool({
+    spawn: spawnJobClient,
+    getParallel: () => loadSettings().performance.parallel,
+    depsConfig: () => {
+      const s = loadSettings()
+      return {
+        bin: currentBin(),
+        settings: s,
+        homeBase: expandHome(s.downloads.baseFolder),
+        cacheDir: metaCacheDir(),
+        jobsDir: jobsDir()
+      }
+    },
+    onRosterChange: (roster) => win()?.webContents.send('jobs:listChanged', roster),
+    onProgress: (jobId, p) => {
+      win()?.webContents.send('job:progress', jobId, p)
+      setBar(p.overall)
+    },
+    onStatus: (jobId, s) => win()?.webContents.send('job:status', jobId, s),
+    onPaused: (jobId, paused) => win()?.webContents.send('job:paused', jobId, paused),
+    onTrackPaused: (jobId, i, paused) =>
+      win()?.webContents.send('job:trackPaused', jobId, i, paused),
+    onLog: (_jobId, entry) => replayLogEntry(entry),
+    onDone: (jobId, payload, result) => foldJobResult(jobId, payload, result),
+    onError: (jobId, payload, e) => foldJobError(jobId, payload, e)
+  }))
+
+  ipcMain.handle('job:cancel', (_e, jobId: string) => pool.cancel(jobId))
+  ipcMain.handle('job:pause', (_e, jobId: string) => pool.pause(jobId))
+  ipcMain.handle('job:resume', (_e, jobId: string) => pool.resume(jobId))
+  ipcMain.handle('job:skipTrack', (_e, jobId: string, index: number) =>
+    pool.skipTrack(jobId, index)
+  )
+  ipcMain.handle('job:pauseTrack', (_e, jobId: string, index: number) =>
+    pool.pauseTrack(jobId, index)
+  )
+  ipcMain.handle('job:resumeTrack', (_e, jobId: string, index: number) =>
+    pool.resumeTrack(jobId, index)
+  )
+  ipcMain.handle('jobs:list', () => pool.roster())
 
   // Resolve a URL to its entries WITHOUT downloading, for the staging list. Stash
-  // any exported cookie file so the subsequent job:start can reuse it.
+  // any exported cookie file so the subsequent job:start can reuse it. Uses its own
+  // abort, decoupled from running jobs. Status carries an empty jobId (pre-job).
   ipcMain.handle('job:resolve', async (_e, url: string) => {
     const settings = loadSettings()
-    abort = new AbortController()
+    resolveAbort = new AbortController()
     const { job, cookieFile } = await resolveJob(url, {
       bin: currentBin(),
       settings,
-      onStatus: (s) => getWindow()?.webContents.send('job:status', s),
-      signal: abort.signal
+      onStatus: (s) => win()?.webContents.send('job:status', '', s),
+      signal: resolveAbort.signal
     })
     pendingResolve = { url, cookieFile }
     return job
   })
 
-  ipcMain.handle('job:start', async (_e, req: StartJobRequest) => {
-    const settings = loadSettings()
-    // A fresh job always starts unpaused; clear any lingering paused state from a
-    // prior run that was cancelled mid-pause.
-    resumeAllChildren()
-    getWindow()?.webContents.send('job:paused', false)
-    abort = new AbortController()
-    activeJobId = randomUUID()
-    const sink = createCheckpointSink(jobsDir(), activeJobId, () => Date.now())
-    // Reuse the cookie file exported while resolving this exact URL (if any).
+  ipcMain.handle('job:start', (_e, req: StartJobRequest) => {
+    const jobId = randomUUID()
     const cookieFile = pendingResolve?.url === req.url ? pendingResolve.cookieFile : undefined
     pendingResolve = null
-    const deps: RunJobDeps = {
-      bin: currentBin(),
-      settings,
-      homeBase: expandHome(settings.downloads.baseFolder),
-      cache: getMetaCache(),
-      analyze: (file, config) =>
-        getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
-      media: getMediaClient(),
-      checkpoint: sink,
-      onProgress: (p) => {
-        const win = getWindow()
-        win?.webContents.send('job:progress', p)
-        win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
-      },
-      onStatus: (s) => getWindow()?.webContents.send('job:status', s),
-      signal: abort.signal,
-      folderOverride: req.folderOverride,
-      onControls: (c) => {
-        jobControls = c
-      }
-    }
-    try {
-      const result = await runPipeline(buildDownloadSourceFromEntries(req, deps, cookieFile), deps)
-      getWindow()?.setProgressBar(-1)
-
-      // Record every resolved job — including all-failed and cancelled ones —
-      // so the user always sees the outcome. (Re-load fresh so we don't clobber
-      // edits made during the run.) A user cancel becomes a resumable `interrupted`
-      // entry; a genuine finish has nothing to resume.
-      const cancelled = abort?.signal.aborted ?? false
-      const entry: HistoryEntry = {
-        id: randomUUID(),
-        jobId: activeJobId ?? undefined,
-        url: result.url,
-        title: result.title,
-        folder: result.folder,
-        kind: result.kind,
-        completedAt: new Date().toISOString(),
-        outcome: cancelled ? 'interrupted' : result.outcome,
-        tracks: result.tracks
-      }
-      const fresh = loadSettings()
-      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-      getWindow()?.webContents.send('history:changed')
-      if (!cancelled && activeJobId) deleteCheckpoint(jobsDir(), activeJobId)
-      if (cancelled) getWindow()?.webContents.send('jobs:interruptedChanged')
-    } catch (err) {
-      getWindow()?.setProgressBar(-1)
-      const cancelled = abort?.signal.aborted ?? false
-      const message = err instanceof Error ? err.message : String(err)
-
-      // The job threw before producing a result. Record a minimal failed/cancelled
-      // entry so the attempt is still visible in history.
-      const fresh = loadSettings()
-      const entry: HistoryEntry = {
-        id: randomUUID(),
-        url: req.url,
-        title: req.title || req.url,
-        folder: req.folderOverride ?? expandHome(fresh.downloads.baseFolder),
-        kind: req.kind,
-        completedAt: new Date().toISOString(),
-        outcome: cancelled ? 'cancelled' : 'failed',
-        reason: message,
-        tracks: []
-      }
-      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-      getWindow()?.webContents.send('history:changed')
-
-      // A job that threw before producing a result left no useful checkpoint to
-      // resume (resolution typically failed before any track ran) — drop it.
-      if (activeJobId) deleteCheckpoint(jobsDir(), activeJobId)
-
-      // Don't flash a red error panel for a deliberate cancellation.
-      if (!cancelled) {
-        log.error('app', 'job failed:', err)
-        getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
-      } else {
-        log.info('app', 'job cancelled')
-      }
-      throw err
-    } finally {
-      jobControls = null
-      activeJobId = null
-    }
+    pool.enqueue(jobId, { kind: 'download', req, cookieFile })
+    return jobId
   })
 
-  ipcMain.handle('job:retransform', async (_e, targets: RetransformTarget[]) => {
+  ipcMain.handle('job:retransform', (_e, targets: RetransformTarget[]) => {
     const fresh = loadSettings()
     // Resolve each target to a concrete file from current history (status 'done'
     // + a real path). Anything else is dropped — the renderer already filtered,
@@ -430,59 +505,7 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       }
     }
     if (resolved.length === 0) return
-
-    // A fresh run always starts unpaused; clear any lingering paused state.
-    resumeAllChildren()
-    getWindow()?.webContents.send('job:paused', false)
-    abort = new AbortController()
-    try {
-      const result = await runPipeline(buildRetransformSource(resolved), {
-        bin: currentBin(),
-        settings: fresh,
-        homeBase: expandHome(fresh.downloads.baseFolder),
-        cache: getMetaCache(),
-        analyze: (file, config) =>
-          getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
-        media: getMediaClient(),
-        onProgress: (p) => {
-          const win = getWindow()
-          win?.webContents.send('job:progress', p)
-          win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
-        },
-        signal: abort.signal
-      })
-      getWindow()?.setProgressBar(-1)
-
-      // Fold each successfully re-transformed track back into history in place.
-      // result.tracks is index-aligned with `resolved`. Skip non-done results so a
-      // failed transform never clobbers a still-intact original.
-      const latest = loadSettings()
-      let history = latest.history
-      result.tracks.forEach((tk, i) => {
-        if (tk.status !== 'done') return
-        const tgt = resolved[i]
-        history = updateTrack(history, tgt.entryId, tgt.index, {
-          file: tk.file,
-          title: tk.title,
-          artist: tk.artist,
-          album: tk.album,
-          year: tk.year,
-          hash: tk.hash
-        })
-      })
-      saveSettings(settingsPath(), { ...latest, history })
-      getWindow()?.webContents.send('history:changed')
-    } catch (err) {
-      getWindow()?.setProgressBar(-1)
-      const cancelled = abort?.signal.aborted ?? false
-      if (!cancelled) {
-        const message = err instanceof Error ? err.message : String(err)
-        log.error('app', 'retransform failed:', err)
-        getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
-      } else {
-        log.info('app', 'retransform cancelled')
-      }
-    }
+    pool.enqueue(randomUUID(), { kind: 'retransform', targets: resolved })
   })
 
   // ---- Interrupted / resumable jobs ----
@@ -503,37 +526,9 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
         total: cp.total
       }))
 
-  /** Shared deps for a resume/retry run (mirrors job:start's wiring). */
-  const resumeDeps = (settings: Settings, checkpoint?: RunJobDeps['checkpoint']): RunJobDeps => ({
-    bin: currentBin(),
-    settings,
-    homeBase: expandHome(settings.downloads.baseFolder),
-    cache: getMetaCache(),
-    analyze: (file, config) =>
-      getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
-    media: getMediaClient(),
-    checkpoint,
-    onProgress: (p) => {
-      const win = getWindow()
-      win?.webContents.send('job:progress', p)
-      win?.setProgressBar(p.overall > 0 && p.overall < 1 ? p.overall : p.overall >= 1 ? 1 : -1)
-    },
-    onStatus: (s) => getWindow()?.webContents.send('job:status', s),
-    signal: abort?.signal,
-    onControls: (c) => {
-      jobControls = c
-    }
-  })
-
-  /** Resume an interrupted job from its checkpoint: re-download only the pending tracks. */
-  const runResume = async (cp: JobCheckpoint): Promise<void> => {
-    const settings = loadSettings()
+  /** Resume an interrupted job: enqueue only the pending tracks under its jobId. */
+  const runResume = (cp: JobCheckpoint): void => {
     const { completed, pending } = partitionCheckpoint(cp)
-    resumeAllChildren()
-    getWindow()?.webContents.send('job:paused', false)
-    abort = new AbortController()
-    activeJobId = cp.jobId
-    const sink = createCheckpointSink(jobsDir(), cp.jobId, () => Date.now())
     const req: StartJobRequest = {
       url: cp.url,
       title: cp.jobTitle,
@@ -541,44 +536,12 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       entries: pending.map((e) => ({ videoId: e.videoId ?? '', title: e.title, index: e.index })),
       folderOverride: cp.folder
     }
-    try {
-      const deps = resumeDeps(settings, sink)
-      const result = await runPipeline(buildDownloadSourceFromEntries(req, deps), deps)
-      getWindow()?.setProgressBar(-1)
-      const cancelled = abort?.signal.aborted ?? false
-      const resumed = result.tracks.map((track, i) => ({ index: pending[i].index, track }))
-      const merged = mergeResumed(completed, resumed)
-      const fresh = loadSettings()
-      const entry: HistoryEntry = {
-        id: fresh.history.find((h) => h.jobId === cp.jobId)?.id ?? randomUUID(),
-        jobId: cp.jobId,
-        url: cp.url,
-        title: cp.jobTitle,
-        folder: cp.folder,
-        kind: cp.kind,
-        completedAt: new Date().toISOString(),
-        outcome: cancelled ? 'interrupted' : outcomeFromTracks(merged),
-        tracks: merged
-      }
-      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-      getWindow()?.webContents.send('history:changed')
-      if (!cancelled) deleteCheckpoint(jobsDir(), cp.jobId)
-      getWindow()?.webContents.send('jobs:interruptedChanged')
-    } catch (err) {
-      getWindow()?.setProgressBar(-1)
-      if (!(abort?.signal.aborted ?? false)) {
-        const message = err instanceof Error ? err.message : String(err)
-        log.error('app', 'resume failed:', err)
-        getWindow()?.webContents.send('job:status', { phase: 'error', error: message })
-      }
-    } finally {
-      jobControls = null
-      activeJobId = null
-    }
+    // Reuse the checkpoint's jobId so the worker's sink continues the same file.
+    pool.enqueue(cp.jobId, { kind: 'resume', req, completed })
   }
 
   /** Retry just the failed tracks of a finished history entry, merging results in place. */
-  const runRetryFailed = async (entryId: string): Promise<void> => {
+  const runRetryFailed = (entryId: string): void => {
     const settings = loadSettings()
     const src = settings.history.find((h) => h.id === entryId)
     if (!src) return
@@ -586,9 +549,6 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       .map((t, index) => ({ t, index }))
       .filter(({ t }) => t.status === 'failed')
     if (failed.length === 0) return
-    resumeAllChildren()
-    getWindow()?.webContents.send('job:paused', false)
-    abort = new AbortController()
     const req: StartJobRequest = {
       url: src.url,
       title: src.title,
@@ -600,27 +560,12 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       })),
       folderOverride: src.folder
     }
-    try {
-      const deps = resumeDeps(settings)
-      const result = await runPipeline(buildDownloadSourceFromEntries(req, deps), deps)
-      getWindow()?.setProgressBar(-1)
-      const latest = loadSettings()
-      const current = latest.history.find((h) => h.id === entryId)?.tracks ?? src.tracks
-      const tracks = [...current]
-      result.tracks.forEach((rt, i) => {
-        if (rt.status === 'done') tracks[failed[i].index] = rt
-      })
-      const history = latest.history.map((h) =>
-        h.id === entryId ? { ...h, tracks, outcome: outcomeFromTracks(tracks) } : h
-      )
-      saveSettings(settingsPath(), { ...latest, history })
-      getWindow()?.webContents.send('history:changed')
-    } catch (err) {
-      getWindow()?.setProgressBar(-1)
-      if (!(abort?.signal.aborted ?? false)) log.error('app', 'retry-failed failed:', err)
-    } finally {
-      jobControls = null
-    }
+    pool.enqueue(randomUUID(), {
+      kind: 'retryFailed',
+      req,
+      entryId,
+      failedIndices: failed.map((f) => f.index)
+    })
   }
 
   ipcMain.handle('jobs:listInterrupted', () => listInterruptedSummaries())
@@ -632,12 +577,12 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     dismissCheckpoint(jobsDir(), jobId, Date.now())
     return listInterruptedSummaries()
   })
-  ipcMain.handle('jobs:resume', async (_e, jobId: string) => {
+  ipcMain.handle('jobs:resume', (_e, jobId: string) => {
     const cp = readCheckpoint(join(jobsDir(), `${jobId}.json`))
-    if (cp) await runResume(cp)
+    if (cp) runResume(cp)
   })
-  ipcMain.handle('jobs:retryFailed', async (_e, entryId: string) => {
-    await runRetryFailed(entryId)
+  ipcMain.handle('jobs:retryFailed', (_e, entryId: string) => {
+    runRetryFailed(entryId)
   })
 }
 
@@ -911,7 +856,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   // Closing the console during shutdown must not reset its remembered floating mode.
   consoleRedockOnClose = false
-  abort?.abort()
+  resolveAbort?.abort()
+  jobPool?.shutdown()
   killAllChildren()
   terminateAnalyzeClient()
   terminateMediaClient()

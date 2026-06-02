@@ -116,7 +116,7 @@ export function createJobPool(opts: JobPoolOptions): JobPool {
     const meta: JobMeta = { ...q.meta, state: 'running' }
     running.set(q.meta.jobId, { meta, client, payload: q.payload })
     const base = opts.depsConfig()
-    const cookieFile = q.payload.kind !== 'retransform' ? q.payload.cookieFile : undefined
+    const cookieFile = 'cookieFile' in q.payload ? q.payload.cookieFile : undefined
     client.start(q.meta.jobId, q.payload, { ...base, cookieFile, initialLimit: 1 })
     rebalance() // set the real budget now that the running set changed
   }

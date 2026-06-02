@@ -14,6 +14,7 @@ import type {
 import type { BinaryPaths } from '../binaries'
 import type { JobResult } from '../pipeline'
 import type { RetransformTarget } from '../retransform-source'
+import type { IndexedTrack } from '../resume-merge'
 
 export type { JobKind, JobState, JobMeta }
 
@@ -30,9 +31,16 @@ export interface JobDepsConfig {
   initialLimit: number
 }
 
-/** What a `start` message carries for each job kind. */
+/**
+ * What a `start` message carries for each job kind. The worker only reads `req`
+ * (download/resume/retryFailed all build a download source) or `targets`
+ * (retransform); the remaining fields are context the MAIN process needs to fold
+ * the result back into history (merge for resume, in-place overwrite for retry).
+ */
 export type JobStartPayload =
-  | { kind: 'download' | 'resume'; req: StartJobRequest; cookieFile?: string; resumeJobId?: string }
+  | { kind: 'download'; req: StartJobRequest; cookieFile?: string }
+  | { kind: 'resume'; req: StartJobRequest; cookieFile?: string; completed: IndexedTrack[] }
+  | { kind: 'retryFailed'; req: StartJobRequest; entryId: string; failedIndices: number[] }
   | { kind: 'retransform'; targets: RetransformTarget[] }
 
 /** Main → worker messages. */
