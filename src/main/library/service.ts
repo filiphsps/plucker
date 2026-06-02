@@ -3,7 +3,9 @@ import type { Repo } from './repo'
 import type { ContentStore } from './content-store'
 import type { JobResult } from '../pipeline'
 import type { TransformInstance } from '../../shared/transforms'
+import type { TrackTags } from '../../shared/types'
 import { foldJobResultIntoLibrary } from './ingest'
+import { exportTracks as exportTracksToFolder } from './export'
 import type { CollectionView, TrackDetail, ActivityEvent } from '../../shared/library'
 
 export interface LibraryDeps {
@@ -21,6 +23,10 @@ export interface LibraryDeps {
     sourceFile: string
     chain: TransformInstance[]
   }) => Promise<void>
+  /** Compute an export filename (no extension) from a version's resolved tags. */
+  buildName?: (tags: TrackTags) => string
+  /** Whether multi-track collections export into a per-collection subfolder. */
+  perPlaylistSubfolder?: () => boolean
 }
 
 export function createLibraryService(deps: LibraryDeps) {
@@ -140,6 +146,20 @@ export function createLibraryService(deps: LibraryDeps) {
     renameVersion(versionId: string, label: string): void {
       repo.setVersionLabel(versionId, label)
       emit('library:changed')
+    },
+
+    /** Materialize each track's current version and copy it to `destFolder`. */
+    async exportTracks(trackIds: string[], destFolder: string): Promise<string[]> {
+      const written = await exportTracksToFolder(
+        { repo, materialize: deps.materialize!, buildName: deps.buildName! },
+        trackIds, destFolder, { perPlaylistSubfolder: deps.perPlaylistSubfolder?.() ?? false }
+      )
+      repo.insertActivity({
+        id: clock.idGen(), type: 'exported', ts: clock.now(),
+        summary: `Exported ${written.length} track${written.length === 1 ? '' : 's'} to ${destFolder}`
+      })
+      emit('library:activityChanged')
+      return written
     }
   }
 }

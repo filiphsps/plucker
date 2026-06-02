@@ -51,6 +51,7 @@ import { createMaterializer } from './library/materialize'
 import { collectGarbage } from './library/gc'
 import { buildRegistry } from './transforms/registry'
 import { transformLog } from './transforms/transform-logger'
+import { buildFileName } from './rename'
 import { addUrl, removeUrl } from '../shared/url-history'
 import type { TransformInstance } from '../shared/transforms'
 import { killAllChildren } from './spawn'
@@ -159,7 +160,16 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     materialize: (versionId) => libraryMaterializer.ensureMaterialized(versionId),
     dispatchEdit: async (payload) => {
       jobPool?.enqueue(randomUUID(), { kind: 'libraryEdit', ...payload })
-    }
+    },
+    buildName: (tags) => {
+      // Name exports with the user's rename-transform template (or its default).
+      const rename = loadSettings().transforms.find((i) => i.type === 'rename')
+      const template =
+        (rename?.config.template as string | undefined) ??
+        '{artist} - {track}. {title} - {album} ({year})'
+      return buildFileName(template, tags)
+    },
+    perPlaylistSubfolder: () => loadSettings().downloads.perPlaylistSubfolder
   })
 
   ipcMain.handle('app:locale', () => app.getLocale())
@@ -315,6 +325,9 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   )
   ipcMain.handle('library:renameVersion', (_e, versionId: string, label: string) =>
     library.renameVersion(versionId, label)
+  )
+  ipcMain.handle('library:export', (_e, trackIds: string[], destFolder: string) =>
+    library.exportTracks(trackIds, destFolder)
   )
 
   const win = (): BrowserWindow | null => getWindow()
