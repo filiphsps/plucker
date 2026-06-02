@@ -200,21 +200,48 @@ export interface HistoryTrack {
 }
 
 /** Overall outcome of a recorded job, driving the history entry badge. */
-export type JobOutcome = 'completed' | 'partial' | 'failed' | 'cancelled'
+export type JobOutcome = 'completed' | 'partial' | 'failed' | 'cancelled' | 'interrupted'
 
 /** A download job recorded in the persistent history. */
 export interface HistoryEntry {
   id: string
+  /** Links this entry to its checkpoint file when the job was interrupted/resumable. */
+  jobId?: string
   url: string
   title: string
   folder: string
   kind: 'playlist' | 'video'
   completedAt: string // ISO timestamp
-  /** Job-level result: all done, some failed (partial), all failed, or cancelled. */
+  /** Job-level result: all done, some failed (partial), all failed, cancelled, or interrupted. */
   outcome: JobOutcome
   /** Job-level error detail when the job failed to start (e.g. resolution failure). */
   reason?: string
   tracks: HistoryTrack[]
+}
+
+/** One entry in a durable job checkpoint (mirrors a track's lifecycle). */
+export interface CheckpointEntry {
+  index: number
+  /** Source video id, used to rebuild the per-track download URL on resume. */
+  videoId?: string
+  title: string
+  status: TrackStatus
+  /** Rich record once the track is terminal (carried into the resumed history entry). */
+  track?: HistoryTrack
+}
+
+/** A durable, resumable snapshot of an in-progress job. One file per active job. */
+export interface JobCheckpoint {
+  jobId: string
+  version: 1
+  url: string
+  folder: string
+  jobTitle: string
+  kind: 'playlist' | 'video'
+  startedAt: number
+  updatedAt: number
+  total: number
+  entries: CheckpointEntry[]
 }
 
 /** One entry in a resolved playlist/video, before download. */
