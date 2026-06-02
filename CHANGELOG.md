@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.0](https://github.com/filiphsps/plucker/compare/plucker-v0.15.1...plucker-v0.16.0) (2026-06-02)
+
+
+### Features
+
+* **history:** replace playlist cover placeholder with outcome ring ([3f557f0](https://github.com/filiphsps/plucker/commit/3f557f0fec6c949fb4555def2806bd4052b92805))
+* **settings:** show the console toggle shortcut in its description ([208a62b](https://github.com/filiphsps/plucker/commit/208a62b965835ab9e4eedd08f4733f4876e25b6b))
+
+
+### Bug Fixes
+
+* **dev:** keep window placement and focus across HMR restarts ([426f194](https://github.com/filiphsps/plucker/commit/426f194150c106e882758a635faf40478325570d))
+
+
+### Performance Improvements
+
+* **pipeline:** decouple download and transform into independent stages ([79cd143](https://github.com/filiphsps/plucker/commit/79cd143a860808aa8b4b0d64e6fa4ef3405b87b0))
+* **transform:** run ID3 tag I/O and audio hashing off the main thread ([fc9d9c4](https://github.com/filiphsps/plucker/commit/fc9d9c4fa6e6a9ed0372f2705110e969d81d3408))
+
 ## [0.15.1](https://github.com/filiphsps/plucker/compare/plucker-v0.15.0...plucker-v0.15.1) (2026-06-02)
 
 
