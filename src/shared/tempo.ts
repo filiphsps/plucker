@@ -1,5 +1,6 @@
 // src/shared/tempo.ts
 import { fft } from './fft'
+import { foldBpm } from './bpm-fold'
 
 export interface TempoRange {
   minBpm: number
@@ -127,8 +128,6 @@ export function estimateBpm(
   // Refine the lag to sub-sample precision against the raw autocorrelation.
   const refined = bestLag + refinePeak(acAt(bestLag - 1), acAt(bestLag), acAt(bestLag + 1))
 
-  let bpm = (60 * hopRateHz) / refined
-  while (bpm < range.minBpm) bpm *= 2
-  while (bpm > range.maxBpm) bpm /= 2
-  return Math.round(bpm)
+  const bpm = (60 * hopRateHz) / refined
+  return foldBpm(bpm, range)
 }
