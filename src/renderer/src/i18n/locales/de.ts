@@ -290,6 +290,21 @@ const de: typeof en = {
       label: 'Cover quadratisch zuschneiden',
       description:
         'Eingebettetes Cover mittig auf ein Quadrat zuschneiden und die längere Seite kürzen.'
+    },
+    trimSilence: {
+      label: 'Stille entfernen',
+      description: 'Stille am Anfang und/oder Ende des Titels entfernen.',
+      fields: {
+        mode: 'Entfernen',
+        thresholdDb: 'Stille-Schwelle (dB) — niedriger ist strenger; -90 ≈ echte Stille',
+        minDurationSec: 'Mindeststille (Sekunden)'
+      },
+      modes: {
+        both: 'Anfang und Ende',
+        start: 'Nur Anfang',
+        end: 'Nur Ende',
+        none: 'Deaktiviert'
+      }
     }
   }
 }

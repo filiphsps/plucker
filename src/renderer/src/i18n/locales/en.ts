@@ -287,6 +287,21 @@ export default {
     squareCover: {
       label: 'Square cover art',
       description: 'Center-crop the embedded cover to a square, trimming the longer side.'
+    },
+    trimSilence: {
+      label: 'Trim silence',
+      description: 'Remove silent audio from the start and/or end of the track.',
+      fields: {
+        mode: 'Trim',
+        thresholdDb: 'Silence threshold (dB) — lower is stricter; -90 ≈ true silence',
+        minDurationSec: 'Minimum silence (seconds)'
+      },
+      modes: {
+        both: 'Start and end',
+        start: 'Start only',
+        end: 'End only',
+        none: 'Disabled'
+      }
     }
   }
 }

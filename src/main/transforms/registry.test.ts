@@ -8,6 +8,8 @@ describe('registry', () => {
     expect(r.get('auto-tag')?.type).toBe('auto-tag')
     expect(r.get('rename')?.type).toBe('rename')
     expect(r.get('square-cover')?.type).toBe('square-cover')
+    expect(r.get('trim-silence')?.type).toBe('trim-silence')
+    expect(r.get('trim-silence')?.allowMultiple).toBe(true)
   })
   it('catalog is serializable and omits run()', () => {
     const catalog = getCatalog()
