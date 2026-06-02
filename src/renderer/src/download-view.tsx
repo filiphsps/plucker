@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Download, X } from 'lucide-react'
-import type { JobProgress, JobStatus, LogEntry, PlaylistEntry } from '../../shared/types'
+import type { JobStatus, LogEntry, PlaylistEntry } from '../../shared/types'
+import type { JobView } from './job-view'
 import { isSupportedUrl } from '../../shared/url-providers'
 import { TrackRow } from './track-row'
 import { VirtualList } from './ui/virtual-list'
@@ -11,9 +12,6 @@ import { statusColumnWidth } from './status-column'
 import { ResolvePanel } from './resolve-panel'
 import { UrlSuggestions } from './ui/url-suggestions'
 import { removeEntry, moveEntry } from './staging-list'
-
-/** Track statuses that mean a job is still working and the command bar must stay locked. */
-const ACTIVE_STATUSES: ReadonlySet<string> = new Set(['queued', 'downloading', 'transforming'])
 
 /** A resolved-but-not-started job awaiting the user's Start click. */
 interface StagedJob {
@@ -77,41 +75,108 @@ function StagedRow({
   )
 }
 
+/** The track list + column header for a selected job's progress. */
+function JobDetail({ job }: { job: JobView }): React.JSX.Element {
+  const { t } = useTranslation()
+  const statusWidth = statusColumnWidth(t)
+  const jobId = job.meta.jobId
+  const progress = job.progress
+
+  if (!progress) return <ResolvePanel entries={[]} />
+
+  // The single "now plucking" row to highlight — same selection the deck uses.
+  const activeIndex = (
+    progress.tracks.find((x) => x.status === 'downloading' || x.status === 'transforming') ??
+    progress.tracks.find((x) => x.status === 'queued')
+  )?.index
+
+  return (
+    <>
+      <div className="flex items-center gap-3 border-b border-line py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
+        <span className="w-[22px]">#</span>
+        <span className="flex-1">{t('download.colTrack')}</span>
+        <span className="w-[64px]" />
+        <span className="w-[188px]">{t('download.colProgress')}</span>
+        <span style={{ width: statusWidth }} className="whitespace-nowrap text-right">
+          {t('download.colStatus')}
+        </span>
+      </div>
+
+      <VirtualList
+        className="min-h-0 flex-1 overflow-auto"
+        items={progress.tracks}
+        getKey={(tr) => tr.index}
+        estimateSize={48}
+      >
+        {(tr) => (
+          <TrackRow
+            variant="download"
+            index={tr.index}
+            track={tr}
+            active={tr.index === activeIndex}
+            source={{ videoId: tr.videoId }}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              void showContextMenu(
+                trackRowMenuItems({
+                  t,
+                  variant: 'download',
+                  track: {
+                    ...tr,
+                    status: tr.status,
+                    paused: job.trackPaused[tr.index] ?? false
+                  },
+                  missing: false,
+                  failed: tr.status === 'failed',
+                  onReveal: () => tr.file && window.plucker.revealFile(tr.file),
+                  onSkip: () => void window.plucker.skipTrack(jobId, tr.index),
+                  onPause: () => void window.plucker.pauseTrack(jobId, tr.index),
+                  onResume: () => void window.plucker.resumeTrack(jobId, tr.index)
+                })
+              )
+            }}
+          />
+        )}
+      </VirtualList>
+    </>
+  )
+}
+
 export function DownloadView({
-  progress,
+  job,
   statusLog,
   resolveLog,
   urlHistory,
-  trackPaused,
   redownloadRequest,
   prefill,
-  onRunningChange,
-  onStart,
+  onResolveStart,
+  onJobStarted,
   onClear,
   onRedownloadConsumed
 }: {
-  progress: JobProgress | null
+  /** The selected job to show, or null to show the compose/stage flow. */
+  job: JobView | null
   /** Resolving trigger: non-null while a job is starting, null once tracks arrive. */
   statusLog: JobStatus[] | null
-  /** Live log lines for the current job (shared with the developer console). */
+  /** Live log lines for the current resolution (shared with the developer console). */
   resolveLog: LogEntry[]
   /** Past download URLs (most-recent-first) for the suggestions dropdown. */
   urlHistory: string[]
-  /** Per-track paused state for the live job (index → paused). */
-  trackPaused: Record<number, boolean>
   /** A history redownload request to auto-resolve into the staging list. */
   redownloadRequest?: { url: string; folder: string } | null
   /** Set the URL field and focus it (File ▸ New Download clears with '', Open URL… prefills). */
   prefill?: { url: string; nonce: number } | null
-  onRunningChange: (running: boolean) => void
-  onStart: () => void
-  /** Reset the page back to its empty state (clears progress + resolve log). */
+  /** Resolution started — seed the resolve-log window upstream. */
+  onResolveStart: () => void
+  /** A job was started; receives its jobId so the parent can select it. */
+  onJobStarted: (jobId: string) => void
+  /** Reset the compose pane back to its empty state. */
   onClear: () => void
   /** Signal that a redownload request has been consumed (clear it upstream). */
   onRedownloadConsumed?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const statusWidth = statusColumnWidth(t)
   const inputRef = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState('')
   const [resolving, setResolving] = useState(false)
@@ -122,15 +187,13 @@ export function DownloadView({
   const [staged, setStaged] = useState<StagedJob | null>(null)
 
   const trimmed = url.trim()
-  // The job is "active" (and the bar locked) while resolving or while any track is
-  // still queued/downloading/transforming. Staging keeps the bar editable.
-  const downloading = progress?.tracks.some((tr) => ACTIVE_STATUSES.has(tr.status)) ?? false
-  const locked = resolving || downloading
+  // In compose mode the bar locks only while resolving (each job runs in its own
+  // worker now, so a running job never blocks composing the next one).
+  const locked = resolving
 
   const valid = isSupportedUrl(trimmed)
   const invalid = trimmed.length > 0 && !valid && !locked
-  const hasContent =
-    progress !== null || statusLog !== null || staged !== null || trimmed.length > 0
+  const hasContent = statusLog !== null || staged !== null || trimmed.length > 0
 
   // Suggestions: filter history by case-insensitive substring. Hidden until the
   // input has at least one character so the dropdown doesn't show on empty focus.
@@ -150,15 +213,13 @@ export function DownloadView({
 
   // React to File ▸ New Download / Open URL…: set the field from the menu command.
   // `nonce` makes the same URL (or a repeated empty "New Download") retrigger. This
-  // derives state from a changing prop during render — React's recommended pattern,
-  // not an effect — see https://react.dev/learn/you-might-not-need-an-effect.
+  // derives state from a changing prop during render — React's recommended pattern.
   const [lastPrefillNonce, setLastPrefillNonce] = useState<number | null>(null)
   if (prefill && prefill.nonce !== lastPrefillNonce) {
     setLastPrefillNonce(prefill.nonce)
     setUrl(prefill.url)
     setDismissed(true)
   }
-  // Focus the bar after the prefill commits (side effect only — no setState here).
   useEffect(() => {
     if (prefill) inputRef.current?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,10 +233,16 @@ export function DownloadView({
     void window.plucker.addUrlHistory(u)
     setDismissed(true)
     setResolving(true)
-    onStart() // clears prior progress + seeds the resolve-log window
+    onResolveStart() // clears prior status + seeds the resolve-log window
     try {
-      const job = await window.plucker.resolveJob(u)
-      setStaged({ url: u, title: job.title, kind: job.kind, entries: job.entries, folderOverride })
+      const resolved = await window.plucker.resolveJob(u)
+      setStaged({
+        url: u,
+        title: resolved.title,
+        kind: resolved.kind,
+        entries: resolved.entries,
+        folderOverride
+      })
     } catch {
       // Resolve errors surface in the ResolvePanel via job:status.
     } finally {
@@ -193,24 +260,20 @@ export function DownloadView({
       entries: staged.entries,
       folderOverride: staged.folderOverride
     }
-    // Hand off to the live job; the resolve panel covers the brief gap until the
-    // first progress frame arrives and the track list takes over.
     setStaged(null)
     setBusy(true)
-    onRunningChange(true)
     try {
-      await window.plucker.startDownload(req)
+      const jobId = await window.plucker.startDownload(req)
+      onJobStarted(jobId) // parent selects the new job; its detail takes over
     } catch {
       // Start errors surface in the ResolvePanel via job:status.
     } finally {
       setBusy(false)
-      onRunningChange(false)
     }
   }
 
   // Auto-resolve a history redownload request into the staging list. This is a
-  // one-shot reaction to an external signal (a new request object), so kicking
-  // off the resolve here — which updates state — is intentional.
+  // one-shot reaction to an external signal (a new request object).
   /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     if (!redownloadRequest) return
@@ -251,12 +314,6 @@ export function DownloadView({
     }
   }
 
-  // The single "now plucking" row to highlight — same selection the transport deck uses.
-  const activeIndex = (
-    progress?.tracks.find((x) => x.status === 'downloading' || x.status === 'transforming') ??
-    progress?.tracks.find((x) => x.status === 'queued')
-  )?.index
-
   function onPageContextMenu(e: React.MouseEvent): void {
     e.preventDefault()
     void showContextMenu([
@@ -267,6 +324,16 @@ export function DownloadView({
         onClick: clear
       }
     ])
+  }
+
+  // A selected job shows its track list; the deck (rendered by the parent) drives
+  // its transport. The compose flow only renders when no job is selected.
+  if (job) {
+    return (
+      <div className="flex h-full flex-col">
+        <JobDetail job={job} />
+      </div>
+    )
   }
 
   return (
@@ -341,58 +408,7 @@ export function DownloadView({
         </button>
       </div>
 
-      {progress ? (
-        <>
-          {/* column header */}
-          <div className="flex items-center gap-3 border-b border-line py-[7px] pl-[42px] pr-4 font-mono text-[9.5px] uppercase tracking-[1px] text-ink-faint">
-            <span className="w-[22px]">#</span>
-            <span className="flex-1">{t('download.colTrack')}</span>
-            <span className="w-[64px]" />
-            <span className="w-[188px]">{t('download.colProgress')}</span>
-            <span style={{ width: statusWidth }} className="whitespace-nowrap text-right">
-              {t('download.colStatus')}
-            </span>
-          </div>
-
-          <VirtualList
-            className="min-h-0 flex-1 overflow-auto"
-            items={progress.tracks}
-            getKey={(tr) => tr.index}
-            estimateSize={48}
-          >
-            {(tr) => (
-              <TrackRow
-                variant="download"
-                index={tr.index}
-                track={tr}
-                active={tr.index === activeIndex}
-                source={{ videoId: tr.videoId }}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  void showContextMenu(
-                    trackRowMenuItems({
-                      t,
-                      variant: 'download',
-                      track: {
-                        ...tr,
-                        status: tr.status,
-                        paused: trackPaused[tr.index] ?? false
-                      },
-                      missing: false,
-                      failed: tr.status === 'failed',
-                      onReveal: () => tr.file && window.plucker.revealFile(tr.file),
-                      onSkip: () => void window.plucker.skipTrack(tr.index),
-                      onPause: () => void window.plucker.pauseTrack(tr.index),
-                      onResume: () => void window.plucker.resumeTrack(tr.index)
-                    })
-                  )
-                }}
-              />
-            )}
-          </VirtualList>
-        </>
-      ) : staged ? (
+      {staged ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2">
             <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">

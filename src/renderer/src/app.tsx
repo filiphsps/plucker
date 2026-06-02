@@ -4,24 +4,32 @@ import { HistoryView } from './history-view'
 import { SettingsPanel } from './settings-panel'
 import { CacheView } from './cache-view'
 import { TransportDeck } from './transport-deck'
+import { JobRail } from './job-rail'
 import { Header, type View } from './header'
 import { ConsoleDrawer } from './console-drawer'
 import { Page } from './ui/page'
 import { ResumeBanner, type InterruptedJob } from './resume-banner'
+import { StatusBar } from './status-bar'
+import { useNetworkStatus } from './use-network-status'
+import { NetworkStatusBadge } from './network-status'
 import { applyLanguage } from './i18n'
 import { showContextMenu, type MenuItem } from './ui/context-menu'
-import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
+import type { JobStatus, LogEntry } from '../../shared/types'
+import type { JobView } from './job-view'
+
+/** Track statuses that mean a job is still working (drives deck visibility). */
+const ACTIVE = new Set(['queued', 'downloading', 'transforming'])
 
 export default function App(): React.JSX.Element {
   const [view, setView] = useState<View>('download')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cacheOpen, setCacheOpen] = useState(false)
-  const [progress, setProgress] = useState<JobProgress | null>(null)
+  // All jobs (running + queued), keyed by jobId. Roster drives membership; the
+  // jobId-tagged events fill each job's progress/paused detail.
+  const [jobs, setJobs] = useState<Map<string, JobView>>(new Map())
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [statusLog, setStatusLog] = useState<JobStatus[] | null>(null)
   const [urlHistory, setUrlHistory] = useState<string[]>([])
-  const [running, setRunning] = useState(false)
-  const [paused, setPaused] = useState(false)
-  const [trackPaused, setTrackPaused] = useState<Record<number, boolean>>({})
   const [redownloadRequest, setRedownloadRequest] = useState<{
     url: string
     folder: string
@@ -43,6 +51,10 @@ export default function App(): React.JSX.Element {
   // the next listInterruptedJobs round-trip.
   const [interrupted, setInterrupted] = useState<InterruptedJob[]>([])
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+
+  // Bottom info bar: currently just connectivity, but the bar grows by pushing more
+  // items below (see StatusBar). It stays collapsed whenever every item is idle.
+  const networkPhase = useNetworkStatus()
 
   useEffect(() => {
     window.plucker.getSettings().then((s) => {
@@ -119,30 +131,99 @@ export default function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [consoleOpen])
 
+  // Roster drives which jobs exist; preserve each existing job's detail across updates.
   useEffect(
     () =>
-      window.plucker.onProgress((p) => {
-        setProgress(p)
-        setStatusLog(null) // real track list takes over
-      }),
-    []
-  )
-
-  useEffect(() => window.plucker.onPaused(setPaused), [])
-
-  useEffect(
-    () =>
-      window.plucker.onTrackPaused((index, p) =>
-        setTrackPaused((prev) => ({ ...prev, [index]: p }))
+      window.plucker.onJobsChanged((roster) =>
+        setJobs((prev) => {
+          const next = new Map<string, JobView>()
+          for (const meta of roster) {
+            const existing = prev.get(meta.jobId)
+            next.set(
+              meta.jobId,
+              existing
+                ? { ...existing, meta }
+                : { meta, progress: null, paused: false, trackPaused: {} }
+            )
+          }
+          return next
+        })
       ),
     []
   )
 
+  // Seed the initial roster on mount (covers jobs already running at launch).
+  useEffect(() => {
+    window.plucker.jobsList().then((roster) =>
+      setJobs((prev) => {
+        const next = new Map(prev)
+        for (const meta of roster) {
+          if (!next.has(meta.jobId)) {
+            next.set(meta.jobId, {
+              meta,
+              progress: null,
+              paused: false,
+              trackPaused: {}
+            })
+          }
+        }
+        return next
+      })
+    )
+  }, [])
+
+  // Per-job progress / paused / track-paused updates, keyed by jobId.
   useEffect(
     () =>
-      window.plucker.onStatus((s) =>
+      window.plucker.onProgress((jobId, p) =>
+        setJobs((prev) => {
+          const v = prev.get(jobId)
+          if (!v) return prev
+          const next = new Map(prev)
+          next.set(jobId, { ...v, progress: p })
+          return next
+        })
+      ),
+    []
+  )
+  useEffect(
+    () =>
+      window.plucker.onPaused((jobId, paused) =>
+        setJobs((prev) => {
+          const v = prev.get(jobId)
+          if (!v) return prev
+          const next = new Map(prev)
+          next.set(jobId, { ...v, paused })
+          return next
+        })
+      ),
+    []
+  )
+  useEffect(
+    () =>
+      window.plucker.onTrackPaused((jobId, index, paused) =>
+        setJobs((prev) => {
+          const v = prev.get(jobId)
+          if (!v) return prev
+          const next = new Map(prev)
+          next.set(jobId, {
+            ...v,
+            trackPaused: { ...v.trackPaused, [index]: paused }
+          })
+          return next
+        })
+      ),
+    []
+  )
+
+  // Status with an empty jobId is the pre-job resolution stream (drives the compose
+  // ResolvePanel). Per-job error statuses surface in History + the console.
+  useEffect(
+    () =>
+      window.plucker.onStatus((jobId, s) => {
+        if (jobId !== '') return
         setStatusLog((prev) => (prev ? [...prev, s].slice(-60) : [s]))
-      ),
+      }),
     []
   )
 
@@ -164,13 +245,14 @@ export default function App(): React.JSX.Element {
     []
   )
 
-  // File ▸ New Download (empty) / Open URL… (clipboard URL): jump to the Download view
-  // and push the URL into its command bar.
+  // File ▸ New Download (empty) / Open URL… (clipboard URL): jump to the Download view,
+  // select the compose pane, and push the URL into its command bar.
   useEffect(() => {
     const toDownload = (url: string): void => {
       setSettingsOpen(false)
       setCacheOpen(false)
       setView('download')
+      setSelectedJobId(null)
       setPrefill({ url, nonce: ++prefillNonce.current })
     }
     const offNew = window.plucker.onMenuNewDownload(() => toDownload(''))
@@ -181,17 +263,17 @@ export default function App(): React.JSX.Element {
     }
   }, [])
 
-  // The transport deck (bottom bar) must follow the *job*, not just the download
-  // view's local `running` flag — re-downloads launched from the History page
-  // start a job without ever flipping that flag. Treat any in-flight progress
-  // (queued/downloading/transforming) as a live job so the deck shows regardless
-  // of where the download was triggered, and hides once every track is terminal.
-  const jobActive =
-    progress?.tracks.some(
-      (tk) => tk.status === 'queued' || tk.status === 'downloading' || tk.status === 'transforming'
-    ) ?? false
-  const deckVisible = progress !== null && (running || jobActive)
   const overlayOpen = settingsOpen || cacheOpen
+  const selectedJob = selectedJobId ? (jobs.get(selectedJobId) ?? null) : null
+  const railItems = [...jobs.values()].map((v) => ({
+    meta: v.meta,
+    overall: v.progress?.overall ?? 0
+  }))
+  // Show the deck for the selected job only while it has work in flight.
+  const deckJob =
+    selectedJob && selectedJob.progress?.tracks.some((t) => ACTIVE.has(t.status))
+      ? selectedJob
+      : null
 
   const visibleInterrupted = interrupted.filter((j) => !dismissed.has(j.jobId))
   const handleResume = (jobId: string): void => {
@@ -262,27 +344,34 @@ export default function App(): React.JSX.Element {
             inactive ones (state + DOM preserved, Effects unmounted) and restores
             them on return. Exactly one page is active at a time. */}
         <Page active={!overlayOpen && view === 'download'}>
-          <DownloadView
-            progress={progress}
-            statusLog={statusLog}
-            resolveLog={logEntries.slice(jobLogStart)}
-            urlHistory={urlHistory}
-            trackPaused={trackPaused}
-            redownloadRequest={redownloadRequest}
-            prefill={prefill}
-            onRedownloadConsumed={() => setRedownloadRequest(null)}
-            onRunningChange={setRunning}
-            onStart={() => {
-              setProgress(null)
-              setStatusLog([])
-              setJobLogStart(logLen.current)
-              setTrackPaused({})
-            }}
-            onClear={() => {
-              setProgress(null)
-              setStatusLog(null)
-            }}
-          />
+          <div className="flex h-full min-h-0">
+            <JobRail
+              jobs={railItems}
+              selectedJobId={selectedJobId}
+              onSelect={setSelectedJobId}
+              onCancel={(jobId) => void window.plucker.cancel(jobId)}
+            />
+            <div className="min-h-0 flex-1">
+              <DownloadView
+                job={selectedJob}
+                statusLog={statusLog}
+                resolveLog={logEntries.slice(jobLogStart)}
+                urlHistory={urlHistory}
+                redownloadRequest={redownloadRequest}
+                prefill={prefill}
+                onRedownloadConsumed={() => setRedownloadRequest(null)}
+                onResolveStart={() => {
+                  setStatusLog([])
+                  setJobLogStart(logLen.current)
+                }}
+                onJobStarted={(jobId) => {
+                  setSelectedJobId(jobId)
+                  setStatusLog(null)
+                }}
+                onClear={() => setStatusLog(null)}
+              />
+            </div>
+          </div>
         </Page>
         <Page active={!overlayOpen && view === 'history'}>
           <HistoryView
@@ -293,6 +382,7 @@ export default function App(): React.JSX.Element {
             onRequestRedownload={(url, folder) => {
               setSettingsOpen(false)
               setView('download')
+              setSelectedJobId(null)
               setRedownloadRequest({ url, folder })
             }}
           />
@@ -316,14 +406,29 @@ export default function App(): React.JSX.Element {
         </Page>
       </div>
 
-      {deckVisible && progress && (
+      {deckJob && deckJob.progress && (
         <TransportDeck
-          progress={progress}
-          paused={paused}
-          onTogglePause={() => (paused ? window.plucker.resume() : window.plucker.pause())}
-          onCancel={() => window.plucker.cancel()}
+          progress={deckJob.progress}
+          paused={deckJob.paused}
+          onTogglePause={() =>
+            deckJob.paused
+              ? window.plucker.resume(deckJob.meta.jobId)
+              : window.plucker.pause(deckJob.meta.jobId)
+          }
+          onCancel={() => window.plucker.cancel(deckJob.meta.jobId)}
         />
       )}
+
+      <StatusBar
+        items={[
+          networkPhase
+            ? {
+                id: 'network',
+                node: <NetworkStatusBadge phase={networkPhase} />
+              }
+            : null
+        ]}
+      />
 
       {consoleAvailable && consoleOpen && consoleMode === 'docked' && (
         <ConsoleDrawer
