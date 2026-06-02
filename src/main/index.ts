@@ -138,6 +138,9 @@ function applyConsoleLogging(): void {
 function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('app:locale', () => app.getLocale())
   ipcMain.handle('accent:get', () => getAccentColor())
+  // Fullscreen state drives the custom toolbar layout: macOS hides the native traffic
+  // lights in fullscreen, so the renderer drops the gap reserved for them.
+  ipcMain.handle('window:isFullscreen', () => getWindow()?.isFullScreen() ?? false)
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:save', (_e, s: Settings) => {
     saveSettings(settingsPath(), s)
@@ -757,6 +760,11 @@ function createWindow(): void {
     consoleRedockOnClose = false
     closeConsoleWindow()
   })
+
+  // Tell the renderer when we cross the fullscreen boundary so the custom toolbar can
+  // reclaim the space normally reserved for the (now hidden) macOS traffic lights.
+  win.on('enter-full-screen', () => win.webContents.send('window:fullscreen', true))
+  win.on('leave-full-screen', () => win.webContents.send('window:fullscreen', false))
 
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

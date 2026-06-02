@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Logo } from './logo'
 import { HeaderIconButton } from './ui/header-icon-button'
+import { useFullscreen } from './use-fullscreen'
 
 export type View = 'download' | 'history'
 
@@ -34,6 +35,9 @@ export function Header({
   onToggleConsole?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
+  // In macOS fullscreen the traffic lights are hidden, so reclaim the gap reserved for
+  // them and fall back to the normal left padding.
+  const fullscreen = useFullscreen()
 
   const tab = (v: View, label: string, Icon: LucideIcon): React.JSX.Element => {
     const on = view === v && !settingsActive && !cacheActive
@@ -52,7 +56,12 @@ export function Header({
   }
 
   return (
-    <header className="drag flex h-12 items-center gap-4 border-b border-line bg-panel pl-[96px] pr-3.5">
+    <header
+      className={
+        'drag flex h-12 items-center gap-4 border-b border-line bg-panel pr-3.5 ' +
+        (fullscreen ? 'pl-4' : 'pl-[96px]')
+      }
+    >
       <Logo className="flex items-center" />
       <span className="h-[22px] w-px bg-line" />
       <nav className="no-drag flex gap-0.5">

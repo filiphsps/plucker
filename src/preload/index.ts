@@ -29,6 +29,14 @@ const api = {
     ipcRenderer.on('accent:changed', fn)
     return () => ipcRenderer.removeListener('accent:changed', fn)
   },
+  // Fullscreen state: lets the custom toolbar drop the macOS traffic-light gap when the
+  // native lights are hidden in fullscreen.
+  isFullscreen: (): Promise<boolean> => ipcRenderer.invoke('window:isFullscreen'),
+  onFullscreenChanged: (cb: (full: boolean) => void): (() => void) => {
+    const fn = (_: unknown, full: boolean): void => cb(full)
+    ipcRenderer.on('window:fullscreen', fn)
+    return () => ipcRenderer.removeListener('window:fullscreen', fn)
+  },
   getSettings: (): Promise<Settings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: Settings): Promise<void> => ipcRenderer.invoke('settings:save', s),
   // Factory reset: delete the config file and relaunch the app into default settings.
