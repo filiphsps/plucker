@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       # Electron + electron-builder download their binaries/tools to ~/Library/Caches;
@@ -143,7 +143,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       # Electron downloads its binary to ~/Library/Caches/electron during install;

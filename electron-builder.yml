@@ -2,10 +2,11 @@ appId: com.plucker.app
 productName: Plucker
 # store skips the extra archive compression pass: faster release builds for a
 # marginally larger artifact — the DMG is already zlib-compressed (UDZO) below.
-compression: store
+compression: normal
 # Rewrites the macOS Helper bundles' CFBundleName (which electron-builder leaves as
 # the upstream "Electron Helper (...)") to match productName. See the script header.
 afterPack: scripts/after-pack.mjs
+concurrency: 6
 directories:
   buildResources: build
 files:
@@ -78,6 +79,7 @@ dmg:
   # build/mount than bzip2 (UDBZ) for only a slightly larger image — the extra
   # compression wasn't worth the long CI release times.
   format: UDZO
+  filesystem: APFS
 linux:
   target:
     - AppImage
@@ -86,7 +88,7 @@ linux:
   maintainer: electronjs.org
   category: Utility
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: $me}-${version}.${ext}
 npmRebuild: false
 publish:
   provider: github

@@ -320,10 +320,13 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('library:edit', (_e, trackId: string, chain: TransformInstance[]) =>
     library.edit(trackId, chain)
   )
-  ipcMain.handle('library:createBranch', (_e, trackId: string, fromVersionId: string, name: string) => {
-    const id = library.createBranch(trackId, fromVersionId, name)
-    return { id, detail: library.getTrack(trackId) }
-  })
+  ipcMain.handle(
+    'library:createBranch',
+    (_e, trackId: string, fromVersionId: string, name: string) => {
+      const id = library.createBranch(trackId, fromVersionId, name)
+      return { id, detail: library.getTrack(trackId) }
+    }
+  )
   ipcMain.handle('library:switchBranch', (_e, trackId: string, branchId: string) => {
     library.switchBranch(trackId, branchId)
     return library.getTrack(trackId)

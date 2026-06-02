@@ -33,9 +33,7 @@ function singleFileSource(file: string, destFolder: string): JobSource {
         // Provide a stable file outside the per-track scratch dir (which the pipeline
         // reaps right after the download stage).
         async provide() {
-          return existsSync(file)
-            ? { kind: 'file', file }
-            : { kind: 'failed', reason: 'missing' }
+          return existsSync(file) ? { kind: 'file', file } : { kind: 'failed', reason: 'missing' }
         }
       }
     ]
@@ -52,7 +50,9 @@ describe('pipeline raw-capture → two-node ingest (integration)', () => {
       bin: { ytdlp: join(dir, 'noop-yt'), ffmpeg: join(dir, 'noop-ff') } as RunJobDeps['bin'],
       settings: {
         ...DEFAULT_SETTINGS,
-        transforms: [{ instanceId: 'r', type: 'rename', enabled: true, config: { template: 'renamed-track' } }]
+        transforms: [
+          { instanceId: 'r', type: 'rename', enabled: true, config: { template: 'renamed-track' } }
+        ]
       },
       homeBase: dir,
       onProgress: () => {}
