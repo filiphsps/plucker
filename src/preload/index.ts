@@ -17,7 +17,7 @@ import type {
   ConsoleWindowState
 } from '../shared/types'
 import type { TransformManifest } from '../shared/transforms'
-import type { MenuDescriptor } from '../shared/context-menu'
+import type { MenuAnchor, MenuDescriptor } from '../shared/context-menu'
 
 // Custom APIs for renderer
 const api = {
@@ -75,8 +75,8 @@ const api = {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
   // Native context menu: send a serializable descriptor, resolve with the clicked
   // item id (or null on dismiss). Clipboard write backs "Copy …" menu items.
-  popupMenu: (descriptor: MenuDescriptor): Promise<string | null> =>
-    ipcRenderer.invoke('menu:popup', descriptor),
+  popupMenu: (descriptor: MenuDescriptor, anchor?: MenuAnchor): Promise<string | null> =>
+    ipcRenderer.invoke('menu:popup', descriptor, anchor),
   copyText: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text),
   getCover: (file: string): Promise<string | null> => ipcRenderer.invoke('cover:get', file),
   getTrackMetadata: (file: string, hash?: string): Promise<TrackMetadata> =>
@@ -131,6 +131,17 @@ const api = {
     const fn = (_: unknown, target: MenuNavTarget): void => cb(target)
     ipcRenderer.on('menu:navigate', fn)
     return () => ipcRenderer.removeListener('menu:navigate', fn)
+  },
+  // Application-menu commands that need a renderer hook (File ▸ New Download / Open URL…).
+  onMenuNewDownload: (cb: () => void): (() => void) => {
+    const fn = (): void => cb()
+    ipcRenderer.on('menu:new-download', fn)
+    return () => ipcRenderer.removeListener('menu:new-download', fn)
+  },
+  onMenuOpenUrl: (cb: (url: string) => void): (() => void) => {
+    const fn = (_: unknown, url: string): void => cb(url)
+    ipcRenderer.on('menu:open-url', fn)
+    return () => ipcRenderer.removeListener('menu:open-url', fn)
   },
   // Developer console: live log stream, buffered tail, and reveal-in-Finder.
   onLog: (cb: (entry: LogEntry) => void): (() => void) => {

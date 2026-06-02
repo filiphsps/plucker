@@ -24,7 +24,7 @@ export type ProcessPriority = 'normal' | 'low'
 export type Language = 'system' | 'en' | 'de'
 
 /** Targets the application menu can navigate the renderer to. */
-export type MenuNavTarget = 'download' | 'history' | 'settings'
+export type MenuNavTarget = 'download' | 'history' | 'settings' | 'cache'
 
 /** Docked = inline drawer; floating = its own window. */
 export type ConsoleMode = 'docked' | 'floating'
