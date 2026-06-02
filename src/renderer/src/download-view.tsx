@@ -54,9 +54,11 @@ export function DownloadView({
   const invalid = trimmed.length > 0 && !valid && !locked
   const hasContent = progress !== null || statusLog !== null || trimmed.length > 0
 
-  // Suggestions: filter history by case-insensitive substring (all when empty).
+  // Suggestions: filter history by case-insensitive substring. Hidden until the
+  // input has at least one character so the dropdown doesn't show on empty focus.
   const matches = urlHistory.filter((u) => u.toLowerCase().includes(trimmed.toLowerCase()))
-  const showSuggestions = focused && !dismissed && !locked && matches.length > 0
+  const showSuggestions =
+    focused && !dismissed && !locked && trimmed.length > 0 && matches.length > 0
   const clampedHighlight = highlighted < matches.length ? highlighted : -1
 
   // Autofocus the command bar on mount and whenever the window regains focus,
