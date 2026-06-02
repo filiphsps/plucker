@@ -33,7 +33,10 @@ Run each job inside its own **self-contained worker thread**, scheduled by a
   per pool slot**, not per job. Killing a worker tears down orchestration + analyze +
   child processes atomically — the cleanest isolation. Cost: N WASM instances
   (N = pool size).
-- **Bounded pool + queue.** A small configurable pool (default 2). Extra jobs queue.
+- **Bounded pool + queue.** A single unified concurrency knob — the existing
+  `settings.performance.parallel` (total tracks plucking at once, app-wide) — sizes
+  both how many jobs run and each job's track budget. Extra jobs queue. See "Unified
+  concurrency model".
 - **Single combined spec** covering worker extraction + pool + queue + multi-job UI.
 - **Master-detail UI.** A left rail lists all jobs (running/paused/queued) with mini
   progress; the selected job shows its full track list + transport on the right.
@@ -51,7 +54,7 @@ renderer ──IPC(jobId)──► main: JobPool (scheduler)
                               │  enqueue / route controls / relay events
                               ▼
                     ┌─────────┴─────────┐
-              JobClient            JobClient        (≤ maxConcurrent)
+              JobClient            JobClient        (≤ N running jobs)
                 │ worker_threads     │
                 ▼                    ▼
            job-worker            job-worker         self-contained:
@@ -102,13 +105,19 @@ On `start`, main sends only **serializable config**; the worker rebuilds the liv
 | logging | worker's `log` output is forwarded via a `log` message and re-emitted through main's existing log-file + console-window pipeline, tagged with `jobId` |
 
 `depsConfig` shape (serializable):
-`{ bin, settings, homeBase, cacheDir, jobsDir, folderOverride, cookieFile }`.
+`{ bin, settings, homeBase, cacheDir, jobsDir, folderOverride, cookieFile, initialLimit }`.
+The worker sizes its download/transform pools to `initialLimit` (its starting track
+budget) instead of reading `settings.performance.parallel` directly.
 
 ## Protocol messages
 
 **main → worker:**
-`start{jobId,kind,req,depsConfig}` · `cancel` · `pause` / `resume` ·
+`start{jobId,kind,req,depsConfig}` · `setLimit{limit}` · `cancel` · `pause` / `resume` ·
 `skipTrack{index}` · `pauseTrack{index}` / `resumeTrack{index}`
+
+`setLimit{limit}` carries the job's current distributed track budget. The worker
+resizes its download/transform pools to `limit`. The initial budget is also passed in
+the `start` message so the worker sizes its pools before the first `setLimit` arrives.
 
 **worker → main:**
 `progress{progress}` · `status{status}` · `paused{paused}` ·
@@ -117,17 +126,48 @@ On `start`, main sends only **serializable config**; the worker rebuilds the liv
 `kind` is `'download' | 'retransform' | 'resume'`, selecting which `JobSource`
 builder the worker uses (`buildDownloadSourceFromEntries` / `buildRetransformSource`).
 
+## Unified concurrency model
+
+There is **one** concurrency setting: the existing `settings.performance.parallel`
+(N, slider 1–16). It is reinterpreted as **the total number of tracks plucking at
+once, app-wide** — what a user intuitively expects from a single "parallel downloads"
+slider, regardless of how tracks are grouped into jobs. No separate
+`maxConcurrentJobs` field is introduced.
+
+The pool realizes this single number via **budget distribution**:
+
+- Up to **N concurrent jobs** run (a job needs ≥1 track slot to make progress); the
+  rest queue.
+- Each running job is granted a live **track budget** = `distribute(N, runningJobs)`.
+  E.g. N=4: one job → 4 track slots; two jobs → 2 each; four jobs → 1 each. The job's
+  internal download/transform pools (today `const limit = settings.performance.parallel`
+  at `pipeline.ts:484`) size to **that grant** instead of reading the raw setting.
+- When the running set changes (a job starts/finishes), main sends a `setLimit`
+  message to each running worker; the worker resizes its pools. Total concurrent
+  tracks stays ≈ N.
+
+This keeps the **single-playlist case at full speed** (a lone job gets all N slots,
+exactly like today) while bounding total work across concurrent jobs. No cross-thread
+semaphore — budget is handed out by main as plain messages, so crash isolation is
+preserved (a dead worker's budget is reclaimed and redistributed on the next `pump()`).
+
+`distribute(N, runningJobs)` gives each job `floor(N / runningJobs)`, with the
+remainder handed one extra slot to the first `N mod runningJobs` jobs (each job always
+≥ 1). The settings-panel description for `performance.parallel` is updated to reflect
+the unified meaning; the slider range (1–16) is unchanged.
+
 ## Scheduler (`job-pool.ts`)
 
-- Config: `maxConcurrent` from a new `settings.downloads.maxConcurrentJobs`
-  (default **2**).
+- Concurrency driven by `settings.performance.parallel` (N) per the unified model
+  above: at most N running jobs, each with a distributed track budget.
 - State: `busy: Map<jobId, JobClient>`, `idleWorkers: JobClient[]`,
   `queue: QueuedJob[]`, `roster: JobMeta[]`.
 - `enqueue(jobId, kind, req)` → push, `pump()`.
-- `pump()` → while `busy.size < maxConcurrent && queue.length`: pull next, reuse an
-  idle worker (WASM already warm) or spawn one, assign.
+- `pump()` → while `busy.size < N && queue.length`: pull next, reuse an idle worker
+  (WASM already warm) or spawn one, assign; then **rebalance** track budgets across
+  the running set (`setLimit` to each worker).
 - On `done` / `error` / worker-exit: return worker to idle, fold `JobResult` into
-  history, `pump()` the next.
+  history, rebalance budgets, `pump()` the next.
 - Control routing: running job → forward to its worker; **queued** job → drop from the
   queue (cancel) — no worker involved.
 - Emits `jobs:listChanged` (roster) + per-job `job:progress` / `status` / `paused`
@@ -190,8 +230,10 @@ builder the worker uses (`buildDownloadSourceFromEntries` / `buildRetransformSou
 - `job:resolve` stays on the main thread (it is light).
 - Idle-worker eviction by timeout is **out of scope** (workers live until quit).
 - Metadata-cache locking is **out of scope** (per-hash files make races negligible).
-- `maxConcurrentJobs` gets a settings field with a sensible default; a settings-panel
-  control to change it is included.
+- **No new concurrency setting.** The existing `settings.performance.parallel` is the
+  single unified knob (total concurrent tracks app-wide); only its description text is
+  updated. `pipeline.ts` stops reading it directly and instead takes its track limit
+  from the worker's granted budget (`initialLimit` / `setLimit`).
 
 ## Build note
 
