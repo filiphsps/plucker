@@ -83,6 +83,7 @@ export function DownloadView({
   urlHistory,
   trackPaused,
   redownloadRequest,
+  prefill,
   onRunningChange,
   onStart,
   onClear,
@@ -99,6 +100,8 @@ export function DownloadView({
   trackPaused: Record<number, boolean>
   /** A history redownload request to auto-resolve into the staging list. */
   redownloadRequest?: { url: string; folder: string } | null
+  /** Set the URL field and focus it (File ▸ New Download clears with '', Open URL… prefills). */
+  prefill?: { url: string; nonce: number } | null
   onRunningChange: (running: boolean) => void
   onStart: () => void
   /** Reset the page back to its empty state (clears progress + resolve log). */
@@ -143,6 +146,22 @@ export function DownloadView({
     window.addEventListener('focus', focus)
     return () => window.removeEventListener('focus', focus)
   }, [])
+
+  // React to File ▸ New Download / Open URL…: set the field from the menu command.
+  // `nonce` makes the same URL (or a repeated empty "New Download") retrigger. This
+  // derives state from a changing prop during render — React's recommended pattern,
+  // not an effect — see https://react.dev/learn/you-might-not-need-an-effect.
+  const [lastPrefillNonce, setLastPrefillNonce] = useState<number | null>(null)
+  if (prefill && prefill.nonce !== lastPrefillNonce) {
+    setLastPrefillNonce(prefill.nonce)
+    setUrl(prefill.url)
+    setDismissed(true)
+  }
+  // Focus the bar after the prefill commits (side effect only — no setState here).
+  useEffect(() => {
+    if (prefill) inputRef.current?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce])
 
   /** Resolve a URL into the staging list (no download yet). */
   async function resolve(targetUrl: string, folderOverride?: string): Promise<void> {
@@ -240,7 +259,12 @@ export function DownloadView({
   function onPageContextMenu(e: React.MouseEvent): void {
     e.preventDefault()
     void showContextMenu([
-      { label: t('download.clear'), enabled: hasContent && !locked, onClick: clear }
+      {
+        label: t('download.clear'),
+        symbol: 'trash',
+        enabled: hasContent && !locked,
+        onClick: clear
+      }
     ])
   }
 

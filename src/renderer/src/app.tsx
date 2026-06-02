@@ -26,6 +26,9 @@ export default function App(): React.JSX.Element {
     url: string
     folder: string
   } | null>(null)
+  // File ▸ New Download / Open URL… push a URL (or '') into the Download view's bar.
+  const [prefill, setPrefill] = useState<{ url: string; nonce: number } | null>(null)
+  const prefillNonce = useRef(0)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleMode, setConsoleMode] = useState<'docked' | 'floating'>('docked')
@@ -145,15 +148,37 @@ export default function App(): React.JSX.Element {
   useEffect(
     () =>
       window.plucker.onMenuNavigate((target) => {
-        setCacheOpen(false)
-        if (target === 'settings') setSettingsOpen(true)
-        else {
+        if (target === 'settings') {
+          setCacheOpen(false)
+          setSettingsOpen(true)
+        } else if (target === 'cache') {
           setSettingsOpen(false)
+          setCacheOpen(true)
+        } else {
+          setSettingsOpen(false)
+          setCacheOpen(false)
           setView(target)
         }
       }),
     []
   )
+
+  // File ▸ New Download (empty) / Open URL… (clipboard URL): jump to the Download view
+  // and push the URL into its command bar.
+  useEffect(() => {
+    const toDownload = (url: string): void => {
+      setSettingsOpen(false)
+      setCacheOpen(false)
+      setView('download')
+      setPrefill({ url, nonce: ++prefillNonce.current })
+    }
+    const offNew = window.plucker.onMenuNewDownload(() => toDownload(''))
+    const offOpen = window.plucker.onMenuOpenUrl((url) => toDownload(url))
+    return () => {
+      offNew()
+      offOpen()
+    }
+  }, [])
 
   // The transport deck (bottom bar) must follow the *job*, not just the download
   // view's local `running` flag — re-downloads launched from the History page
@@ -240,6 +265,7 @@ export default function App(): React.JSX.Element {
             urlHistory={urlHistory}
             trackPaused={trackPaused}
             redownloadRequest={redownloadRequest}
+            prefill={prefill}
             onRedownloadConsumed={() => setRedownloadRequest(null)}
             onRunningChange={setRunning}
             onStart={() => {
