@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, X } from 'lucide-react'
 import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
@@ -36,6 +36,7 @@ export function DownloadView({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const statusWidth = statusColumnWidth(t)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [focused, setFocused] = useState(false)
@@ -57,6 +58,15 @@ export function DownloadView({
   const matches = urlHistory.filter((u) => u.toLowerCase().includes(trimmed.toLowerCase()))
   const showSuggestions = focused && !dismissed && !locked && matches.length > 0
   const clampedHighlight = highlighted < matches.length ? highlighted : -1
+
+  // Autofocus the command bar on mount and whenever the window regains focus,
+  // so the user can paste a URL immediately without clicking in.
+  useEffect(() => {
+    const focus = (): void => inputRef.current?.focus()
+    focus()
+    window.addEventListener('focus', focus)
+    return () => window.removeEventListener('focus', focus)
+  }, [])
 
   /** Persist a valid URL to history; called on blur and on submit. */
   function commit(): void {
@@ -141,6 +151,7 @@ export function DownloadView({
               }
             />
             <input
+              ref={inputRef}
               value={url}
               disabled={locked}
               onChange={(e) => {
