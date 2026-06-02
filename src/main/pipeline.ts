@@ -44,6 +44,7 @@ import type { MetadataCache } from './metadata-cache'
 import type { OffThreadAnalyze } from './workers/analyze-protocol'
 import type { OffThreadMedia } from './workers/media-protocol'
 import type { BinaryPaths } from './binaries'
+import type { JobCheckpointSink } from './job-checkpoint'
 
 export function destFolderFor(
   base: string,
@@ -187,6 +188,8 @@ export interface RunJobDeps {
   media?: OffThreadMedia
   /** Receives a controls handle once the track list exists, for skip/pause/resume IPC. */
   onControls?: (controls: JobControls) => void
+  /** Durable resume checkpoint; persists per-track terminal state during the run. */
+  checkpoint?: JobCheckpointSink
 }
 
 export interface JobResult {
@@ -400,6 +403,21 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       transformPercent: 0
     }))
 
+    // Seed the durable resume checkpoint with the full (all-queued) track list, so a
+    // crash mid-run leaves a record of what this job intended to do.
+    deps.checkpoint?.begin({
+      url: resolved.url,
+      folder: repFolder,
+      jobTitle: resolved.title,
+      kind: resolved.kind,
+      entries: tracks.map((t) => ({
+        index: t.index,
+        videoId: t.videoId,
+        title: t.title,
+        status: t.status
+      }))
+    })
+
     // Per-track abort + skip bookkeeping. Each track gets its own controller,
     // combined with the job signal so a skip aborts just that track's work.
     const trackAbort = new Map<number, AbortController>()
@@ -430,7 +448,10 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
 
     const overall = (): number =>
       tracks.length ? tracks.reduce((sum, t) => sum + trackProgress(t), 0) / tracks.length : 0
-    const emit = (): void =>
+    // Assigned once the checkpoint flush is wired (after historyByIndex exists); the
+    // first emit() below runs before then and harmlessly hits this no-op.
+    let afterEmit: () => void = () => {}
+    const emit = (): void => {
       onProgress({
         jobTitle: resolved.title,
         total: tracks.length,
@@ -439,6 +460,8 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
         url: resolved.url,
         overall: overall()
       })
+      afterEmit()
+    }
     emit()
 
     const registry = buildRegistry()
@@ -464,6 +487,42 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
     // Collect history by track index so the recorded order is stable regardless
     // of which concurrent track finishes first.
     const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
+
+    // Persist each track to the resume checkpoint the first time it reaches a terminal
+    // status, so a crash mid-run leaves a resumable record. Driven off emit() (which
+    // fires after every state change) and de-duped via `settledIndices`.
+    const settledIndices = new Set<number>()
+    const CHECKPOINT_TERMINAL: ReadonlySet<TrackProgress['status']> = new Set([
+      'done',
+      'failed',
+      'skipped',
+      'cancelled'
+    ])
+    const flushCheckpoint = (): void => {
+      if (!deps.checkpoint) return
+      for (const t of tracks) {
+        if (!CHECKPOINT_TERMINAL.has(t.status) || settledIndices.has(t.index)) continue
+        settledIndices.add(t.index)
+        deps.checkpoint.settle({
+          index: t.index,
+          videoId: t.videoId,
+          title: t.title,
+          status: t.status,
+          track:
+            historyByIndex[t.index - 1] ??
+            ({
+              title: t.title,
+              status: (t.status === 'failed' || t.status === 'skipped' || t.status === 'cancelled'
+                ? t.status
+                : 'failed') as HistoryTrack['status'],
+              reason: t.reason,
+              errorCode: t.errorCode,
+              videoId: t.videoId
+            } satisfies HistoryTrack)
+        })
+      }
+    }
+    afterEmit = flushCheckpoint
 
     /** Hash + transform an acquired file, updating the track + history. */
     const finishTrack = async (
