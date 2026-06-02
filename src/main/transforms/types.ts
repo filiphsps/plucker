@@ -3,6 +3,7 @@ import type { TrackTags } from '../../shared/types'
 import type { ConfigField } from '../../shared/transforms'
 import type { BinaryPaths } from '../binaries'
 import type { MetadataCache } from '../metadata-cache'
+import type { SourceMetadata } from '../source-metadata'
 
 /** Mutable state threaded through a transform chain for one track. */
 export interface TrackContext {
@@ -17,6 +18,8 @@ export interface TrackContext {
     index: number
     /** Tag-independent audio-content hash; cache key for skipping re-work. */
     contentHash?: string
+    /** Full structured metadata captured from the yt-dlp `.info.json` sidecar. */
+    source?: SourceMetadata
   }
   /** Desired final basename (no extension); set by rename, used at commit. */
   outputName?: string

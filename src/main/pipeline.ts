@@ -32,6 +32,7 @@ import { startSpan, timed } from './bench'
 import { log } from './log'
 import { hashAudioFile } from './audio-hash'
 import { probeAudio } from './audio-meta'
+import { extractSourceMetadata, type SourceMetadata } from './source-metadata'
 import type { MetadataCache } from './metadata-cache'
 import type { BinaryPaths } from './binaries'
 
@@ -150,14 +151,15 @@ export async function resolvePlaylist(
   return parseEntries(JSON.parse(stdout))
 }
 
-/** Read a yt-dlp `.info.json` sidecar for the canonical video id + title. */
-function readSidecar(path: string): { id?: string; title?: string } {
+/** Read a yt-dlp `.info.json` sidecar for the canonical id + title + full source metadata. */
+function readSidecar(path: string): { id?: string; title?: string; source?: SourceMetadata } {
   if (!existsSync(path)) return {}
   try {
     const info = JSON.parse(readFileSync(path, 'utf8'))
     return {
       id: typeof info.id === 'string' ? info.id : undefined,
-      title: typeof info.title === 'string' ? info.title : undefined
+      title: typeof info.title === 'string' ? info.title : undefined,
+      source: extractSourceMetadata(info)
     }
   } catch {
     return {}
@@ -427,7 +429,8 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
           rawTitle: sidecar.title ?? entry.title ?? t.title,
           sourceFile: filePath,
           index: t.index,
-          contentHash: hash
+          contentHash: hash,
+          source: sidecar.source
         },
         enabled,
         registry,
