@@ -1,5 +1,6 @@
 // src/main/transforms/run-chain.ts
-import { copyFileSync, renameSync, rmSync, existsSync } from 'node:fs'
+import { renameSync, rmSync, existsSync } from 'node:fs'
+import { copyFile } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import type { TransformInstance } from '../../shared/transforms'
@@ -41,7 +42,9 @@ export async function runTransformChain(
   onStage?: (stage: string) => void
 ): Promise<ChainResult> {
   const working = join(destFolder, `.plucker-tmp-${info.index}-${basename(sourceFile)}`)
-  copyFileSync(sourceFile, working)
+  // Async copy (not copyFileSync) so duplicating a large mp3 doesn't block the
+  // main process — this runs on the Electron main thread alongside progress IPC.
+  await copyFile(sourceFile, working)
 
   let startTags = {}
   try {

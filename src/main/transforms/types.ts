@@ -4,6 +4,7 @@ import type { ConfigField } from '../../shared/transforms'
 import type { BinaryPaths } from '../binaries'
 import type { MetadataCache } from '../metadata-cache'
 import type { SourceMetadata } from '../source-metadata'
+import type { OffThreadAnalyze } from '../workers/analyze-protocol'
 
 /** Mutable state threaded through a transform chain for one track. */
 export interface TrackContext {
@@ -47,6 +48,12 @@ export interface TransformServices {
   reportProgress: (fraction: number) => void
   /** Content-addressed metadata cache, used to reuse prior auto-tag results. */
   cache?: MetadataCache
+  /**
+   * Off-thread key/BPM analyzer. When set, analyze-key-bpm offloads its heavy
+   * decode + WASM DSP to a worker so the main thread (and progress IPC) stays
+   * responsive. Absent in tests → the transform analyzes inline.
+   */
+  analyze?: OffThreadAnalyze
 }
 
 export interface TransformDefinition<C = Record<string, unknown>> {

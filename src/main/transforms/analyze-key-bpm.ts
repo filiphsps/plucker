@@ -1,6 +1,6 @@
 // src/main/transforms/analyze-key-bpm.ts
 import type { ConfigField } from '../../shared/transforms'
-import type { TransformDefinition, TrackContext, TransformServices } from './types'
+import type { TransformDefinition, TrackContext, TransformServices, TransformLog } from './types'
 import type { AnalysisTags } from '../tagger'
 import { writeAnalysisTags } from '../tagger'
 import { decodePcm, ffmpegPcmDeps } from '../audio-pcm'
@@ -12,7 +12,8 @@ import {
   analyzeKeyEssentia,
   analyzeBpmEssentia,
   KEY_STRENGTH_MIN,
-  BPM_CONFIDENCE_MIN
+  BPM_CONFIDENCE_MIN,
+  type EssentiaLike
 } from '../essentia'
 
 export interface AnalyzeKeyBpmConfig {
@@ -68,6 +69,86 @@ export async function analyzeTrack(
   return { tags, samples: pcm.length }
 }
 
+/**
+ * Build the real {@link AnalyzeDeps} (ffmpeg decode + Essentia/fallback DSP +
+ * tag writing). Shared by the inline path and the off-thread worker so both
+ * produce identical results and log lines — the worker passes a capturing
+ * logger; the inline path passes the live transform logger.
+ */
+export function buildAnalyzeDeps(
+  log: TransformLog,
+  ffmpegPath: string,
+  signal: AbortSignal | undefined,
+  getEs: (onError?: (msg: string) => void) => EssentiaLike | null = getEssentia
+): AnalyzeDeps {
+  // Boot Essentia once; null means it failed to load and we transparently fall
+  // back to the pure-TS estimators so a WASM problem never drops the tags.
+  const es = getEs((msg) => log.warn(msg))
+  log.debug(`analysis engine: ${es ? 'essentia (wasm)' : 'fallback DSP'}`)
+  return {
+    decode: (file, sr) => decodePcm(file, sr, ffmpegPcmDeps(ffmpegPath, signal)),
+    estimateKey: (pcm, sr) => {
+      if (es) {
+        try {
+          const r = analyzeKeyEssentia(es, pcm, sr)
+          log.debug(`key via essentia: ${r.key} strength=${r.strength.toFixed(2)}`)
+          if (r.strength >= KEY_STRENGTH_MIN) return r.key
+          log.debug(`key strength ${r.strength.toFixed(2)} < ${KEY_STRENGTH_MIN}; inconclusive`)
+          return null
+        } catch (err) {
+          log.warn(`essentia key failed, using fallback: ${String(err)}`)
+        }
+      }
+      return estimateKey(pcm, sr)
+    },
+    estimateBpm: (pcm, sr, range) => {
+      if (es) {
+        try {
+          const r = analyzeBpmEssentia(es, pcm, range)
+          log.debug(`bpm via essentia: ${r.bpm} confidence=${r.confidence.toFixed(2)}`)
+          if (r.confidence >= BPM_CONFIDENCE_MIN) return r.bpm
+          log.debug(
+            `bpm confidence ${r.confidence.toFixed(2)} < ${BPM_CONFIDENCE_MIN}; inconclusive`
+          )
+          return null
+        } catch (err) {
+          log.warn(`essentia bpm failed, using fallback: ${String(err)}`)
+        }
+      }
+      return estimateBpm(pcm, sr, range)
+    },
+    keyToCamelot,
+    writeTags: writeAnalysisTags
+  }
+}
+
+/**
+ * Run the analysis off the main thread when an off-thread analyzer is wired
+ * (production), replaying its captured logs into the live logger; otherwise
+ * (tests, or if the worker fails) analyze inline. The worker writes the tags to
+ * the file itself, so both paths leave the file in the same state.
+ */
+async function runAnalysis(
+  file: string,
+  config: AnalyzeKeyBpmConfig,
+  services: TransformServices
+): Promise<{ tags: AnalysisTags; samples: number }> {
+  if (services.analyze) {
+    try {
+      const out = await services.analyze(file, config)
+      for (const l of out.logs) services.log[l.level](l.message)
+      return { tags: out.tags, samples: out.samples }
+    } catch (err) {
+      services.log.warn(`off-thread analysis failed, running inline: ${String(err)}`)
+    }
+  }
+  return analyzeTrack(
+    file,
+    config,
+    buildAnalyzeDeps(services.log, services.bin.ffmpeg, services.signal)
+  )
+}
+
 const CONFIG_SCHEMA: ConfigField[] = [
   {
     key: 'detectKey',
@@ -120,49 +201,7 @@ export const analyzeKeyBpmTransform: TransformDefinition<AnalyzeKeyBpmConfig> = 
     config: AnalyzeKeyBpmConfig,
     services: TransformServices
   ): Promise<void> {
-    // Boot Essentia once; null means it failed to load and we transparently fall
-    // back to the pure-TS estimators so a WASM problem never drops the tags.
-    const es = getEssentia((msg) => services.log.warn(msg))
-    services.log.debug(`analysis engine: ${es ? 'essentia (wasm)' : 'fallback DSP'}`)
-
-    const { tags, samples } = await analyzeTrack(ctx.workingFile, config, {
-      decode: (file, sr) =>
-        decodePcm(file, sr, ffmpegPcmDeps(services.bin.ffmpeg, services.signal)),
-      estimateKey: (pcm, sr) => {
-        if (es) {
-          try {
-            const r = analyzeKeyEssentia(es, pcm, sr)
-            services.log.debug(`key via essentia: ${r.key} strength=${r.strength.toFixed(2)}`)
-            if (r.strength >= KEY_STRENGTH_MIN) return r.key
-            services.log.debug(
-              `key strength ${r.strength.toFixed(2)} < ${KEY_STRENGTH_MIN}; inconclusive`
-            )
-            return null
-          } catch (err) {
-            services.log.warn(`essentia key failed, using fallback: ${String(err)}`)
-          }
-        }
-        return estimateKey(pcm, sr)
-      },
-      estimateBpm: (pcm, sr, range) => {
-        if (es) {
-          try {
-            const r = analyzeBpmEssentia(es, pcm, range)
-            services.log.debug(`bpm via essentia: ${r.bpm} confidence=${r.confidence.toFixed(2)}`)
-            if (r.confidence >= BPM_CONFIDENCE_MIN) return r.bpm
-            services.log.debug(
-              `bpm confidence ${r.confidence.toFixed(2)} < ${BPM_CONFIDENCE_MIN}; inconclusive`
-            )
-            return null
-          } catch (err) {
-            services.log.warn(`essentia bpm failed, using fallback: ${String(err)}`)
-          }
-        }
-        return estimateBpm(pcm, sr, range)
-      },
-      keyToCamelot,
-      writeTags: writeAnalysisTags
-    })
+    const { tags, samples } = await runAnalysis(ctx.workingFile, config, services)
     const seconds = (samples / ANALYSIS_SR).toFixed(1)
     services.log.debug(`decoded ${samples} samples (${seconds}s @ ${ANALYSIS_SR}Hz)`)
     const detected: string[] = []

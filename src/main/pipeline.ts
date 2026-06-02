@@ -34,6 +34,7 @@ import { hashAudioFile } from './audio-hash'
 import { probeAudio } from './audio-meta'
 import { extractSourceMetadata, type SourceMetadata } from './source-metadata'
 import type { MetadataCache } from './metadata-cache'
+import type { OffThreadAnalyze } from './workers/analyze-protocol'
 import type { BinaryPaths } from './binaries'
 
 export function destFolderFor(
@@ -179,6 +180,8 @@ export interface RunJobDeps {
   folderOverride?: string
   /** Content-addressed metadata cache; enables reuse of audio probes + auto-tag. */
   cache?: MetadataCache
+  /** Off-thread key/BPM analyzer; keeps the main thread responsive during DSP. */
+  analyze?: OffThreadAnalyze
 }
 
 export interface JobResult {
@@ -382,7 +385,8 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       fetch: deps.mbFetch ?? fetch,
       signal,
       log: transformLog(),
-      cache: deps.cache
+      cache: deps.cache,
+      analyze: deps.analyze
     }
     // One slot per concurrent track pipeline. Each slot owns a single entry's
     // acquire *and* its transform, so `performance.parallel` is the number of full
