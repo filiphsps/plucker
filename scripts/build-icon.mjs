@@ -1,13 +1,26 @@
 // Renders the app icon from the React document in src/icon/ and writes the PNG(s)
-// that electron-builder (packaging) and the main process (runtime) consume.
+// and macOS asset(s) that electron-builder (packaging) and the main process
+// (runtime) consume.
 //
 // Pipeline:
 //   1. Hash src/icon/** and compare to build/.icon-hash. If unchanged and every
 //      output already exists, skip — this makes it cheap to run on every build.
 //   2. Bundle src/icon/ with Vite (→ node_modules/.icon-dist).
-//   3. Open each theme in headless Chromium (Playwright) and screenshot #root.
-//   4. Sync the default theme's PNG to resources/icon.png (runtime app/dock icon).
-//   5. Write the new hash only after everything succeeds.
+//   3. Open each theme in headless Chromium (Playwright) and screenshot #root
+//      twice: a full-bleed master and a pre-shaped squircle (?shape=mask).
+//        - The squircle PNG (build/<theme.output>) becomes the legacy .icns that
+//          macOS 13–25 use, where the OS does NOT mask icons itself.
+//        - The full-bleed master feeds Icon Composer for macOS 26 (step 4).
+//   4. macOS only: author build/Icon.icon from the default theme's full-bleed
+//      master and compile it to build/Assets.car with `actool` (Xcode 26+).
+//      macOS 26 renders this as a Liquid Glass icon and applies its own mask;
+//      older macOS ignores it and falls back to the .icns. Skipped (with the
+//      legacy .icns still shipped) when actool 26+ is unavailable — e.g. on CI
+//      Linux or an older Xcode. electron-builder embeds the result via
+//      mac.extraResources + CFBundleIconName (see electron-builder.yml).
+//   5. Sync the default theme's squircle PNG to resources/icon.png (runtime
+//      window icon on Windows/Linux; the macOS dock uses the bundle icon).
+//   6. Write the new hash only after everything succeeds.
 //
 // Runs as the first step of `pnpm build` (see package.json). Re-run manually:
 //   pnpm build:icon
@@ -19,6 +32,7 @@ import {
   copyFileSync,
   existsSync,
   statSync,
+  rmSync,
   watch as watchFs
 } from 'node:fs'
 import { dirname, join, relative, extname, normalize } from 'node:path'
@@ -34,6 +48,11 @@ const BUILD_DIR = join(ROOT, 'build')
 const HASH_FILE = join(BUILD_DIR, '.icon-hash')
 // The running app loads its icon from resources/icon.png (see src/main/index.ts).
 const RUNTIME_ICON = join(ROOT, 'resources', 'icon.png')
+// Full-bleed (unmasked) renders kept aside as the Icon Composer source for macOS 26.
+const MASTER_DIR = join(BUILD_DIR, '.icon-master')
+// Icon Composer document + compiled asset catalog for macOS 26 Liquid Glass icons.
+const ICON_DOC = join(BUILD_DIR, 'Icon.icon')
+const ASSET_CAR = join(BUILD_DIR, 'Assets.car')
 const SIZE = 1024
 
 const themes = JSON.parse(readFileSync(join(ICON_DIR, 'src', 'themes.json'), 'utf8'))
@@ -131,29 +150,133 @@ async function launchChromium(chromium) {
   }
 }
 
+/** Screenshot one theme into `dest`. `masked` clips to the squircle (transparent corners). */
+async function shoot(browser, port, themeId, masked, dest) {
+  const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE }, deviceScaleFactor: 1 })
+  try {
+    const query = new URLSearchParams({ theme: themeId })
+    if (masked) query.set('shape', 'mask')
+    await page.goto(`http://127.0.0.1:${port}/index.html?${query}`)
+    await page.waitForFunction('window.__ICON_READY__ === true', { timeout: 15000 })
+    mkdirSync(dirname(dest), { recursive: true })
+    await page.locator('#root').screenshot({ path: dest, omitBackground: masked })
+  } finally {
+    await page.close()
+  }
+}
+
 async function capture() {
   const { chromium } = await import('playwright')
   const server = await serveDist()
   const { port } = server.address()
   const browser = await launchChromium(chromium)
+  mkdirSync(MASTER_DIR, { recursive: true })
   try {
     for (const theme of themes) {
-      const page = await browser.newPage({
-        viewport: { width: SIZE, height: SIZE },
-        deviceScaleFactor: 1
-      })
-      await page.goto(`http://127.0.0.1:${port}/index.html?theme=${encodeURIComponent(theme.id)}`)
-      await page.waitForFunction('window.__ICON_READY__ === true', { timeout: 15000 })
+      // Full-bleed master — the Icon Composer / macOS 26 source.
+      const master = join(MASTER_DIR, `${theme.id}.png`)
+      await shoot(browser, port, theme.id, false, master)
+      // Pre-shaped squircle — the legacy .icns source for macOS 13–25.
       const dest = join(BUILD_DIR, theme.output)
-      mkdirSync(dirname(dest), { recursive: true })
-      await page.locator('#root').screenshot({ path: dest })
-      await page.close()
-      console.log(`icon: wrote ${relative(ROOT, dest)} (${theme.id})`)
+      await shoot(browser, port, theme.id, true, dest)
+      console.log(`icon: wrote ${relative(ROOT, dest)} (${theme.id}, squircle + full-bleed master)`)
     }
   } finally {
     await browser.close()
     await new Promise((resolve) => server.close(resolve))
   }
+}
+
+/** "#0d0e11" → "extended-srgb:0.051,0.055,0.067,1.0" for the Icon Composer fill. */
+function hexToExtendedSrgb(hex) {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex)
+  if (!m) return 'extended-srgb:0,0,0,1.0'
+  const [r, g, b] = m.slice(1).map((c) => (parseInt(c, 16) / 255).toFixed(3))
+  return `extended-srgb:${r},${g},${b},1.0`
+}
+
+/**
+ * Author build/Icon.icon — an Icon Composer document wrapping the full-bleed
+ * master as a single opaque layer. macOS 26 masks and adds Liquid Glass; the
+ * solid fill behind the layer only shows if the art ever gains transparency.
+ */
+function writeIconDocument(masterPng) {
+  const assets = join(ICON_DOC, 'Assets')
+  rmSync(ICON_DOC, { recursive: true, force: true })
+  mkdirSync(assets, { recursive: true })
+  copyFileSync(masterPng, join(assets, 'icon.png'))
+  const doc = {
+    fill: { 'automatic-gradient': hexToExtendedSrgb(defaultTheme.bg) },
+    groups: [{ layers: [{ 'image-name': 'icon.png' }] }],
+    'supported-platforms': { circles: ['watchOS'], squares: ['iOS', 'macOS'] }
+  }
+  writeFileSync(join(ICON_DOC, 'icon.json'), JSON.stringify(doc, null, 2) + '\n')
+}
+
+/** actool's marketing version (e.g. 26) from its plist, or null if unavailable. */
+function actoolMajorVersion() {
+  try {
+    const out = execFileSync('xcrun', ['actool', '--version'], { encoding: 'utf8' })
+    const v = /<key>short-bundle-version<\/key>\s*<string>([\d.]+)<\/string>/.exec(out)
+    return v ? parseInt(v[1], 10) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Compile build/Icon.icon → build/Assets.car for macOS 26 Liquid Glass icons.
+ * No-op (returns false) off macOS or without Xcode 26's actool — the legacy
+ * .icns still ships, so older macOS and pre-26 build hosts degrade cleanly.
+ * The actool incantation mirrors electron/packager#1806.
+ */
+function buildAssetCatalog() {
+  if (process.platform !== 'darwin') {
+    console.log('icon: not macOS — skipping macOS 26 asset catalog (legacy .icns only)')
+    return false
+  }
+  const major = actoolMajorVersion()
+  if (!major || major < 26) {
+    console.log(`icon: actool ${major ?? 'missing'} (<26) — skipping macOS 26 asset catalog`)
+    rmSync(ASSET_CAR, { force: true })
+    return false
+  }
+  const outDir = join(BUILD_DIR, '.icon-car')
+  rmSync(outDir, { recursive: true, force: true })
+  mkdirSync(outDir, { recursive: true })
+  execFileSync(
+    'xcrun',
+    [
+      'actool',
+      ICON_DOC,
+      '--compile',
+      outDir,
+      '--output-format',
+      'human-readable-text',
+      '--notices',
+      '--warnings',
+      '--output-partial-info-plist',
+      join(outDir, 'partial.plist'),
+      '--app-icon',
+      'Icon',
+      '--include-all-app-icons',
+      '--enable-on-demand-resources',
+      'NO',
+      '--development-region',
+      'en',
+      '--target-device',
+      'mac',
+      '--minimum-deployment-target',
+      '26.0',
+      '--platform',
+      'macosx'
+    ],
+    { stdio: 'inherit' }
+  )
+  copyFileSync(join(outDir, 'Assets.car'), ASSET_CAR)
+  rmSync(outDir, { recursive: true, force: true })
+  console.log(`icon: wrote ${relative(ROOT, ASSET_CAR)} (macOS 26 Liquid Glass)`)
+  return true
 }
 
 async function runBuild({ force = false } = {}) {
@@ -166,7 +289,11 @@ async function runBuild({ force = false } = {}) {
   await bundle()
   await capture()
 
-  // Runtime/dock icon = the default theme's output.
+  // macOS 26 Liquid Glass icon from the default theme's full-bleed master.
+  writeIconDocument(join(MASTER_DIR, `${defaultTheme.id}.png`))
+  buildAssetCatalog()
+
+  // Runtime window icon (Win/Linux) = the default theme's pre-shaped squircle.
   mkdirSync(dirname(RUNTIME_ICON), { recursive: true })
   copyFileSync(join(BUILD_DIR, defaultTheme.output), RUNTIME_ICON)
   console.log(`icon: synced ${relative(ROOT, RUNTIME_ICON)} from ${defaultTheme.id}`)

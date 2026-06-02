@@ -12,3 +12,8 @@ resources/bin
 build/icon.png
 build/.icon-hash
 resources/icon.png
+# macOS icon assets (legacy squircle source, Icon Composer doc + compiled catalog).
+build/.icon-master/
+build/Icon.icon/
+build/Assets.car
+build/.icon-car/

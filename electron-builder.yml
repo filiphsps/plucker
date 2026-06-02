@@ -29,8 +29,21 @@ mac:
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    # macOS 26 renders the Liquid Glass icon from Contents/Resources/Assets.car
+    # (compiled by scripts/build-icon.mjs and copied in via extraResources below).
+    # Older macOS ignores this key and falls back to the pre-shaped .icns. The key
+    # is harmless when Assets.car is absent (e.g. built without Xcode 26) — macOS
+    # then just falls back to the .icns too.
+    - CFBundleIconName: Icon
   notarize: false
   identity: null
+  # Embed the macOS 26 Liquid Glass asset catalog when build-icon.mjs produced one.
+  # The glob makes its absence a no-op, so pre-Xcode-26 builds still succeed (with
+  # only the legacy .icns). Merged with the top-level extraResources.
+  extraResources:
+    - from: build
+      to: .
+      filter: ['Assets.car']
   target:
     - target: dmg
       arch:
