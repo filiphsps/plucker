@@ -84,9 +84,10 @@ Presentational, sibling to `MetaStrip` / `MetaGrid`:
 
 ```ts
 function WaveformStrip({
-  peaks,     // number[] 0..1
-  progress,  // 0..1 | undefined — future playhead position
-  onSeek,    // (fraction: number) => void | undefined — future
+  peaks,         // number[] 0..1
+  onContextMenu, // (e: React.MouseEvent) => void | undefined — opens the row menu
+  progress,      // 0..1 | undefined — future playhead position
+  onSeek,        // (fraction: number) => void | undefined — future
 }): React.JSX.Element
 ```
 
@@ -102,13 +103,21 @@ function WaveformStrip({
   the playback-ready seam.
 - Empty/short `peaks` (e.g. `[]`) renders nothing (returns null / zero height),
   so callers need no guards.
+- **Tooltip + context menu integration.** The bars container forwards
+  `onContextMenu` (so right-clicking the waveform opens the same row menu) and is
+  wrapped in the shared `Tooltip` showing the track duration
+  (`formatDuration(durationSec)`). Both reuse existing primitives — no new infra.
 
 ### 6. Wiring — `src/renderer/src/ui/meta/track-detail.tsx`
 
-`TrackDetail` gains an optional `waveform?: Waveform` prop. When present and
-`state === 'ready'` and **not** `editing`, it renders
-`<WaveformStrip peaks={waveform.peaks} />` as the **last child of the flex
-column**, under the tags/source grid, separated by the existing `gap-3.5`.
+`TrackDetail` gains optional `waveform?: Waveform` and
+`onContextMenu?: (e: React.MouseEvent) => void` props. When the waveform is
+present and `state === 'ready'` and **not** `editing`, it renders
+`<WaveformStrip peaks={waveform.peaks} durationSec={waveform.durationSec} onContextMenu={onContextMenu} />`
+as the **last child of the flex column**, under the tags/source grid, separated
+by the existing `gap-3.5`. `onContextMenu` is the same handler `TrackRow` already
+builds for the row header (from `trackRowMenuItems`), now threaded through so a
+right-click on the waveform opens the identical menu.
 
 ### 7. Lazy fetch — `src/renderer/src/track-row.tsx`
 
@@ -136,7 +145,7 @@ the existing expanded-panel content.
 - `waveform.test.ts` — PCM-bucket downsampling/normalization math (deterministic
   input → expected normalized peaks).
 - `waveform-strip.test.tsx` — renders the correct number of bars; renders
-  nothing for empty peaks.
+  nothing for empty peaks; forwards `onContextMenu`; shows the duration tooltip.
 - `track-detail.test.tsx` — waveform appears when provided; absent in edit mode.
 - `track-row.test.tsx` — waveform fetched on expand; not fetched for
   missing/no-file rows.
@@ -145,4 +154,6 @@ the existing expanded-panel content.
 
 - Actual audio playback, playhead animation, click-to-seek (data/API hooks are
   in place; behavior is not built).
+- A position-aware tooltip showing the timestamp under the cursor — the shared
+  `Tooltip` shows a single static label; this lands with the playback work.
 - Any eager/background peak generation.
