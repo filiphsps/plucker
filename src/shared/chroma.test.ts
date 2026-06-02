@@ -30,6 +30,19 @@ describe('estimateKey', () => {
     expect(key).toBe('C')
   })
 
+  it('identifies an A-minor triad (A4 C5 E5) as A minor', () => {
+    const key = estimateKey(chord([440.0, 523.25, 659.26], 4), SR)
+    expect(key).toBe('Am')
+  })
+
+  it('is robust to a slightly flat (≈ −30 cent) tuning', () => {
+    // Detune a C-major triad down ~30 cents; tuning correction should still
+    // resolve C major rather than drifting to B.
+    const cents = Math.pow(2, -30 / 1200)
+    const key = estimateKey(chord([261.63 * cents, 329.63 * cents, 392.0 * cents], 4), SR)
+    expect(key).toBe('C')
+  })
+
   it('returns null for silence', () => {
     expect(estimateKey(new Float32Array(SR * 2), SR)).toBeNull()
   })

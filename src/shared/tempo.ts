@@ -57,6 +57,20 @@ function refinePeak(y0: number, y1: number, y2: number): number {
   return denom === 0 ? 0 : (0.5 * (y0 - y2)) / denom
 }
 
+// Perceptual tempo prior: human tempo perception clusters around ~120 BPM, so we
+// weight each candidate by a log-normal window centered there. This is what
+// resolves octave ambiguity (a steady beat autocorrelates just as strongly at
+// half/double tempo) — without it, off-beat or busy material is routinely
+// detected an octave off. σ ≈ 0.9 octaves keeps the window broad enough not to
+// force everything to 120.
+const PRIOR_CENTER_BPM = 120
+const PRIOR_SIGMA_OCTAVES = 0.9
+
+function tempoPrior(bpm: number): number {
+  const octaves = Math.log2(bpm / PRIOR_CENTER_BPM)
+  return Math.exp(-0.5 * (octaves / PRIOR_SIGMA_OCTAVES) ** 2)
+}
+
 /**
  * Estimate tempo (BPM) of mono PCM. Builds an onset envelope, autocorrelates it
  * over the lag window implied by [minBpm, maxBpm], refines the peak with
@@ -84,24 +98,34 @@ export function estimateBpm(
   const maxLag = Math.ceil((60 / searchMin) * hopRateHz)
 
   const acAt = (lag: number): number => {
+    if (lag < 1 || lag >= e.length) return 0
     let sum = 0
     for (let i = 0; i + lag < e.length; i++) sum += e[i] * e[i + lag]
     return sum
   }
 
+  // Comb score: a true beat period has energy not just at its lag but at its
+  // integer multiples (every other beat, every fourth...). Summing those rewards
+  // the fundamental over a spurious faster lag that happens to autocorrelate.
+  const COMB_WEIGHTS = [1, 0.5, 0.25]
+  const combScore = (lag: number): number =>
+    COMB_WEIGHTS.reduce((s, w, k) => s + w * acAt(lag * (k + 1)), 0)
+
+  const hi = Math.min(maxLag, e.length - 2)
   let bestLag = -1
-  let bestVal = -Infinity
-  for (let lag = Math.max(1, minLag); lag <= Math.min(maxLag, e.length - 2); lag++) {
-    const sum = acAt(lag)
-    if (sum > bestVal) {
-      bestVal = sum
+  let bestScore = -Infinity
+  for (let lag = Math.max(1, minLag); lag <= hi; lag++) {
+    const bpm = (60 * hopRateHz) / lag
+    const score = combScore(lag) * tempoPrior(bpm)
+    if (score > bestScore) {
+      bestScore = score
       bestLag = lag
     }
   }
-  if (bestLag < 1) return null
+  if (bestLag < 1 || bestScore <= 0) return null
 
-  // Refine the lag to sub-sample precision.
-  const refined = bestLag + refinePeak(acAt(bestLag - 1), bestVal, acAt(bestLag + 1))
+  // Refine the lag to sub-sample precision against the raw autocorrelation.
+  const refined = bestLag + refinePeak(acAt(bestLag - 1), acAt(bestLag), acAt(bestLag + 1))
 
   let bpm = (60 * hopRateHz) / refined
   while (bpm < range.minBpm) bpm *= 2
