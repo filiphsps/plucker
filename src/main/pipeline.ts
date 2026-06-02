@@ -305,61 +305,53 @@ function trackProgress(t: TrackProgress): number {
   return ((t.percent ?? 0) / 100) * 0.8 + ((t.transformPercent ?? 0) / 100) * 0.2
 }
 
-/** Full pipeline: resolve all entries → download → transform each track as it lands. */
-export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> {
-  const { bin, settings, homeBase, onProgress, onStatus, signal } = deps
-  log.info('app', `job start: ${url}`)
-  const jobSpan = startSpan('job', 'pipeline')
-  onStatus?.({ phase: 'resolving', key: 'launching' })
+/** Outcome of acquiring one entry's local file (download, or already on disk). */
+export type ProvideOutcome =
+  | { kind: 'file'; file: string }
+  | { kind: 'skipped'; reason: string }
+  | { kind: 'failed'; reason: string; errorCode?: string }
 
-  // When a browser cookie source is selected we first try reading it directly.
-  // If yt-dlp can't access the cookie store (permission error in the packaged
-  // app), we escalate ONCE: a privileged step exports the cookies to a temp file
-  // that every subsequent (unprivileged) resolve/download reads via `--cookies`.
-  let cookieFile: string | undefined
-  let cookieArgs: string[] = needsCookieEscalation(settings)
-    ? ['--cookies-from-browser', settings.cookies.source]
-    : []
-  const resolveOnce = (): Promise<ResolvedJob> =>
-    timed('resolve-playlist', 'pipeline', () =>
-      resolvePlaylist(
-        bin.ytdlp,
-        url,
-        (line) => {
-          // Drive the inline resolve panel and mirror the verbose line into the console log.
-          onStatus?.({ phase: 'resolving', line })
-          log.debug('yt-dlp', line)
-        },
-        signal,
-        cookieArgs
-      )
-    )
+/** One work item: where its output goes + how to obtain its local file. */
+export interface SourceEntry {
+  index: number
+  title: string
+  videoId?: string
+  /** Per-entry destination folder (the transform chain commits here). */
+  destFolder: string
+  /**
+   * Acquire the local working file for this entry. `report` flushes a progress
+   * frame to the deck; `provide` may update `t` (title/percent/speed) as it goes.
+   */
+  provide(t: TrackProgress, report: () => void, signal?: AbortSignal): Promise<ProvideOutcome>
+}
+
+/** A pluggable acquire phase. `entries()` is called after `resolve()`. */
+export interface JobSource {
+  resolve(signal?: AbortSignal): Promise<{ title: string; kind: 'playlist' | 'video'; url: string }>
+  entries(): SourceEntry[]
+  /** Release any resources held across the run (e.g. an exported cookie file). */
+  cleanup?(): void
+}
+
+/**
+ * Run a job against a pluggable {@link JobSource}: resolve → acquire each entry's
+ * file → transform/probe/cache it as it lands. The download path and the in-place
+ * re-transform path are just different sources over this same engine.
+ */
+export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<JobResult> {
+  const { bin, settings, onProgress, signal } = deps
+  const jobSpan = startSpan('job', 'pipeline')
 
   try {
-    let job: ResolvedJob
-    try {
-      job = await resolveOnce()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      const escalate =
-        !(signal?.aborted ?? false) &&
-        needsCookieEscalation(settings) &&
-        !cookieFile &&
-        isCookiePermissionError(msg)
-      if (!escalate) throw err
-      cookieFile = await exportBrowserCookies(bin.ytdlp, settings.cookies.source, url)
-      cookieArgs = ['--cookies', cookieFile]
-      job = await resolveOnce()
+    const resolved = await source.resolve(signal)
+    const entries = source.entries()
+    for (const dir of new Set(entries.map((e) => e.destFolder))) {
+      mkdirSync(dir, { recursive: true })
     }
-    onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
-    log.info('app', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
-    const dest =
-      deps.folderOverride ??
-      destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
-    mkdirSync(dest, { recursive: true })
+    const repFolder = entries[0]?.destFolder ?? ''
 
     // Pre-populate every entry as queued so the whole list shows immediately.
-    const tracks: TrackProgress[] = job.entries.map((e) => ({
+    const tracks: TrackProgress[] = entries.map((e) => ({
       index: e.index,
       title: e.title,
       videoId: e.videoId,
@@ -372,11 +364,11 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       tracks.length ? tracks.reduce((sum, t) => sum + trackProgress(t), 0) / tracks.length : 0
     const emit = (): void =>
       onProgress({
-        jobTitle: job.title,
+        jobTitle: resolved.title,
         total: tracks.length,
         tracks: [...tracks],
-        folder: dest,
-        url,
+        folder: repFolder,
+        url: resolved.url,
         overall: overall()
       })
     emit()
@@ -390,23 +382,20 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       log: transformLog(),
       cache: deps.cache
     }
-    // One slot per concurrent track pipeline. Each slot owns a single-video download
-    // *and* its transform, so `performance.parallel` is the number of full track
-    // pipelines running at once (yt-dlp can't download playlist entries concurrently
-    // within one process, so we fan out into one single-video download per entry).
+    // One slot per concurrent track pipeline. Each slot owns a single entry's
+    // acquire *and* its transform, so `performance.parallel` is the number of full
+    // track pipelines running at once.
     const pool = createPool(Math.max(1, settings.performance.parallel))
-    // Collect history by playlist index so the recorded order is stable regardless
+    // Collect history by track index so the recorded order is stable regardless
     // of which concurrent track finishes first.
     const historyByIndex: (HistoryTrack | undefined)[] = new Array(tracks.length)
 
-    const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
-    // Prefer the flat-playlist entry URL; fall back to a watch URL (or, for a single
-    // video job, the original URL) so a missing entry URL never blocks a download.
-    const entryUrl = (e: PlaylistEntry): string =>
-      isHttpUrl(e.url) ? e.url : job.kind === 'video' ? url : watchUrl(e.videoId)
-
-    /** Hash + transform a freshly-downloaded file, updating the track + history. */
-    const finishTrack = async (t: TrackProgress, filePath: string): Promise<void> => {
+    /** Hash + transform an acquired file, updating the track + history. */
+    const finishTrack = async (
+      t: TrackProgress,
+      filePath: string,
+      entry: SourceEntry
+    ): Promise<void> => {
       const sidecarPath = filePath.replace(/\.mp3$/i, '.info.json')
       const sidecar = readSidecar(sidecarPath)
       // Hash the audio frames once (tag-independent), so auto-tag + probe can reuse
@@ -419,20 +408,23 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
         hash = await timed('hash', 'pipeline', () => hashAudioFile(filePath))
         t.hash = hash
       } catch {
-        /* unreadable download — proceed without a cache key */
+        /* unreadable file — proceed without a cache key */
       }
       t.status = 'transforming'
       t.percent = 100
       t.transformPercent = 0
       emit()
 
+      // Sidecar identity is canonical for a fresh download; the re-transform source
+      // has no sidecar, so fall back to the entry's recorded id/title.
+      const videoId = sidecar.id ?? entry.videoId
       const transformSpan = startSpan('transform-chain', 'pipeline')
       const res = await runTransformChain(
         filePath,
-        dest,
+        entry.destFolder,
         {
-          videoId: sidecar.id,
-          rawTitle: sidecar.title ?? t.title,
+          videoId,
+          rawTitle: sidecar.title ?? entry.title ?? t.title,
           sourceFile: filePath,
           index: t.index,
           contentHash: hash
@@ -483,7 +475,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
         deps.cache.writeTrack(hash, {
           title: res.tags.title ?? t.title,
           file: res.outputFile,
-          videoId: sidecar.id
+          videoId
         })
       }
       t.status = 'done'
@@ -501,65 +493,22 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
         artist: res.tags.artist,
         album: res.tags.album,
         year: res.tags.year,
-        videoId: sidecar.id,
+        videoId,
         hash
       }
       log.info('app', `track done: ${t.title}`)
       emit()
     }
 
-    /** Download one entry's video on its own, then hand it to {@link finishTrack}. */
-    const processEntry = async (entry: PlaylistEntry, t: TrackProgress): Promise<void> => {
+    /** Acquire one entry's file via the source, then hand it to {@link finishTrack}. */
+    const processEntry = async (entry: SourceEntry, t: TrackProgress): Promise<void> => {
       const trackSpan = startSpan('track-process', 'pipeline')
-      let downloaded: string | null = null
-      const onProgress = (e: ProgressEvent): void => {
-        if (t.status === 'queued' || t.status === 'downloading') {
-          t.status = 'downloading'
-          t.stage = 'downloading'
-          t.percent = e.percent
-          t.speedBytesPerSec = e.speedBytesPerSec
-          if (e.title) t.title = e.title
-        }
-        emit()
-      }
-      const args = buildDownloadArgs({
-        url: entryUrl(entry),
-        destFolder: dest,
-        settings,
-        ffmpegPath: bin.ffmpeg,
-        singleVideo: true,
-        cookieFile
-      })
-      // Mark the track active right before spawning yt-dlp, so the row reflects
-      // work immediately instead of sitting on "queued" through process startup
-      // and format selection — the first progress line can be seconds away.
-      if (t.status === 'queued') {
-        t.status = 'downloading'
-        t.stage = 'downloading'
-        log.info('yt-dlp', `downloading "${t.title}"`)
-        emit()
-      }
-      const dl = await runYtDlp(
-        bin.ytdlp,
-        args,
-        onProgress,
-        (f) => {
-          downloaded = f
-        },
-        signal,
-        priorityToNice(settings.performance.priority)
-      )
-
+      const outcome = await entry.provide(t, emit, signal)
       t.stage = undefined
       t.speedBytesPerSec = undefined
-      const outcome = classifyDownload(downloaded, dl, settings.audio.minBitrate)
       if (outcome.kind === 'skipped') {
         t.status = 'skipped'
         t.reason = outcome.reason
-        log.info(
-          'yt-dlp',
-          `skipped "${t.title}" — no source audio at/above ${settings.audio.minBitrate} kbps`
-        )
         t.elapsedMs = Math.round(trackSpan.end(`${t.title} (skipped)`))
         emit()
         return
@@ -567,9 +516,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       if (outcome.kind === 'failed') {
         t.status = 'failed'
         t.reason = outcome.reason
-        if (dl.code) t.errorCode = `yt-dlp ${dl.code}`
-        log.warn('yt-dlp', `download failed for "${t.title}": ${t.reason}`)
-        log.error('yt-dlp', `download result for "${t.title}":`, dl)
+        if (outcome.errorCode) t.errorCode = outcome.errorCode
         t.elapsedMs = Math.round(trackSpan.end(`${t.title} (failed)`))
         emit()
         return
@@ -578,7 +525,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       // track stuck in `transforming`. Mark it failed here so the row settles
       // immediately rather than waiting on the end-of-job backstop.
       try {
-        await finishTrack(t, outcome.file)
+        await finishTrack(t, outcome.file, entry)
         t.elapsedMs = Math.round(trackSpan.end(t.title))
       } catch (err) {
         t.status = 'failed'
@@ -590,7 +537,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
       emit()
     }
 
-    job.entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
+    entries.forEach((entry, i) => pool.run(() => processEntry(entry, tracks[i])))
     await pool.drain()
 
     const aborted = signal?.aborted ?? false
@@ -609,7 +556,7 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     emit()
 
     // Record every terminal track (not just the successes) so failed/cancelled
-    // downloads still appear in history, clearly marked.
+    // attempts still appear in history, clearly marked.
     const history = toHistoryTracks(tracks, historyByIndex)
     const outcome = jobOutcome(history, aborted)
 
@@ -620,11 +567,162 @@ export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> 
     jobSpan.end(`${doneCount} done, ${failedCount} failed, ${skippedCount} skipped`)
     log.info(
       'app',
-      `job ${outcome} "${job.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped, ${cancelledCount} cancelled`
+      `job ${outcome} "${resolved.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped, ${cancelledCount} cancelled`
     )
 
-    return { title: job.title, folder: dest, url, kind: job.kind, outcome, tracks: history }
+    return {
+      title: resolved.title,
+      folder: repFolder,
+      url: resolved.url,
+      kind: resolved.kind,
+      outcome,
+      tracks: history
+    }
   } finally {
-    if (cookieFile) cleanupCookieFile(cookieFile)
+    source.cleanup?.()
   }
+}
+
+/**
+ * The download source: resolve playlist/video metadata via yt-dlp (escalating to
+ * an exported cookie file once if the browser cookie store is unreadable), then
+ * download each entry on its own.
+ */
+function buildDownloadSource(url: string, deps: RunJobDeps): JobSource {
+  const { bin, settings, homeBase, onStatus, signal } = deps
+  log.info('app', `job start: ${url}`)
+
+  // When a browser cookie source is selected we first try reading it directly.
+  // If yt-dlp can't access the cookie store (permission error in the packaged
+  // app), we escalate ONCE: a privileged step exports the cookies to a temp file
+  // that every subsequent (unprivileged) resolve/download reads via `--cookies`.
+  let cookieFile: string | undefined
+  let cookieArgs: string[] = needsCookieEscalation(settings)
+    ? ['--cookies-from-browser', settings.cookies.source]
+    : []
+  let job: ResolvedJob | undefined
+  let dest = ''
+
+  const resolveOnce = (): Promise<ResolvedJob> =>
+    timed('resolve-playlist', 'pipeline', () =>
+      resolvePlaylist(
+        bin.ytdlp,
+        url,
+        (line) => {
+          // Drive the inline resolve panel and mirror the verbose line into the console log.
+          onStatus?.({ phase: 'resolving', line })
+          log.debug('yt-dlp', line)
+        },
+        signal,
+        cookieArgs
+      )
+    )
+
+  const isHttpUrl = (s?: string): s is string => !!s && /^https?:\/\//.test(s)
+
+  return {
+    async resolve() {
+      onStatus?.({ phase: 'resolving', key: 'launching' })
+      try {
+        job = await resolveOnce()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        const escalate =
+          !(signal?.aborted ?? false) &&
+          needsCookieEscalation(settings) &&
+          !cookieFile &&
+          isCookiePermissionError(msg)
+        if (!escalate) throw err
+        cookieFile = await exportBrowserCookies(bin.ytdlp, settings.cookies.source, url)
+        cookieArgs = ['--cookies', cookieFile]
+        job = await resolveOnce()
+      }
+      onStatus?.({ phase: 'resolving', key: 'resolved', params: { count: job.entries.length } })
+      log.info('app', `resolved ${job.kind} "${job.title}" — ${job.entries.length} track(s)`)
+      dest =
+        deps.folderOverride ??
+        destFolderFor(homeBase, job.title, settings.downloads.perPlaylistSubfolder, job.kind)
+      return { title: job.title, kind: job.kind, url }
+    },
+    entries() {
+      const resolvedJob = job
+      if (!resolvedJob) return []
+      // Prefer the flat-playlist entry URL; fall back to a watch URL (or, for a single
+      // video job, the original URL) so a missing entry URL never blocks a download.
+      const entryUrl = (e: PlaylistEntry): string =>
+        isHttpUrl(e.url) ? e.url : resolvedJob.kind === 'video' ? url : watchUrl(e.videoId)
+      return resolvedJob.entries.map((e) => ({
+        index: e.index,
+        title: e.title,
+        videoId: e.videoId,
+        destFolder: dest,
+        async provide(t, report, sig) {
+          let downloaded: string | null = null
+          const onProgress = (ev: ProgressEvent): void => {
+            if (t.status === 'queued' || t.status === 'downloading') {
+              t.status = 'downloading'
+              t.stage = 'downloading'
+              t.percent = ev.percent
+              t.speedBytesPerSec = ev.speedBytesPerSec
+              if (ev.title) t.title = ev.title
+            }
+            report()
+          }
+          const args = buildDownloadArgs({
+            url: entryUrl(e),
+            destFolder: dest,
+            settings,
+            ffmpegPath: bin.ffmpeg,
+            singleVideo: true,
+            cookieFile
+          })
+          // Mark the track active right before spawning yt-dlp, so the row reflects
+          // work immediately instead of sitting on "queued" through process startup
+          // and format selection — the first progress line can be seconds away.
+          if (t.status === 'queued') {
+            t.status = 'downloading'
+            t.stage = 'downloading'
+            log.info('yt-dlp', `downloading "${t.title}"`)
+            report()
+          }
+          const dl = await runYtDlp(
+            bin.ytdlp,
+            args,
+            onProgress,
+            (f) => {
+              downloaded = f
+            },
+            sig,
+            priorityToNice(settings.performance.priority)
+          )
+          const outcome = classifyDownload(downloaded, dl, settings.audio.minBitrate)
+          if (outcome.kind === 'skipped') {
+            log.info(
+              'yt-dlp',
+              `skipped "${t.title}" — no source audio at/above ${settings.audio.minBitrate} kbps`
+            )
+            return { kind: 'skipped', reason: outcome.reason }
+          }
+          if (outcome.kind === 'failed') {
+            log.warn('yt-dlp', `download failed for "${t.title}": ${outcome.reason}`)
+            log.error('yt-dlp', `download result for "${t.title}":`, dl)
+            return {
+              kind: 'failed',
+              reason: outcome.reason,
+              errorCode: dl.code ? `yt-dlp ${dl.code}` : undefined
+            }
+          }
+          return { kind: 'file', file: outcome.file }
+        }
+      }))
+    },
+    cleanup() {
+      if (cookieFile) cleanupCookieFile(cookieFile)
+    }
+  }
+}
+
+/** Full download pipeline: resolve all entries → download → transform each track. */
+export async function runJob(url: string, deps: RunJobDeps): Promise<JobResult> {
+  return runPipeline(buildDownloadSource(url, deps), deps)
 }
