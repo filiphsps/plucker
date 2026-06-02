@@ -35,6 +35,7 @@ import { probeAudio } from './audio-meta'
 import { extractSourceMetadata, type SourceMetadata } from './source-metadata'
 import type { MetadataCache } from './metadata-cache'
 import type { OffThreadAnalyze } from './workers/analyze-protocol'
+import type { OffThreadMedia } from './workers/media-protocol'
 import type { BinaryPaths } from './binaries'
 
 export function destFolderFor(
@@ -182,6 +183,8 @@ export interface RunJobDeps {
   cache?: MetadataCache
   /** Off-thread key/BPM analyzer; keeps the main thread responsive during DSP. */
   analyze?: OffThreadAnalyze
+  /** Off-thread media I/O (ID3 tags + audio hashing); keeps the main thread free. */
+  media?: OffThreadMedia
 }
 
 export interface JobResult {
@@ -386,7 +389,8 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       signal,
       log: transformLog(),
       cache: deps.cache,
-      analyze: deps.analyze
+      analyze: deps.analyze,
+      media: deps.media
     }
     // Two independent stages, each with its own concurrency budget, so the
     // pipeline behaves like decoupled worker queues: a slow transform never holds
@@ -416,7 +420,9 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       try {
         t.stage = 'hashing'
         emit()
-        hash = await timed('hash', 'pipeline', () => hashAudioFile(filePath))
+        hash = await timed('hash', 'pipeline', () =>
+          deps.media ? deps.media.hash(filePath) : hashAudioFile(filePath)
+        )
         t.hash = hash
       } catch {
         /* unreadable file — proceed without a cache key */

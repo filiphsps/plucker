@@ -7,9 +7,12 @@ import { cropToSquare } from '../image-crop'
 export type SquareCoverConfig = Record<string, never>
 
 interface SquareCoverDeps {
-  readCover: (file: string) => { image: Buffer; mime: string } | null
+  // readCover/embed may run off-thread (Promise) or inline (sync) — both awaited.
+  readCover: (
+    file: string
+  ) => Promise<{ image: Buffer; mime: string } | null> | ({ image: Buffer; mime: string } | null)
   crop: (image: Buffer, mime: string) => Promise<{ image: Buffer; mime: string }>
-  embed: (file: string, image: Buffer, mime: string) => void
+  embed: (file: string, image: Buffer, mime: string) => Promise<void> | void
   log?: (msg: string) => void
 }
 
@@ -19,14 +22,14 @@ interface SquareCoverDeps {
  * ffmpeg) out of the unit under test.
  */
 export async function squareCover(file: string, deps: SquareCoverDeps): Promise<void> {
-  const cover = deps.readCover(file)
+  const cover = await deps.readCover(file)
   if (!cover) {
     deps.log?.('no embedded cover — skipping')
     return
   }
   deps.log?.(`cropping cover to square (${cover.image.length} bytes, ${cover.mime})`)
   const squared = await deps.crop(cover.image, cover.mime)
-  deps.embed(file, squared.image, squared.mime)
+  await deps.embed(file, squared.image, squared.mime)
   deps.log?.(`embedded squared cover (${squared.image.length} bytes)`)
 }
 
@@ -46,10 +49,11 @@ export const squareCoverTransform: TransformDefinition<SquareCoverConfig> = {
     _config: SquareCoverConfig,
     services: TransformServices
   ): Promise<void> {
+    const media = services.media
     await squareCover(ctx.workingFile, {
-      readCover: readCoverImage,
+      readCover: media ? (file) => media.readCover(file) : readCoverImage,
       crop: (image, mime) => cropToSquare(services.bin.ffmpeg, image, mime, services.signal),
-      embed: embedCover,
+      embed: media ? (file, image, mime) => media.embedCover(file, image, mime) : embedCover,
       log: (msg) => services.log.info(msg)
     })
   }

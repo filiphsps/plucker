@@ -5,6 +5,7 @@ import type { BinaryPaths } from '../binaries'
 import type { MetadataCache } from '../metadata-cache'
 import type { SourceMetadata } from '../source-metadata'
 import type { OffThreadAnalyze } from '../workers/analyze-protocol'
+import type { OffThreadMedia } from '../workers/media-protocol'
 
 /** Mutable state threaded through a transform chain for one track. */
 export interface TrackContext {
@@ -54,6 +55,13 @@ export interface TransformServices {
    * responsive. Absent in tests → the transform analyzes inline.
    */
   analyze?: OffThreadAnalyze
+  /**
+   * Off-thread media I/O. When set, ID3 tag read/write + cover embed run on a
+   * worker thread instead of blocking the Electron main thread (node-id3 is
+   * synchronous and rewrites the whole file). Absent in tests → the transform
+   * uses the synchronous tagger directly.
+   */
+  media?: OffThreadMedia
 }
 
 export interface TransformDefinition<C = Record<string, unknown>> {

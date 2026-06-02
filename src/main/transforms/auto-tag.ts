@@ -355,7 +355,9 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
     nameSimilarityThreshold: 70
   },
   async run(ctx: TrackContext, config: AutoTagConfig, services: TransformServices): Promise<void> {
-    const ytTags = readTrackTags(ctx.workingFile)
+    const ytTags = services.media
+      ? await services.media.readTags(ctx.workingFile)
+      : readTrackTags(ctx.workingFile)
     // Prefer the info.json captured at download; on the re-trigger path (no
     // sidecar) synthesize a source from the file's own tags so the same
     // classify → parse → fuse pipeline still runs.
@@ -383,7 +385,10 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
     // A real album cover (MusicBrainz / Cover Art Archive) always replaces the
     // YouTube thumbnail, independent of `primarySource` — the thumbnail is only a
     // fallback when no other cover is available.
-    if (cover) embedCover(ctx.workingFile, cover, 'image/jpeg')
+    if (cover) {
+      if (services.media) await services.media.embedCover(ctx.workingFile, cover, 'image/jpeg')
+      else embedCover(ctx.workingFile, cover, 'image/jpeg')
+    }
     ctx.tags = mergeTags(local, mbTags, config.primarySource)
     logTagSummary(ctx.tags, !!cover, config.primarySource, services.log)
   }

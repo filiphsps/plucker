@@ -8,10 +8,20 @@ import type { ChainResult, TransformDefinition, TransformServices, TrackContext 
 import { writeTrackTags, readTrackTags } from '../tagger'
 import { withPrefix } from './transform-logger'
 
-/** Flush in-memory tags to disk; ignore failures on non-mp3 / unreadable files. */
-function tryFlushTags(file: string, ctx: TrackContext): void {
+/**
+ * Flush in-memory tags to disk; ignore failures on non-mp3 / unreadable files.
+ * Routes through the off-thread media worker when wired (node-id3's whole-file
+ * rewrite is synchronous and otherwise stalls the main thread), falling back to
+ * the synchronous tagger if the worker is absent or errors.
+ */
+async function tryFlushTags(
+  file: string,
+  ctx: TrackContext,
+  media: TransformServices['media']
+): Promise<void> {
   try {
-    writeTrackTags(file, ctx.tags)
+    if (media) await media.writeTags(file, ctx.tags)
+    else writeTrackTags(file, ctx.tags)
   } catch {
     /* leave file as-is */
   }
@@ -48,7 +58,7 @@ export async function runTransformChain(
 
   let startTags = {}
   try {
-    startTags = readTrackTags(working)
+    startTags = services.media ? await services.media.readTags(working) : readTrackTags(working)
   } catch {
     /* non-mp3 in tests */
   }
@@ -105,7 +115,7 @@ export async function runTransformChain(
 
   // Commit: flush tags, then move the working copy to its final name.
   onStage?.('saving')
-  tryFlushTags(working, ctx)
+  await tryFlushTags(working, ctx, services.media)
   const finalBase = ctx.outputName || basename(sourceFile).replace(/\.mp3$/i, '')
   const target = join(destFolder, `${finalBase}.mp3`)
   try {

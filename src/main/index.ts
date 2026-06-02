@@ -21,6 +21,7 @@ import { binaryPaths, type BinaryPaths } from './binaries'
 import { runJob, runPipeline } from './pipeline'
 import { buildRetransformSource, type RetransformTarget } from './retransform-source'
 import { getAnalyzeClient, terminateAnalyzeClient } from './workers/analyze-host'
+import { getMediaClient, terminateMediaClient } from './workers/media-host'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
@@ -236,6 +237,7 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
         cache: getMetaCache(),
         analyze: (file, config) =>
           getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
+        media: getMediaClient(),
         onProgress: (p) => {
           const win = getWindow()
           win?.webContents.send('job:progress', p)
@@ -323,6 +325,7 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
         cache: getMetaCache(),
         analyze: (file, config) =>
           getAnalyzeClient().analyze(file, config, currentBin().ffmpeg, abort?.signal),
+        media: getMediaClient(),
         onProgress: (p) => {
           const win = getWindow()
           win?.webContents.send('job:progress', p)
@@ -482,6 +485,7 @@ app.on('before-quit', () => {
   abort?.abort()
   killAllChildren()
   terminateAnalyzeClient()
+  terminateMediaClient()
   // If a background-downloaded update is waiting, swap it in after we exit (no relaunch).
   installPendingUpdateOnQuit()
 })
