@@ -13,7 +13,7 @@ import {
   type RunJobDeps,
   type JobControls
 } from '../pipeline'
-import { buildRetransformSource } from '../retransform-source'
+import { buildRetransformSource, buildEditSource } from '../retransform-source'
 import { createMetadataCache } from '../metadata-cache'
 import { createCheckpointSink } from '../job-checkpoint'
 import { resumeAllChildren, pauseAllChildren } from '../spawn'
@@ -94,10 +94,13 @@ function buildDeps(jobId: string, cfg: JobDepsConfig): RunJobDeps {
 
 async function start(jobId: string, cfg: JobDepsConfig, payload: JobStartPayload): Promise<void> {
   const deps = buildDeps(jobId, cfg)
+  if (payload.kind === 'libraryEdit') deps.chainOverride = payload.chain
   const source =
     payload.kind === 'retransform'
       ? buildRetransformSource(payload.targets)
-      : buildDownloadSourceFromEntries(payload.req, deps, cfg.cookieFile)
+      : payload.kind === 'libraryEdit'
+        ? buildEditSource(payload.sourceFile, 'edit')
+        : buildDownloadSourceFromEntries(payload.req, deps, cfg.cookieFile)
   try {
     const result = await runPipeline(source, deps)
     emit({ type: 'done', result })

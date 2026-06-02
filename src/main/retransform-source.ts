@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import type { JobSource, SourceEntry } from './pipeline'
 
 /** One already-downloaded track to re-run the enabled transform chain on. */
@@ -36,5 +37,26 @@ export function buildRetransformSource(targets: RetransformTarget[]): JobSource 
       url: ''
     }),
     entries: () => entries
+  }
+}
+
+/**
+ * A single-file {@link JobSource} for a Library edit: re-runs a chosen chain on one
+ * already-materialized blob. The chain output lands in a temp folder (not the user's
+ * library folder); main folds it into the content store as a new version. No network.
+ */
+export function buildEditSource(sourceFile: string, title: string): JobSource {
+  const entry: SourceEntry = {
+    index: 1,
+    title,
+    destFolder: join(tmpdir(), 'plucker-edit'),
+    async provide() {
+      if (!existsSync(sourceFile)) return { kind: 'failed', reason: 'Source file is missing' }
+      return { kind: 'file', file: sourceFile }
+    }
+  }
+  return {
+    resolve: async () => ({ title: `Editing · ${title}`, kind: 'video', url: '' }),
+    entries: () => [entry]
   }
 }

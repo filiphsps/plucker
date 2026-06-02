@@ -15,6 +15,7 @@ import type {
 } from '../shared/types'
 
 export type { PlaylistEntry, ResolvedJob } from '../shared/types'
+import type { TransformInstance } from '../shared/transforms'
 import { watchUrl } from '../shared/youtube-url'
 import { sanitizeFileName } from './rename'
 import {
@@ -197,6 +198,12 @@ export interface RunJobDeps {
    * to `settings.performance.parallel` when absent (the non-worker code paths).
    */
   getLimit?: () => number
+  /**
+   * Library edit: run this exact transform chain instead of `settings.transforms`.
+   * Used by `libraryEdit` jobs, which re-derive a new version from a materialized
+   * source by applying a chosen chain rather than the user's default download chain.
+   */
+  chainOverride?: TransformInstance[]
 }
 
 export interface JobResult {
@@ -458,7 +465,7 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
     emit()
 
     const registry = buildRegistry()
-    const enabled = settings.transforms.filter((i) => i.enabled)
+    const enabled = (deps.chainOverride ?? settings.transforms).filter((i) => i.enabled)
     const services = {
       bin,
       fetch: deps.mbFetch ?? fetch,

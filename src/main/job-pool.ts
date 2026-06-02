@@ -61,6 +61,7 @@ interface Queued {
 
 function titleOf(payload: JobStartPayload): string {
   if (payload.kind === 'retransform') return 'Re-transform'
+  if (payload.kind === 'libraryEdit') return 'Edit'
   return payload.req.title || payload.req.url
 }
 

@@ -15,6 +15,7 @@ import type { BinaryPaths } from '../binaries'
 import type { JobResult } from '../pipeline'
 import type { RetransformTarget } from '../retransform-source'
 import type { IndexedTrack } from '../resume-merge'
+import type { TransformInstance } from '../../shared/transforms'
 
 export type { JobKind, JobState, JobMeta }
 
@@ -42,6 +43,14 @@ export type JobStartPayload =
   | { kind: 'resume'; req: StartJobRequest; cookieFile?: string; completed: IndexedTrack[] }
   | { kind: 'retryFailed'; req: StartJobRequest; entryId: string; failedIndices: number[] }
   | { kind: 'retransform'; targets: RetransformTarget[] }
+  | {
+      kind: 'libraryEdit'
+      trackId: string
+      branchId: string
+      parentVersionId: string
+      sourceFile: string
+      chain: TransformInstance[]
+    }
 
 /** Main → worker messages. */
 export type JobWorkerCommand =

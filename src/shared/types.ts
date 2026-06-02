@@ -291,7 +291,7 @@ export interface StartJobRequest {
 }
 
 /** Which JobSource builder a worker uses for a job. */
-export type JobKind = 'download' | 'retransform' | 'resume' | 'retryFailed'
+export type JobKind = 'download' | 'retransform' | 'resume' | 'retryFailed' | 'libraryEdit'
 
 /** Lifecycle state of a job as shown in the renderer rail. */
 export type JobState = 'queued' | 'running' | 'paused'

@@ -47,8 +47,12 @@ import { getLibraryDb } from './library/db'
 import { createRepo } from './library/repo'
 import { createContentStore } from './library/content-store'
 import { createLibraryService } from './library/service'
+import { createMaterializer } from './library/materialize'
 import { collectGarbage } from './library/gc'
+import { buildRegistry } from './transforms/registry'
+import { transformLog } from './transforms/transform-logger'
 import { addUrl, removeUrl } from '../shared/url-history'
+import type { TransformInstance } from '../shared/transforms'
 import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
 import { registerContextMenuIpc } from './context-menu'
@@ -139,10 +143,23 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   const libraryStore = createContentStore(join(pluckerDir(), 'blobs'))
   const libraryRepo = createRepo(getLibraryDb())
   collectGarbage(libraryRepo, libraryStore)
+  // Recompute cold versions on demand by replaying their (deterministic) chains in the
+  // main process. analyze/media off-thread hosts are omitted — the affected transforms
+  // fall back to inline execution.
+  const libraryMaterializer = createMaterializer({
+    repo: libraryRepo,
+    store: libraryStore,
+    registry: buildRegistry(),
+    services: { bin: currentBin(), fetch, log: transformLog(), cache: getMetaCache() }
+  })
   const library = createLibraryService({
     repo: libraryRepo,
     store: libraryStore,
-    emit: (event) => getWindow()?.webContents.send(event)
+    emit: (event) => getWindow()?.webContents.send(event),
+    materialize: (versionId) => libraryMaterializer.ensureMaterialized(versionId),
+    dispatchEdit: async (payload) => {
+      jobPool?.enqueue(randomUUID(), { kind: 'libraryEdit', ...payload })
+    }
   })
 
   ipcMain.handle('app:locale', () => app.getLocale())
@@ -282,6 +299,9 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     library.deleteCollection(id)
     return library.listCollections()
   })
+  ipcMain.handle('library:edit', (_e, trackId: string, chain: TransformInstance[]) =>
+    library.edit(trackId, chain)
+  )
 
   const win = (): BrowserWindow | null => getWindow()
   const setBar = (overall: number): void =>
@@ -299,7 +319,17 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       if (cancelled) win()?.webContents.send('jobs:interruptedChanged')
       return
     }
-    // retransform / retryFailed: re-implemented as library edit operations in Phase 4.
+    if (payload.kind === 'libraryEdit') {
+      library.foldEditResult({
+        trackId: payload.trackId,
+        branchId: payload.branchId,
+        parentVersionId: payload.parentVersionId,
+        chainSteps: payload.chain.map((c) => ({ type: c.type, config: c.config })),
+        result
+      })
+      return
+    }
+    // retransform / retryFailed: removed; editing is now a libraryEdit job.
   }
 
   /** Handle a job that rejected before producing a result (resolve failure / cancel). */

@@ -58,4 +58,27 @@ describe('LibraryService', () => {
     expect(events).toContain('library:changed')
     expect(service.listActivity().some((a) => a.type === 'deleted')).toBe(true)
   })
+
+  it('edit appends a child version on the active branch tip and advances the tip', () => {
+    const { service, repo } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const view = service.listCollections()[0]
+    const trackId = view.tracks[0].id
+    const before = repo.getTrack(trackId)!
+    const tipBefore = repo.getBranch(before.activeBranchId)!.tipVersionId
+    // simulate a finished edit job result (one done track)
+    const editedFile = join(dir, 'edited.mp3'); writeFileSync(editedFile, 'edited')
+    service.foldEditResult({
+      trackId, branchId: before.activeBranchId, parentVersionId: tipBefore,
+      chainSteps: [{ type: 'trim-silence', config: { db: -40 } }],
+      result: { title: 'T', folder: dir, url: '', kind: 'video', outcome: 'completed',
+        tracks: [{ title: 'T', status: 'done', file: editedFile, artist: 'A' }] }
+    })
+    const after = repo.listVersions(trackId)
+    expect(after).toHaveLength(2)
+    const child = after.find((v) => v.parentId === tipBefore)!
+    expect(child.recipe.steps[0].type).toBe('trim-silence')
+    expect(repo.getBranch(before.activeBranchId)!.tipVersionId).toBe(child.id)
+    expect(service.listActivity().some((a) => a.type === 'edited')).toBe(true)
+  })
 })
