@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences, screen } from 'electron'
 import { join } from 'path'
 import { arch } from 'node:os'
-import { rmSync, existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { version as appVersion } from '../../package.json'
@@ -27,7 +27,6 @@ import {
 import { createFileTransport } from './log-file'
 import { binaryPaths, type BinaryPaths } from './binaries'
 import { resolveJob, type JobResult } from './pipeline'
-import { type RetransformTarget } from './retransform-source'
 import { createJobPool, type JobPool } from './job-pool'
 import { spawnJobClient } from './workers/job-host'
 import type { JobStartPayload } from './workers/job-protocol'
@@ -37,19 +36,18 @@ import {
   dismissCheckpoint,
   readCheckpoint
 } from './job-checkpoint'
-import {
-  partitionCheckpoint,
-  mergeResumed,
-  outcomeFromTracks,
-  synthesizeEntry
-} from './resume-merge'
+import { partitionCheckpoint } from './resume-merge'
 import { terminateAnalyzeClient } from './workers/analyze-host'
 import { terminateMediaClient } from './workers/media-host'
 import { getCatalog } from './transforms/registry'
 import { readCoverDataUrl, writeTrackTags } from './tagger'
 import { getTrackMetadata, forBinaries } from './metadata'
 import { getWaveform, forWaveform } from './waveform'
-import { addEntry, entryFiles, removeEntry, removeTrack, updateTrack } from './history'
+import { getLibraryDb } from './library/db'
+import { createRepo } from './library/repo'
+import { createContentStore } from './library/content-store'
+import { createLibraryService } from './library/service'
+import { collectGarbage } from './library/gc'
 import { addUrl, removeUrl } from '../shared/url-history'
 import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
@@ -59,7 +57,6 @@ import { getAccentColor } from './accent'
 import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
 import type {
   Settings,
-  HistoryEntry,
   CachedTrack,
   TrackTags,
   StartJobRequest,
@@ -136,6 +133,18 @@ function applyConsoleLogging(): void {
 }
 
 function registerIpc(getWindow: () => BrowserWindow | null): void {
+  // Library (editor model): the managed, content-addressed store + SQLite index that
+  // replaces the flat history. Reconcile any crash-orphaned blobs on launch, then expose
+  // a service the IPC handlers and the job-result fold call into.
+  const libraryStore = createContentStore(join(pluckerDir(), 'blobs'))
+  const libraryRepo = createRepo(getLibraryDb())
+  collectGarbage(libraryRepo, libraryStore)
+  const library = createLibraryService({
+    repo: libraryRepo,
+    store: libraryStore,
+    emit: (event) => getWindow()?.webContents.send(event)
+  })
+
   ipcMain.handle('app:locale', () => app.getLocale())
   ipcMain.handle('accent:get', () => getAccentColor())
   // Fullscreen state drives the custom toolbar layout: macOS hides the native traffic
@@ -261,166 +270,47 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     return listCache()
   })
 
-  // History.
-  ipcMain.handle('history:get', () => loadSettings().history)
-  ipcMain.handle('history:removeEntry', (_e, id: string, deleteFiles: boolean) => {
-    const s = loadSettings()
-    if (deleteFiles) {
-      // Delete only the files this entry owns — never the shared destination
-      // folder, which would clobber other jobs' downloads (same-url redownloads,
-      // or every job when per-playlist subfolders are off).
-      const entry = s.history.find((h) => h.id === id)
-      for (const file of entryFiles(entry)) rmSync(file, { force: true })
-    }
-    const history = removeEntry(s.history, id)
-    saveSettings(settingsPath(), { ...s, history })
-    return history
+  // Library read/mutate IPC (editor model; replaces the old history:* surface).
+  ipcMain.handle('library:getCollections', () => library.listCollections())
+  ipcMain.handle('library:getTrack', (_e, trackId: string) => library.getTrack(trackId))
+  ipcMain.handle('library:getActivity', (_e, limit?: number) => library.listActivity(limit))
+  ipcMain.handle('library:deleteTrack', (_e, trackId: string) => {
+    library.deleteTrack(trackId)
+    return library.listCollections()
   })
-  ipcMain.handle('history:removeTrack', (_e, id: string, index: number, deleteFile: boolean) => {
-    const s = loadSettings()
-    if (deleteFile) {
-      const file = s.history.find((h) => h.id === id)?.tracks[index]?.file
-      if (file) rmSync(file, { force: true })
-    }
-    const history = removeTrack(s.history, id, index)
-    saveSettings(settingsPath(), { ...s, history })
-    return history
+  ipcMain.handle('library:deleteCollection', (_e, id: string) => {
+    library.deleteCollection(id)
+    return library.listCollections()
   })
 
   const win = (): BrowserWindow | null => getWindow()
   const setBar = (overall: number): void =>
     win()?.setProgressBar(overall > 0 && overall < 1 ? overall : overall >= 1 ? 1 : -1)
 
-  /** Fold a finished job's result into history. Main is the sole history writer. */
+  /** Fold a finished job's result into the Library. Main is the sole library writer. */
   const foldJobResult = (jobId: string, payload: JobStartPayload, result: JobResult): void => {
     win()?.setProgressBar(-1)
-    if (payload.kind === 'retransform') {
-      // result.tracks is index-aligned with the targets; skip non-done so a failed
-      // transform never clobbers a still-intact original.
-      const latest = loadSettings()
-      let history = latest.history
-      result.tracks.forEach((tk, i) => {
-        if (tk.status !== 'done') return
-        const tgt = payload.targets[i]
-        history = updateTrack(history, tgt.entryId, tgt.index, {
-          file: tk.file,
-          title: tk.title,
-          artist: tk.artist,
-          album: tk.album,
-          year: tk.year,
-          hash: tk.hash
-        })
-      })
-      saveSettings(settingsPath(), { ...latest, history })
-      win()?.webContents.send('history:changed')
-      return
-    }
-
     // runPipeline resolves even on cancel, returning a partial result with
-    // outcome 'cancelled'; record that as a resumable `interrupted` entry.
+    // outcome 'cancelled'; in that case the checkpoint is kept for resume.
     const cancelled = result.outcome === 'cancelled'
-
-    if (payload.kind === 'retryFailed') {
-      const latest = loadSettings()
-      const current = latest.history.find((h) => h.id === payload.entryId)?.tracks ?? []
-      const tracks = [...current]
-      result.tracks.forEach((rt, i) => {
-        if (rt.status === 'done') tracks[payload.failedIndices[i]] = rt
-      })
-      const history = latest.history.map((h) =>
-        h.id === payload.entryId ? { ...h, tracks, outcome: outcomeFromTracks(tracks) } : h
-      )
-      saveSettings(settingsPath(), { ...latest, history })
-      win()?.webContents.send('history:changed')
-      return
-    }
-
-    if (payload.kind === 'resume') {
-      const resumed = result.tracks.map((track, i) => ({
-        index: payload.req.entries[i].index,
-        track
-      }))
-      const merged = mergeResumed(payload.completed, resumed)
-      const fresh = loadSettings()
-      const entry: HistoryEntry = {
-        id: fresh.history.find((h) => h.jobId === jobId)?.id ?? randomUUID(),
-        jobId,
-        url: payload.req.url,
-        title: payload.req.title,
-        folder: payload.req.folderOverride ?? expandHome(fresh.downloads.baseFolder),
-        kind: payload.req.kind,
-        completedAt: new Date().toISOString(),
-        outcome: cancelled ? 'interrupted' : outcomeFromTracks(merged),
-        tracks: merged
-      }
-      saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-      win()?.webContents.send('history:changed')
+    if (payload.kind === 'download' || payload.kind === 'resume') {
+      library.ingestJobResult(jobId, result)
       if (!cancelled) deleteCheckpoint(jobsDir(), jobId)
-      win()?.webContents.send('jobs:interruptedChanged')
+      if (cancelled) win()?.webContents.send('jobs:interruptedChanged')
       return
     }
-
-    // download
-    const fresh = loadSettings()
-    const entry: HistoryEntry = {
-      id: randomUUID(),
-      jobId,
-      url: result.url,
-      title: result.title,
-      folder: result.folder,
-      kind: result.kind,
-      completedAt: new Date().toISOString(),
-      outcome: cancelled ? 'interrupted' : result.outcome,
-      tracks: result.tracks
-    }
-    saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-    win()?.webContents.send('history:changed')
-    if (!cancelled) deleteCheckpoint(jobsDir(), jobId)
-    if (cancelled) win()?.webContents.send('jobs:interruptedChanged')
+    // retransform / retryFailed: re-implemented as library edit operations in Phase 4.
   }
 
   /** Handle a job that rejected before producing a result (resolve failure / cancel). */
   const foldJobError = (
     jobId: string,
-    payload: JobStartPayload,
+    _payload: JobStartPayload,
     e: { message: string; cancelled: boolean }
   ): void => {
     win()?.setProgressBar(-1)
-    if (payload.kind === 'retransform') {
-      if (!e.cancelled) {
-        log.error('app', 'retransform failed:', e.message)
-        win()?.webContents.send('job:status', jobId, { phase: 'error', error: e.message })
-      }
-      return
-    }
-    if (payload.kind === 'resume') {
-      if (!e.cancelled) {
-        log.error('app', 'resume failed:', e.message)
-        win()?.webContents.send('job:status', jobId, { phase: 'error', error: e.message })
-      }
-      return
-    }
-    if (payload.kind === 'retryFailed') {
-      if (!e.cancelled) log.error('app', 'retry-failed failed:', e.message)
-      return
-    }
-    // download: record a minimal failed/cancelled entry so the attempt is visible.
-    const fresh = loadSettings()
-    const entry: HistoryEntry = {
-      id: randomUUID(),
-      jobId,
-      url: payload.req.url,
-      title: payload.req.title || payload.req.url,
-      folder: payload.req.folderOverride ?? expandHome(fresh.downloads.baseFolder),
-      kind: payload.req.kind,
-      completedAt: new Date().toISOString(),
-      outcome: e.cancelled ? 'cancelled' : 'failed',
-      reason: e.message,
-      tracks: []
-    }
-    saveSettings(settingsPath(), { ...fresh, history: addEntry(fresh.history, entry) })
-    win()?.webContents.send('history:changed')
-    // A throw-before-result left no useful checkpoint to resume — drop it.
+    // A throw-before-result left no useful checkpoint to resume — drop it. Downloads
+    // that fail before producing a result simply aren't ingested into the Library.
     deleteCheckpoint(jobsDir(), jobId)
     if (!e.cancelled) {
       log.error('app', 'job failed:', e.message)
@@ -495,22 +385,6 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     return jobId
   })
 
-  ipcMain.handle('job:retransform', (_e, targets: RetransformTarget[]) => {
-    const fresh = loadSettings()
-    // Resolve each target to a concrete file from current history (status 'done'
-    // + a real path). Anything else is dropped — the renderer already filtered,
-    // this is the trust-but-verify backstop.
-    const resolved: RetransformTarget[] = []
-    for (const tgt of targets) {
-      const track = fresh.history.find((h) => h.id === tgt.entryId)?.tracks[tgt.index]
-      if (track?.status === 'done' && track.file) {
-        resolved.push({ ...tgt, file: track.file, title: track.title, videoId: track.videoId })
-      }
-    }
-    if (resolved.length === 0) return
-    pool.enqueue(randomUUID(), { kind: 'retransform', targets: resolved })
-  })
-
   // ---- Interrupted / resumable jobs ----
 
   /** Compact per-checkpoint summary for the renderer (banner + History affordance). */
@@ -543,34 +417,6 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     pool.enqueue(cp.jobId, { kind: 'resume', req, completed })
   }
 
-  /** Retry just the failed tracks of a finished history entry, merging results in place. */
-  const runRetryFailed = (entryId: string): void => {
-    const settings = loadSettings()
-    const src = settings.history.find((h) => h.id === entryId)
-    if (!src) return
-    const failed = src.tracks
-      .map((t, index) => ({ t, index }))
-      .filter(({ t }) => t.status === 'failed')
-    if (failed.length === 0) return
-    const req: StartJobRequest = {
-      url: src.url,
-      title: src.title,
-      kind: src.kind,
-      entries: failed.map(({ t }, i) => ({
-        videoId: t.videoId ?? '',
-        title: t.title,
-        index: i + 1
-      })),
-      folderOverride: src.folder
-    }
-    pool.enqueue(randomUUID(), {
-      kind: 'retryFailed',
-      req,
-      entryId,
-      failedIndices: failed.map((f) => f.index)
-    })
-  }
-
   ipcMain.handle('jobs:listInterrupted', () => listInterruptedSummaries())
   ipcMain.handle('jobs:discard', (_e, jobId: string) => {
     deleteCheckpoint(jobsDir(), jobId)
@@ -583,9 +429,6 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('jobs:resume', (_e, jobId: string) => {
     const cp = readCheckpoint(join(jobsDir(), `${jobId}.json`))
     if (cp) runResume(cp)
-  })
-  ipcMain.handle('jobs:retryFailed', (_e, entryId: string) => {
-    runRetryFailed(entryId)
   })
 }
 
@@ -677,23 +520,16 @@ function jobsDir(): string {
 }
 
 /**
- * Crash recovery: any checkpoint that outlived a crash has no (or a stale) history
- * entry. Synthesize an `interrupted` entry for it so it shows in History, then tell
- * the renderer to surface the resume banner once the window has loaded.
+ * Crash recovery: any checkpoint that outlived a crash is surfaced to the renderer as a
+ * resumable job (read directly from the checkpoint dir by `jobs:listInterrupted`). The
+ * Library is the source of truth for finished work, so there's no history to synthesize —
+ * we just nudge the renderer to show the resume banner once the window has loaded.
  */
 function recoverInterruptedJobs(): void {
   const checkpoints = listCheckpoints(jobsDir())
   if (checkpoints.length === 0) return
-  const fresh = loadSettings()
-  let history = fresh.history
-  for (const cp of checkpoints) {
-    if (history.some((h) => h.jobId === cp.jobId)) continue
-    history = addEntry(history, synthesizeEntry(cp, randomUUID(), new Date().toISOString()))
-  }
-  if (history !== fresh.history) saveSettings(settingsPath(), { ...fresh, history })
   const win = mainWindow
   const push = (): void => {
-    win?.webContents.send('history:changed')
     win?.webContents.send('jobs:interruptedChanged')
   }
   if (win?.webContents.isLoading()) win.webContents.once('did-finish-load', push)

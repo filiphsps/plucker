@@ -11,7 +11,6 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Settings } from '../shared/types'
 import { DEFAULT_SETTINGS } from '../shared/defaults'
-import { normalizeHistory } from './history'
 
 /** Plucker's app-data directory (`~/.plucker`), holding the config + log. Created on access. */
 export function pluckerDir(home = homedir()): string {
@@ -63,7 +62,6 @@ function mergeDefaults(partial: unknown): Settings {
   return {
     version: d.version,
     language: p.language ?? d.language,
-    history: normalizeHistory(p.history),
     urlHistory: Array.isArray(p.urlHistory)
       ? p.urlHistory.filter((u) => typeof u === 'string')
       : [],

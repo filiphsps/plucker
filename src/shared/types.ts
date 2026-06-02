@@ -38,7 +38,6 @@ export interface ConsoleWindowState {
 export interface Settings {
   version: number
   language: Language
-  history: HistoryEntry[]
   /** Past download URLs entered in the command bar, most-recent-first and deduped. */
   urlHistory: string[]
   downloads: { baseFolder: string; perPlaylistSubfolder: boolean }
