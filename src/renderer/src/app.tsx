@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { DownloadView } from './download-view'
-import { HistoryView } from './history-view'
+import { LibraryView } from './library/library-view'
+import { TrackEditor } from './library/track-editor'
+import { ActivityLog } from './library/activity-log'
+import { useLibrary } from './library/use-library'
 import { SettingsPanel } from './settings-panel'
 import { CacheView } from './cache-view'
 import { TransportDeck } from './transport-deck'
@@ -15,6 +18,7 @@ import { NetworkStatusBadge } from './network-status'
 import { applyLanguage } from './i18n'
 import { showContextMenu, type MenuItem } from './ui/context-menu'
 import type { JobStatus, LogEntry, PlaylistEntry, ResolvedJob } from '../../shared/types'
+import type { ActivityEvent, TrackDetail } from '../../shared/library'
 import type { JobView } from './job-view'
 import type { PendingJob } from './pending-job'
 
@@ -57,6 +61,41 @@ export default function App(): React.JSX.Element {
   // the next listInterruptedJobs round-trip.
   const [interrupted, setInterrupted] = useState<InterruptedJob[]>([])
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+
+  // Library (editor model): collections subscribe live; opening a track loads its
+  // version graph into the editor; the activity log mirrors library:activityChanged.
+  const { collections, refresh: refreshLibrary } = useLibrary()
+  const [trackDetail, setTrackDetail] = useState<TrackDetail | null>(null)
+  const [activity, setActivity] = useState<ActivityEvent[]>([])
+
+  const openTrack = (trackId: string): void => {
+    void window.plucker.getLibraryTrack(trackId).then(setTrackDetail)
+  }
+
+  useEffect(() => {
+    const load = (): void => {
+      void window.plucker.getActivity().then(setActivity)
+    }
+    load()
+    return window.plucker.onLibraryActivityChanged(load)
+  }, [])
+
+  // When the library changes while a track editor is open, re-pull that track's detail
+  // so a finished edit / branch switch reflects immediately.
+  useEffect(() => {
+    if (!trackDetail) return
+    const id = trackDetail.instance.id
+    return window.plucker.onLibraryChanged(() => {
+      void window.plucker.getLibraryTrack(id).then((d) => {
+        if (d) setTrackDetail(d)
+      })
+    })
+  }, [trackDetail?.instance.id])
+
+  const exportTrackIds = async (trackIds: string[]): Promise<void> => {
+    const folder = await window.plucker.chooseFolder()
+    if (folder) await window.plucker.exportLibraryTracks(trackIds, folder)
+  }
 
   // Bottom info bar: currently just connectivity, but the bar grows by pushing more
   // items below (see StatusBar). It stays collapsed whenever every item is idle.
@@ -500,18 +539,43 @@ export default function App(): React.JSX.Element {
           </div>
         </Page>
         <Page active={!overlayOpen && view === 'history'}>
-          <HistoryView
-            onNavigateDownload={() => {
-              setSettingsOpen(false)
-              setView('download')
-            }}
-            onRequestRedownload={(url, folder) => {
-              setSettingsOpen(false)
-              setView('download')
-              setSelectedJobId(null)
-              setRedownloadRequest({ url, folder })
-            }}
-          />
+          <div className="library-page">
+            {trackDetail ? (
+              <TrackEditor
+                detail={trackDetail}
+                onClose={() => setTrackDetail(null)}
+                onEdit={(trackId) => {
+                  void window.plucker
+                    .getSettings()
+                    .then((s) => window.plucker.editTrack(trackId, s.transforms))
+                }}
+                onExport={(trackId) => void exportTrackIds([trackId])}
+                onSwitchBranch={(branchId) => {
+                  void window.plucker
+                    .switchBranch(trackDetail.instance.id, branchId)
+                    .then((d) => d && setTrackDetail(d))
+                }}
+                onCreateBranch={(fromVersionId, name) => {
+                  void window.plucker
+                    .createBranch(trackDetail.instance.id, fromVersionId, name)
+                    .then((r) => r.detail && setTrackDetail(r.detail))
+                }}
+              />
+            ) : (
+              <LibraryView
+                collections={collections}
+                onOpenTrack={openTrack}
+                onDeleteCollection={(id) => {
+                  void window.plucker.deleteLibraryCollection(id).then(() => void refreshLibrary())
+                }}
+                onExportCollection={(id) => {
+                  const col = collections.find((c) => c.id === id)
+                  if (col) void exportTrackIds(col.tracks.map((tr) => tr.id))
+                }}
+              />
+            )}
+            <ActivityLog events={activity} />
+          </div>
         </Page>
         <Page active={settingsOpen}>
           <SettingsPanel
