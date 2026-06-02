@@ -11,7 +11,16 @@ const baseConfig: AutoTagConfig = {
   fetchCoverArt: false,
   fetchGenre: false,
   fetchTrackNumber: false,
-  minMatchScore: 80
+  minMatchScore: 80,
+  useStructuredMetadata: true,
+  parseFeatured: true,
+  featuredHandling: 'keep-in-title',
+  parseVersion: true,
+  stripNoiseTokens: true,
+  channelArtistFallback: 'official-only',
+  requireVerifiedMatch: false,
+  durationToleranceSec: 5,
+  nameSimilarityThreshold: 70
 }
 
 function fakeCache(entry: { mb?: TrackTags } | null, cover: Buffer | null = null): MetadataCache {

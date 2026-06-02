@@ -300,9 +300,27 @@ const de: typeof en = {
         fetchCover: 'Albumcover abrufen',
         fetchGenre: 'Genre abrufen',
         fetchTrackNumber: 'Titelnummer abrufen',
-        minMatchScore: 'Mindest-Trefferwert'
+        minMatchScore: 'Mindest-Trefferwert',
+        useStructuredMetadata: 'Strukturierte Metadaten verwenden',
+        parseFeatured: 'Gastkünstler extrahieren',
+        featuredHandling: 'Gastkünstler',
+        parseVersion: 'Remix/Version im Titel behalten',
+        stripNoiseTokens: 'Rauschen entfernen (Official Video, HD, …)',
+        channelArtistFallback: 'Kanal als Interpret verwenden',
+        requireVerifiedMatch: 'Verifizierten Treffer verlangen',
+        durationToleranceSec: 'Längentoleranz (s)',
+        nameSimilarityThreshold: 'Namens-Schwellenwert'
       },
-      options: { youtube: 'YouTube', musicbrainz: 'MusicBrainz' }
+      options: {
+        youtube: 'YouTube',
+        musicbrainz: 'MusicBrainz',
+        featKeep: 'Im Titel behalten',
+        featArtist: 'An Interpret anhängen',
+        featDrop: 'Verwerfen',
+        chanOfficial: 'Nur offizielle Kanäle',
+        chanAlways: 'Wenn unbekannt',
+        chanNever: 'Nie'
+      }
     },
     analyzeKeyBpm: {
       label: 'Tonart & BPM analysieren',

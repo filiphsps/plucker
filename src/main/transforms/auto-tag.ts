@@ -15,6 +15,17 @@ export interface AutoTagConfig {
   fetchGenre: boolean
   fetchTrackNumber: boolean
   minMatchScore: number
+  // parsing / fusion
+  useStructuredMetadata: boolean
+  parseFeatured: boolean
+  featuredHandling: 'keep-in-title' | 'append-to-artist' | 'drop'
+  parseVersion: boolean
+  stripNoiseTokens: boolean
+  channelArtistFallback: 'official-only' | 'always' | 'never'
+  // verification gate
+  requireVerifiedMatch: boolean
+  durationToleranceSec: number
+  nameSimilarityThreshold: number
 }
 
 /** App identifier sent in the MusicBrainz User-Agent (per their API etiquette). */
@@ -192,6 +203,74 @@ const CONFIG_SCHEMA: ConfigField[] = [
     default: 80,
     min: 0,
     max: 100
+  },
+  {
+    key: 'useStructuredMetadata',
+    labelKey: 'transforms.autoTag.fields.useStructuredMetadata',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'parseFeatured',
+    labelKey: 'transforms.autoTag.fields.parseFeatured',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'featuredHandling',
+    labelKey: 'transforms.autoTag.fields.featuredHandling',
+    type: 'enum',
+    default: 'keep-in-title',
+    options: [
+      { value: 'keep-in-title', labelKey: 'transforms.autoTag.options.featKeep' },
+      { value: 'append-to-artist', labelKey: 'transforms.autoTag.options.featArtist' },
+      { value: 'drop', labelKey: 'transforms.autoTag.options.featDrop' }
+    ]
+  },
+  {
+    key: 'parseVersion',
+    labelKey: 'transforms.autoTag.fields.parseVersion',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'stripNoiseTokens',
+    labelKey: 'transforms.autoTag.fields.stripNoiseTokens',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'channelArtistFallback',
+    labelKey: 'transforms.autoTag.fields.channelArtistFallback',
+    type: 'enum',
+    default: 'official-only',
+    options: [
+      { value: 'official-only', labelKey: 'transforms.autoTag.options.chanOfficial' },
+      { value: 'always', labelKey: 'transforms.autoTag.options.chanAlways' },
+      { value: 'never', labelKey: 'transforms.autoTag.options.chanNever' }
+    ]
+  },
+  {
+    key: 'requireVerifiedMatch',
+    labelKey: 'transforms.autoTag.fields.requireVerifiedMatch',
+    type: 'boolean',
+    default: true
+  },
+  {
+    key: 'durationToleranceSec',
+    labelKey: 'transforms.autoTag.fields.durationToleranceSec',
+    type: 'number',
+    default: 5,
+    min: 0,
+    max: 30
+  },
+  {
+    key: 'nameSimilarityThreshold',
+    labelKey: 'transforms.autoTag.fields.nameSimilarityThreshold',
+    type: 'number',
+    default: 70,
+    min: 0,
+    max: 100
   }
 ]
 
@@ -209,7 +288,16 @@ export const autoTagTransform: TransformDefinition<AutoTagConfig> = {
     fetchCoverArt: true,
     fetchGenre: true,
     fetchTrackNumber: true,
-    minMatchScore: 80
+    minMatchScore: 80,
+    useStructuredMetadata: true,
+    parseFeatured: true,
+    featuredHandling: 'keep-in-title',
+    parseVersion: true,
+    stripNoiseTokens: true,
+    channelArtistFallback: 'official-only',
+    requireVerifiedMatch: true,
+    durationToleranceSec: 5,
+    nameSimilarityThreshold: 70
   },
   async run(ctx: TrackContext, config: AutoTagConfig, services: TransformServices): Promise<void> {
     const ytTags = readTrackTags(ctx.workingFile)

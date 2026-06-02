@@ -298,9 +298,27 @@ export default {
         fetchCover: 'Fetch album cover',
         fetchGenre: 'Fetch genre',
         fetchTrackNumber: 'Fetch track number',
-        minMatchScore: 'Min match score'
+        minMatchScore: 'Min match score',
+        useStructuredMetadata: 'Use structured metadata',
+        parseFeatured: 'Extract featured artists',
+        featuredHandling: 'Featured artists',
+        parseVersion: 'Keep remix/version in title',
+        stripNoiseTokens: 'Strip noise (Official Video, HD, …)',
+        channelArtistFallback: 'Use channel as artist',
+        requireVerifiedMatch: 'Require verified match',
+        durationToleranceSec: 'Duration tolerance (s)',
+        nameSimilarityThreshold: 'Name match threshold'
       },
-      options: { youtube: 'YouTube', musicbrainz: 'MusicBrainz' }
+      options: {
+        youtube: 'YouTube',
+        musicbrainz: 'MusicBrainz',
+        featKeep: 'Keep in title',
+        featArtist: 'Append to artist',
+        featDrop: 'Drop',
+        chanOfficial: 'Official channels only',
+        chanAlways: 'Whenever unknown',
+        chanNever: 'Never'
+      }
     },
     analyzeKeyBpm: {
       label: 'Analyze key & BPM',
