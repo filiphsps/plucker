@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/filiphsps/plucker/compare/plucker-v0.15.0...plucker-v0.15.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* **transform:** run key/BPM analysis off the main thread ([a59b84b](https://github.com/filiphsps/plucker/commit/a59b84b78a11fb12572bf9993511a1c8933f03d5))
+
 ## [0.15.0](https://github.com/filiphsps/plucker/compare/plucker-v0.14.1...plucker-v0.15.0) (2026-06-02)
 
 
