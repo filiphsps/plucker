@@ -1,16 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  Music,
-  Folder,
-  RotateCw,
-  Trash2,
-  X,
-  Search,
-  Check,
-  ChevronDown,
-  ChevronRight
-} from 'lucide-react'
+import { Folder, RotateCw, Trash2, X, Search, Check, ChevronDown, ChevronRight } from 'lucide-react'
 import type { HistoryEntry, HistoryTrack, JobOutcome } from '../../shared/types'
 import { TrackRow } from './track-row'
 import { watchUrl } from '../../shared/youtube-url'
@@ -18,6 +8,8 @@ import { showContextMenu } from './ui/context-menu'
 import { trackRowMenuItems } from './track-row-menu'
 import { historyCardMenuItems } from './history-card-menu'
 import { Tooltip } from './ui/tooltip'
+import { OutcomeRing } from './ui/outcome-ring'
+import { SEGMENT_ORDER, countByStatus } from './ui/outcome-ring-utils'
 import {
   defaultCollapsedIds,
   groupForDelete,
@@ -294,7 +286,8 @@ export function HistoryView({
       )}
 
       {filtered.map((entry) => {
-        const failed = entry.tracks.filter((tk) => tk.status === 'failed').length
+        const statusCounts = countByStatus(entry.tracks)
+        const failed = statusCounts.failed
         const badge = OUTCOME_BADGE[entry.outcome]
         // No real files anywhere in the entry → deleting removes nothing on
         // disk, so the action reads as "clear" rather than "delete".
@@ -325,7 +318,7 @@ export function HistoryView({
                 )
               }}
             >
-              {collapsible && (
+              {collapsible ? (
                 <Tooltip label={t(collapsed ? 'actions.expand' : 'actions.collapse')}>
                   <button
                     onClick={() => toggleCollapsed(entry.id)}
@@ -335,14 +328,17 @@ export function HistoryView({
                     {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                   </button>
                 </Tooltip>
+              ) : (
+                // Single-track entries have no collapse control — reserve the same
+                // width so their ring and title line up with collapsible headers.
+                <span className="h-7 w-7 shrink-0" aria-hidden="true" />
               )}
-              <Tooltip label={t('actions.openFolder')}>
-                <button
-                  onClick={() => window.plucker.openFolder(entry.folder)}
-                  className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md border border-line bg-[#23272e] text-ink-faint"
-                >
-                  <Music size={20} />
-                </button>
+              <Tooltip
+                label={SEGMENT_ORDER.filter((s) => statusCounts[s] > 0)
+                  .map((s) => `${statusCounts[s]} ${t(`status.${s}`)}`)
+                  .join(' · ')}
+              >
+                <OutcomeRing tracks={entry.tracks} />
               </Tooltip>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-semibold text-[#e7ebef]">
