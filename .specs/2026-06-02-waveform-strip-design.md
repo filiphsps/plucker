@@ -103,6 +103,11 @@ function WaveformStrip({
   the playback-ready seam.
 - Empty/short `peaks` (e.g. `[]`) renders nothing (returns null / zero height),
   so callers need no guards.
+- **Entry/exit animation.** Bars animate in on mount — a brief staggered
+  grow-from-baseline (height/opacity, transform-origin center) so the waveform
+  "rises" left-to-right when the row expands, and fades/collapses on unmount.
+  CSS-only (Tailwind transition/keyframes + per-bar `animation-delay` by index);
+  respects `prefers-reduced-motion` (renders at final state, no motion).
 - **Tooltip + context menu integration.** The bars container forwards
   `onContextMenu` (so right-clicking the waveform opens the same row menu) and is
   wrapped in the shared `Tooltip` showing the track duration
