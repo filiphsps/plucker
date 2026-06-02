@@ -62,6 +62,17 @@ export function deleteCheckpoint(dir: string, jobId: string): void {
   rmSync(join(dir, `${jobId}.json`), { force: true })
 }
 
+/**
+ * Mark a checkpoint as banner-dismissed without deleting it, so the job stays
+ * resumable from History but is never offered in the resume banner again. No-op
+ * if the checkpoint is missing. `now` is injected (the store never calls the clock).
+ */
+export function dismissCheckpoint(dir: string, jobId: string, now: number): void {
+  const cp = readCheckpoint(join(dir, `${jobId}.json`))
+  if (!cp) return
+  writeCheckpoint(dir, { ...cp, dismissed: true }, now)
+}
+
 /** Patch operations the pipeline calls during a run to keep the checkpoint live. */
 export interface JobCheckpointSink {
   /** Called once after resolve with the initial (all-queued) entries + job meta. */

@@ -251,6 +251,11 @@ export interface JobCheckpoint {
   updatedAt: number
   total: number
   entries: CheckpointEntry[]
+  /**
+   * Set once the user dismisses this job's resume banner. The checkpoint is kept
+   * (the job stays resumable from History), but the banner is never offered again.
+   */
+  dismissed?: boolean
 }
 
 /** One entry in a resolved playlist/video, before download. */

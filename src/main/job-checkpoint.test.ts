@@ -8,7 +8,8 @@ import {
   writeCheckpoint,
   readCheckpoint,
   listCheckpoints,
-  deleteCheckpoint
+  deleteCheckpoint,
+  dismissCheckpoint
 } from './job-checkpoint'
 import type { JobCheckpoint } from '../shared/types'
 
@@ -58,6 +59,20 @@ describe('checkpoint store', () => {
     writeCheckpoint(dir, base(), 1)
     deleteCheckpoint(dir, 'job1')
     expect(existsSync(join(dir, 'job1.json'))).toBe(false)
+  })
+
+  it('dismiss flags the checkpoint without deleting it, preserving entries', () => {
+    writeCheckpoint(dir, base(), 1)
+    dismissCheckpoint(dir, 'job1', 7)
+    const got = readCheckpoint(join(dir, 'job1.json'))
+    expect(got?.dismissed).toBe(true)
+    expect(got?.updatedAt).toBe(7)
+    expect(got?.entries).toHaveLength(2) // still resumable from History
+  })
+
+  it('dismiss is a no-op when the checkpoint is absent', () => {
+    expect(() => dismissCheckpoint(dir, 'missing', 7)).not.toThrow()
+    expect(existsSync(join(dir, 'missing.json'))).toBe(false)
   })
 
   it('upsertEntries merges by index without dropping existing completed entries', () => {

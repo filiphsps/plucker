@@ -32,6 +32,7 @@ import {
   createCheckpointSink,
   listCheckpoints,
   deleteCheckpoint,
+  dismissCheckpoint,
   readCheckpoint
 } from './job-checkpoint'
 import {
@@ -493,12 +494,14 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     done: number
     total: number
   }[] =>
-    listCheckpoints(jobsDir()).map((cp) => ({
-      jobId: cp.jobId,
-      title: cp.jobTitle,
-      done: cp.entries.filter((e) => e.status === 'done' || e.status === 'skipped').length,
-      total: cp.total
-    }))
+    listCheckpoints(jobsDir())
+      .filter((cp) => !cp.dismissed)
+      .map((cp) => ({
+        jobId: cp.jobId,
+        title: cp.jobTitle,
+        done: cp.entries.filter((e) => e.status === 'done' || e.status === 'skipped').length,
+        total: cp.total
+      }))
 
   /** Shared deps for a resume/retry run (mirrors job:start's wiring). */
   const resumeDeps = (settings: Settings, checkpoint?: RunJobDeps['checkpoint']): RunJobDeps => ({
@@ -623,6 +626,10 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('jobs:listInterrupted', () => listInterruptedSummaries())
   ipcMain.handle('jobs:discard', (_e, jobId: string) => {
     deleteCheckpoint(jobsDir(), jobId)
+    return listInterruptedSummaries()
+  })
+  ipcMain.handle('jobs:dismiss', (_e, jobId: string) => {
+    dismissCheckpoint(jobsDir(), jobId, Date.now())
     return listInterruptedSummaries()
   })
   ipcMain.handle('jobs:resume', async (_e, jobId: string) => {

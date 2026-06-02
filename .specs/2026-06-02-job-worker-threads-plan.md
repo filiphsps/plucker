@@ -409,13 +409,6 @@ export interface JobMeta {
   state: JobState
 }
 
-/** A captured log line forwarded from the worker into the main log pipeline. */
-export interface JobLogLine {
-  level: 'debug' | 'info' | 'warn' | 'error'
-  scope: string
-  message: string
-}
-
 /** Everything the worker needs to rebuild its live deps. All serializable. */
 export interface JobDepsConfig {
   bin: BinaryPaths

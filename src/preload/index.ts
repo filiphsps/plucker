@@ -112,6 +112,11 @@ const api = {
     jobId: string
   ): Promise<{ jobId: string; title: string; done: number; total: number }[]> =>
     ipcRenderer.invoke('jobs:discard', jobId),
+  // Permanently hide one job's resume banner (kept in History, never offered again).
+  dismissResumeJob: (
+    jobId: string
+  ): Promise<{ jobId: string; title: string; done: number; total: number }[]> =>
+    ipcRenderer.invoke('jobs:dismiss', jobId),
   retryFailed: (entryId: string): Promise<void> => ipcRenderer.invoke('jobs:retryFailed', entryId),
   onInterruptedChanged: (cb: () => void): (() => void) => {
     const fn = (): void => cb()

@@ -38,8 +38,9 @@ export default function App(): React.JSX.Element {
   // shows everything from here on, so it mirrors the console scoped to this job.
   const logLen = useRef(0)
   const [jobLogStart, setJobLogStart] = useState(0)
-  // Interrupted (crash/quit/cancel) jobs offered for resume; dismissed ones are
-  // hidden for the session but stay in History.
+  // Interrupted (crash/quit/cancel) jobs offered for resume. Dismissals persist on
+  // the checkpoint (see jobs:dismiss); the local set hides one optimistically before
+  // the next listInterruptedJobs round-trip.
   const [interrupted, setInterrupted] = useState<InterruptedJob[]>([])
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
@@ -199,6 +200,9 @@ export default function App(): React.JSX.Element {
   }
   const handleDismissResume = (jobId: string): void => {
     setDismissed((prev) => new Set(prev).add(jobId))
+    // Persist the dismissal so this job's banner never returns (it stays resumable
+    // from History). The optimistic session state above hides it immediately.
+    void window.plucker.dismissResumeJob(jobId)
   }
 
   return (

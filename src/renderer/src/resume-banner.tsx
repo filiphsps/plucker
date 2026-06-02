@@ -11,8 +11,8 @@ export interface InterruptedJob {
 
 /**
  * Top-of-window banner offering to resume the most recently interrupted job. Renders
- * nothing when there are none. "Dismiss" only hides it for the session — the History
- * entry + checkpoint remain, so the job is never lost.
+ * nothing when there are none. "Dismiss" permanently retires this job's banner (the
+ * History entry + checkpoint remain, so it stays resumable from History).
  */
 export function ResumeBanner({
   jobs,
