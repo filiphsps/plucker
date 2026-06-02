@@ -4,6 +4,7 @@ import {
   entryFiles,
   removeEntry,
   removeTrack,
+  updateTrack,
   normalizeHistory,
   HISTORY_CAP
 } from './history'
@@ -150,5 +151,30 @@ describe('normalizeHistory', () => {
     ])
     expect(e.outcome).toBe('cancelled')
     expect(e.tracks[0].status).toBe('cancelled')
+  })
+})
+
+describe('updateTrack', () => {
+  it('merges a patch onto the track at (entryId, index)', () => {
+    const next = updateTrack([entry('e1', ['a.mp3', 'b.mp3'])], 'e1', 1, {
+      title: 'B2',
+      file: 'b2.mp3'
+    })
+    expect(next[0].tracks[1]).toEqual({ title: 'B2', status: 'done', file: 'b2.mp3' })
+    expect(next[0].tracks[0]).toEqual({ title: 'a.mp3', status: 'done', file: 'a.mp3' })
+  })
+
+  it('no-ops on an unknown entry id or out-of-range index', () => {
+    const h = [entry('e1', ['a.mp3'])]
+    expect(updateTrack(h, 'nope', 0, { title: 'X' })[0].tracks[0].title).toBe('a.mp3')
+    expect(updateTrack(h, 'e1', 9, { title: 'X' })[0].tracks[0].title).toBe('a.mp3')
+    expect(updateTrack(h, 'e1', -1, { title: 'X' })[0].tracks[0].title).toBe('a.mp3')
+  })
+
+  it('does not mutate the input array or entries', () => {
+    const h = [entry('e1', ['a.mp3'])]
+    const snapshot = JSON.parse(JSON.stringify(h))
+    updateTrack(h, 'e1', 0, { title: 'changed' })
+    expect(h).toEqual(snapshot)
   })
 })

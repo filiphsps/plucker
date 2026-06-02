@@ -73,3 +73,22 @@ export function removeTrack(history: HistoryEntry[], id: string, index: number):
     .map((e) => (e.id === id ? { ...e, tracks: e.tracks.filter((_, i) => i !== index) } : e))
     .filter((e) => e.tracks.length > 0)
 }
+
+/**
+ * Merge a partial patch onto the track at `index` within entry `entryId`.
+ * Used when re-running transforms in place: the file may be renamed and the
+ * tags refreshed, but the entry and the other tracks are untouched. No-ops on
+ * an unknown entry id or out-of-range index. Returns a new array (immutable).
+ */
+export function updateTrack(
+  history: HistoryEntry[],
+  entryId: string,
+  index: number,
+  patch: Partial<HistoryTrack>
+): HistoryEntry[] {
+  return history.map((e) => {
+    if (e.id !== entryId || index < 0 || index >= e.tracks.length) return e
+    const tracks = e.tracks.map((t, i) => (i === index ? { ...t, ...patch } : t))
+    return { ...e, tracks }
+  })
+}
