@@ -152,7 +152,10 @@ async function launchChromium(chromium) {
 
 /** Screenshot one theme into `dest`. `masked` clips to the squircle (transparent corners). */
 async function shoot(browser, port, themeId, masked, dest) {
-  const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE }, deviceScaleFactor: 1 })
+  const page = await browser.newPage({
+    viewport: { width: SIZE, height: SIZE },
+    deviceScaleFactor: 1
+  })
   try {
     const query = new URLSearchParams({ theme: themeId })
     if (masked) query.set('shape', 'mask')
