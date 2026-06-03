@@ -39,7 +39,6 @@ export default {
     trackN: 'Track {{n}}',
     versionsN: '{{count}} versions',
     branchesN: '{{count}} branches',
-    previewing: 'Previewing',
     editFailed: 'Edit failed: {{reason}}'
   },
   activity: {

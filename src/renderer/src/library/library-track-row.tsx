@@ -9,7 +9,7 @@ import { showContextMenu } from '../ui/context-menu'
 import { libraryTrackMenuItems } from './library-track-menu'
 import { watchUrl } from '../../../shared/youtube-url'
 import { Tooltip } from '../ui/tooltip'
-import { downsamplePeaks } from '../ui/meta/waveform-utils'
+import { downsamplePeaks, snippetToTrackFraction } from '../ui/meta/waveform-utils'
 
 function fmtDuration(sec: number | null): string {
   if (sec == null) return '—'
@@ -25,13 +25,13 @@ const ROW_PREVIEW_RANGE: [number, number] = [8, 24]
 /** Render one layer of the row waveform — fixed-width so the bright clip never reflows it. */
 function RowWaveBars({ peaks, color }: { peaks: number[]; color: string }): React.JSX.Element {
   return (
-    <div className="flex h-[14px] w-[180px] items-center gap-px" aria-hidden>
+    <div className="flex h-[22px] w-[200px] items-center gap-px" aria-hidden>
       {peaks.map((p, i) => (
         <span
           key={i}
           data-row-wave-bar
           className={'min-w-0 flex-1 rounded-[1px] ' + color}
-          style={{ height: `${Math.max(12, p * 100)}%` }}
+          style={{ height: `${Math.max(10, p * 100)}%` }}
         />
       ))}
     </div>
@@ -39,31 +39,43 @@ function RowWaveBars({ peaks, color }: { peaks: number[]; color: string }): Reac
 }
 
 /**
- * The track's real waveform with a played-portion fill that advances with the
- * preview position (0..1). The dim full waveform and the bright clip share the
- * exact same fixed-width bars, so the fill reveals left-to-right with no seam.
+ * The track's real waveform (shown in the row's cover tooltip) with a
+ * played-portion fill. The fill tracks the absolute playback position within
+ * the *whole* track: the preview position (0..1 over the snippet `range`) maps
+ * back to seconds (`t0 + pos·(t1−t0)`) over `durationSec`, so the bright portion
+ * lines up with where the audio actually is — not with snippet progress. The
+ * dim base + bright clip share identical fixed-width bars, so the fill reveals
+ * left-to-right with no seam.
  */
 function RowWave({
   peaks,
-  posRef
+  posRef,
+  range,
+  durationSec
 }: {
   peaks: number[]
   posRef: React.RefObject<number>
+  range: [number, number]
+  durationSec: number | null
 }): React.JSX.Element {
   const fillRef = useRef<HTMLDivElement>(null)
+  const [t0, t1] = range
   // Drive the fill width imperatively from the live position — no re-render per
   // frame (same approach as the editor playhead).
   useEffect(() => {
     let raf = 0
     const tick = (): void => {
-      if (fillRef.current) fillRef.current.style.width = `${(posRef.current ?? 0) * 100}%`
+      if (fillRef.current) {
+        const f = snippetToTrackFraction(posRef.current ?? 0, [t0, t1], durationSec)
+        fillRef.current.style.width = `${f * 100}%`
+      }
       raf = requestAnimationFrame(tick)
     }
     tick()
     return () => cancelAnimationFrame(raf)
-  }, [posRef])
+  }, [posRef, t0, t1, durationSec])
   return (
-    <div className="relative mt-0.5 h-[14px] w-[180px] overflow-hidden">
+    <div className="relative h-[22px] w-[200px] overflow-hidden">
       <RowWaveBars peaks={peaks} color="bg-ink-faint/45" />
       <div
         ref={fillRef}
@@ -143,23 +155,38 @@ export function LibraryTrackRow({
           {String(index + 1).padStart(2, '0')}
         </span>
       </Tooltip>
-      <div className="flex h-8 w-8 flex-none items-center justify-center overflow-hidden rounded-[5px] border border-line bg-[#23272e]">
-        {cover ? (
-          <img src={cover} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <Music size={14} className="text-ink-faint" />
+      {/* Cover: hover shows the track's waveform in a tooltip; the playing
+          indicator overlays a corner so the title/artist never shift. */}
+      <Tooltip
+        side="top"
+        className="h-8 w-8 flex-none"
+        label={
+          peaks ? (
+            <RowWave
+              peaks={peaks}
+              posRef={posRef}
+              range={ROW_PREVIEW_RANGE}
+              durationSec={durationSec}
+            />
+          ) : null
+        }
+      >
+        <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-[5px] border border-line bg-[#23272e]">
+          {cover ? (
+            <img src={cover} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <Music size={14} className="text-ink-faint" />
+          )}
+        </span>
+        {playing && (
+          <span className="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-ok shadow-[0_0_8px_var(--color-ok)] ring-2 ring-black/40 motion-safe:animate-pulse" />
         )}
-      </div>
+      </Tooltip>
       <button
         onClick={() => onOpen(track.id)}
         className="flex min-w-0 flex-1 flex-col items-start text-left"
       >
         <span className="flex items-center truncate text-[13px] font-medium text-ink">
-          {playing && (
-            <Tooltip className="mr-2 flex-none" label={t('library.previewing')}>
-              <span className="h-1.5 w-1.5 rounded-full bg-ok shadow-[0_0_8px_var(--color-ok)] motion-safe:animate-pulse" />
-            </Tooltip>
-          )}
           {track.title}
           {versions > 1 && (
             <Tooltip className="ml-2 flex-none" label={t('library.versionsN', { count: versions })}>
@@ -179,15 +206,7 @@ export function LibraryTrackRow({
             </Tooltip>
           )}
         </span>
-        {playing ? (
-          peaks ? (
-            <RowWave peaks={peaks} posRef={posRef} />
-          ) : (
-            <div className="mt-0.5 h-[14px] w-[180px] rounded bg-panel2/60" />
-          )
-        ) : artist ? (
-          <span className="truncate text-[11px] text-ink-dim">{artist}</span>
-        ) : null}
+        {artist ? <span className="truncate text-[11px] text-ink-dim">{artist}</span> : null}
       </button>
       <span className="w-12 text-right font-mono text-[11px] text-ink-faint">
         {fmtDuration(durationSec)}

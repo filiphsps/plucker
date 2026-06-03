@@ -40,7 +40,6 @@ const de: typeof en = {
     trackN: 'Titel {{n}}',
     versionsN: '{{count}} Versionen',
     branchesN: '{{count}} Branches',
-    previewing: 'Vorschau',
     editFailed: 'Bearbeitung fehlgeschlagen: {{reason}}'
   },
   activity: {

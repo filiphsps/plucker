@@ -9,6 +9,23 @@ export function timeAtFraction(fraction: number, durationSec: number): number {
 }
 
 /**
+ * Map a preview position (0..1 within the snippet window `[t0,t1]` seconds) to
+ * the playback fraction of the whole track (0..1 over `durationSec`). Lets a
+ * full-track waveform show where a short hover-preview snippet actually is in
+ * the track. Falls back to the raw snippet position when the duration is
+ * unknown; result clamped to [0,1].
+ */
+export function snippetToTrackFraction(
+  pos: number,
+  [t0, t1]: [number, number],
+  durationSec: number | null
+): number {
+  const seconds = t0 + pos * (t1 - t0)
+  const f = durationSec && durationSec > 0 ? seconds / durationSec : pos
+  return clamp(f, 0, 1)
+}
+
+/**
  * Reduce a full-resolution peak array to `buckets` bars by taking the loudest
  * peak within each slice. Lets a dense waveform fit a narrow strip without
  * aliasing away transients. Returns the input unchanged when it already has

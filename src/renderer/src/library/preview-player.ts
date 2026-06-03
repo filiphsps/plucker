@@ -99,7 +99,10 @@ export function playPreview(
         /* not seekable yet */
       }
     }
-    h.onFrame?.(loopPosition(el.currentTime, t0, t1))
+    // Clamp into the window: a not-yet-seeked currentTime (still ~0 while
+    // buffering) must report the window start, not wrap to a spurious 0.5.
+    const ct = Math.min(t1, Math.max(t0, el.currentTime))
+    h.onFrame?.(loopPosition(ct, t0, t1))
     raf = requestAnimationFrame(loop)
   }
   loop()

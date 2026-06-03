@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clamp, timeAtFraction, downsamplePeaks } from './waveform-utils'
+import { clamp, timeAtFraction, downsamplePeaks, snippetToTrackFraction } from './waveform-utils'
 
 describe('clamp', () => {
   it('keeps values inside the range and clamps the rest', () => {
@@ -36,5 +36,24 @@ describe('downsamplePeaks', () => {
   it('returns [] for a non-positive bucket count', () => {
     expect(downsamplePeaks([0.1, 0.2], 0)).toEqual([])
     expect(downsamplePeaks([0.1, 0.2], -3)).toEqual([])
+  })
+})
+
+describe('snippetToTrackFraction', () => {
+  it('maps a snippet position onto the whole-track fraction', () => {
+    // 16s snippet [8,24] over a 160s track: pos 0 → 8/160, pos 1 → 24/160.
+    expect(snippetToTrackFraction(0, [8, 24], 160)).toBeCloseTo(0.05, 5)
+    expect(snippetToTrackFraction(0.5, [8, 24], 160)).toBeCloseTo(0.1, 5)
+    expect(snippetToTrackFraction(1, [8, 24], 160)).toBeCloseTo(0.15, 5)
+  })
+
+  it('falls back to the raw snippet position when the duration is unknown', () => {
+    expect(snippetToTrackFraction(0.42, [8, 24], null)).toBe(0.42)
+    expect(snippetToTrackFraction(0.42, [8, 24], 0)).toBe(0.42)
+  })
+
+  it('clamps the result into [0,1]', () => {
+    expect(snippetToTrackFraction(1, [8, 24], 10)).toBe(1) // 24/10 → clamped
+    expect(snippetToTrackFraction(-1, [8, 24], 160)).toBe(0) // negative → clamped
   })
 })
