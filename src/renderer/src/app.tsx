@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { DownloadView } from './download-view'
-import { LibraryView } from './library/library-view'
+import { Gallery } from './library/gallery'
+import { CollectionTracklist } from './library/collection-tracklist'
 import { TrackEditor } from './library/track-editor'
 import { ActivityLog } from './library/activity-log'
 import { useLibrary } from './library/use-library'
@@ -66,7 +67,11 @@ export default function App(): React.JSX.Element {
   // version graph into the editor; the activity log mirrors library:activityChanged.
   const { collections, refresh: refreshLibrary } = useLibrary()
   const [trackDetail, setTrackDetail] = useState<TrackDetail | null>(null)
+  const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
+  const openCol = openCollectionId
+    ? (collections.find((c) => c.id === openCollectionId) ?? null)
+    : null
 
   const openTrack = (trackId: string): void => {
     void window.plucker.getLibraryTrack(trackId).then(setTrackDetail)
@@ -539,7 +544,7 @@ export default function App(): React.JSX.Element {
           </div>
         </Page>
         <Page active={!overlayOpen && view === 'history'}>
-          <div className="library-page">
+          <div className="flex h-full min-h-0 flex-col">
             {trackDetail ? (
               <TrackEditor
                 detail={trackDetail}
@@ -561,16 +566,32 @@ export default function App(): React.JSX.Element {
                     .then((r) => r.detail && setTrackDetail(r.detail))
                 }}
               />
-            ) : (
-              <LibraryView
-                collections={collections}
+            ) : openCol ? (
+              <CollectionTracklist
+                collection={openCol}
+                onBack={() => setOpenCollectionId(null)}
                 onOpenTrack={openTrack}
+                onExportAll={(id) => {
+                  const c = collections.find((x) => x.id === id)
+                  if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))
+                }}
+                onDelete={(id) => {
+                  void window.plucker.deleteLibraryCollection(id).then(() => {
+                    setOpenCollectionId(null)
+                    void refreshLibrary()
+                  })
+                }}
+              />
+            ) : (
+              <Gallery
+                collections={collections}
+                onOpenCollection={setOpenCollectionId}
+                onExportCollection={(id) => {
+                  const c = collections.find((x) => x.id === id)
+                  if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))
+                }}
                 onDeleteCollection={(id) => {
                   void window.plucker.deleteLibraryCollection(id).then(() => void refreshLibrary())
-                }}
-                onExportCollection={(id) => {
-                  const col = collections.find((c) => c.id === id)
-                  if (col) void exportTrackIds(col.tracks.map((tr) => tr.id))
                 }}
               />
             )}
