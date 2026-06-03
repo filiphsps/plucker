@@ -1,20 +1,33 @@
 name: cleanup-caches
 
-# GitHub Actions caches are scoped to the branch that created them, and a PR's
-# caches live under refs/pull/<n>/merge. Once the PR closes (merged or not) those
-# caches are unused — delete them so they don't sit against the repo's 10 GB cache
-# budget and evict caches that master still wants. (Time-based eviction would get
-# there eventually; this just reclaims the space immediately.)
+# GitHub Actions caches count against a per-repo 10 GB budget. Two sources of waste:
+#
+#  1. A PR's caches live under refs/pull/<n>/merge and are useless once the PR closes.
+#  2. master's caches are keyed on the lockfile hash (e.g. <os>-electron-<sha>,
+#     node-cache-<os>-<arch>-pnpm-<sha>). Each dependency bump mints a new key; the old
+#     ones linger — and because every run restores them via `restore-keys` prefix
+#     fallback, their last-access keeps resetting, so GitHub's 7-day eviction never
+#     reclaims them. They pile up until the repo hits the 10 GB cap and starts evicting
+#     caches master still wants.
+#
+# This workflow handles both: delete a closed PR's caches, and prune master down to the
+# newest cache per key-prefix.
 on:
   pull_request:
     types: [closed]
+  schedule:
+    - cron: '0 4 * * *' # daily, 04:00 UTC
+  workflow_dispatch:
 
 permissions:
   actions: write
   contents: read
 
 jobs:
-  cleanup:
+  # A closed PR's caches (refs/pull/<n>/merge) are dead weight — delete them. Skipped on
+  # schedule/dispatch (no PR in context).
+  pr-caches:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Delete caches for the closed PR
@@ -30,4 +43,34 @@ jobs:
           fi
           for id in $ids; do
             gh cache delete "$id" && echo "deleted cache $id"
+          done
+
+  # Reclaim master's accumulated, superseded caches. The PR-close job never touches these
+  # (they live under refs/heads/master), and restore-keys keeps them from auto-evicting,
+  # so prune them here on a schedule (and on demand via workflow_dispatch).
+  prune-master:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep only the newest cache per key-prefix on master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Group caches by key with the trailing 64-hex lockfile hash stripped, sort each
+          # group newest-first, and select everything but the newest for deletion. Keys
+          # with no hash suffix group alone and are never deleted. This always keeps the
+          # active cache (newest); older entries are superseded and only ever served as
+          # restore-keys partial hits, so dropping them is safe.
+          ids=$(gh cache list --ref refs/heads/master --limit 100 \
+            --json id,key,createdAt \
+            --jq 'group_by(.key | sub("-[0-9a-f]{64}$"; ""))
+                  | map(sort_by(.createdAt) | reverse | .[1:])
+                  | flatten | .[].id')
+          if [ -z "$ids" ]; then
+            echo "Nothing to prune on master."
+            exit 0
+          fi
+          for id in $ids; do
+            gh cache delete "$id" && echo "deleted superseded cache $id"
           done
