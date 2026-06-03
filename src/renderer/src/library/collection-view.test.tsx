@@ -28,6 +28,7 @@ describe('CollectionView', () => {
         onDeleteTrack={noop}
         onExportAll={noop}
         onDelete={noop}
+        onRename={noop}
         onRedownloadTrack={noop}
       />
     )

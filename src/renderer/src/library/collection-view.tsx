@@ -5,6 +5,8 @@ import type { CollectionView as CV } from '../../../shared/library'
 import { CollectionCover } from './collection-cover'
 import { LibraryTrackRow } from './library-track-row'
 import { Button } from '../ui/button'
+import { InlineEdit } from '../ui/form/inline-edit'
+import { COLLECTION_TITLE_FIELD } from '../../../shared/library'
 
 /** The cinematic collection page: blurred-cover hero + sharp art + meta + a dense track list. */
 export function CollectionView({
@@ -15,6 +17,9 @@ export function CollectionView({
   onDeleteTrack,
   onExportAll,
   onDelete,
+  onRename,
+  autoBeginRename = false,
+  onAutoRenameConsumed,
   onRedownloadTrack
 }: {
   collection: CV
@@ -24,6 +29,9 @@ export function CollectionView({
   onDeleteTrack: (trackId: string) => void
   onExportAll: (id: string) => void
   onDelete: (id: string) => void
+  onRename: (id: string, title: string) => void
+  autoBeginRename?: boolean
+  onAutoRenameConsumed?: () => void
   onRedownloadTrack: (url: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -54,9 +62,16 @@ export function CollectionView({
             <div className="font-mono text-[9px] uppercase tracking-[1.5px] text-white/60">
               {t(`library.kind.${collection.kind}`)}
             </div>
-            <h2 className="my-1.5 truncate text-[30px] font-bold leading-none tracking-[-.5px] text-white">
-              {collection.title}
-            </h2>
+            <InlineEdit
+              value={collection.title}
+              spec={COLLECTION_TITLE_FIELD}
+              onSave={(title) => onRename(collection.id, title)}
+              autoEdit={autoBeginRename}
+              onAutoEditDone={onAutoRenameConsumed}
+              ariaLabel={t('library.rename')}
+              displayClassName="my-1.5 text-[30px] font-bold leading-none tracking-[-.5px] text-white"
+              inputClassName="my-1.5 w-full rounded-md border border-white/20 bg-black/40 px-2 py-0.5 text-[30px] font-bold leading-none tracking-[-.5px] text-white outline-none"
+            />
             <div className="flex flex-wrap gap-2 font-mono text-[11px] text-white/65">
               <span>{t('library.tracksN', { count: collection.tracks.length })}</span>
               {host && (

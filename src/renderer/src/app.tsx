@@ -623,6 +623,9 @@ export default function App(): React.JSX.Element {
                       void refreshLibrary()
                     })
                   }}
+                  onRename={(id, title) => {
+                    void window.plucker.renameLibraryCollection(id, title)
+                  }}
                   onRedownloadTrack={redownloadFromUrl}
                 />
               ) : (
