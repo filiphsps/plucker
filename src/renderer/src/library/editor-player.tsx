@@ -93,7 +93,16 @@ export function EditorPlayer({
         <div className="mt-0.5 truncate text-[12px] text-ink-dim">
           {[artist, dur].filter(Boolean).join(' · ') || ' '}
         </div>
-        <div className="mt-auto flex items-center gap-3 pt-3">
+        {/* Tools sit on their own row above the waveform so the waveform spans the
+            full width instead of being squeezed by a side column. */}
+        <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+          <span className="truncate font-mono text-[9px] tracking-[.4px] text-ink-faint">
+            {t('library.showing', { version: versionLabel })}
+            {isCurrent ? ` · ${t('library.current')}` : ''}
+          </span>
+          <div className="flex flex-none items-center gap-2">{branchSwitcher}</div>
+        </div>
+        <div className="mt-2 flex items-center gap-3">
           <button
             onClick={toggle}
             disabled={!canPlay}
@@ -119,13 +128,6 @@ export function EditorPlayer({
               />
             )}
           </div>
-        </div>
-      </div>
-      <div className="flex flex-none flex-col items-end gap-2">
-        <div className="flex items-center gap-2">{branchSwitcher}</div>
-        <div className="font-mono text-[9px] tracking-[.4px] text-ink-faint">
-          {t('library.showing', { version: versionLabel })}
-          {isCurrent ? ` · ${t('library.current')}` : ''}
         </div>
       </div>
     </div>
