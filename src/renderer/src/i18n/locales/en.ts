@@ -8,7 +8,15 @@ export default {
   common: {
     delete: 'Delete',
     back: 'Back',
-    open: 'Open'
+    open: 'Open',
+    save: 'Save',
+    cancel: 'Cancel'
+  },
+  forms: {
+    error: {
+      required: 'Required',
+      tooLong: 'Too long'
+    }
   },
   library: {
     empty: 'Your library is empty',
@@ -31,6 +39,7 @@ export default {
     current: 'current',
     metadata: 'Metadata',
     rename: 'Rename',
+    collectionTitle: 'Title',
     deleteVersion: 'Delete version',
     rawRoot: 'raw · root',
     recipeFor: 'Recipe for {{version}}',

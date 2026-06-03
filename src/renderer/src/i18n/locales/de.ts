@@ -9,7 +9,15 @@ const de: typeof en = {
   common: {
     delete: 'Löschen',
     back: 'Zurück',
-    open: 'Öffnen'
+    open: 'Öffnen',
+    save: 'Speichern',
+    cancel: 'Abbrechen'
+  },
+  forms: {
+    error: {
+      required: 'Erforderlich',
+      tooLong: 'Zu lang'
+    }
   },
   library: {
     empty: 'Deine Bibliothek ist leer',
@@ -32,6 +40,7 @@ const de: typeof en = {
     current: 'aktuell',
     metadata: 'Metadaten',
     rename: 'Umbenennen',
+    collectionTitle: 'Titel',
     deleteVersion: 'Version löschen',
     rawRoot: 'roh · Wurzel',
     recipeFor: 'Rezept für {{version}}',
