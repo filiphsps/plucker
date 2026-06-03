@@ -3,7 +3,7 @@ import { DownloadView } from './download-view'
 import { Gallery } from './library/gallery'
 import { CollectionView } from './library/collection-view'
 import { TrackEditor } from './library/track-editor'
-import { ActivityLog } from './library/activity-log'
+import { ActivityDock } from './library/activity-dock'
 import { useLibrary } from './library/use-library'
 import { initPreviewSettings } from './library/preview-settings'
 import { SettingsPanel } from './settings-panel'
@@ -560,72 +560,78 @@ export default function App(): React.JSX.Element {
         </Page>
         <Page active={!overlayOpen && view === 'history'}>
           <div className="flex h-full min-h-0 flex-col">
-            {trackDetail ? (
-              <TrackEditor
-                detail={trackDetail}
-                collectionTitle={
-                  collections.find((c) => c.id === trackDetail.instance.collectionId)?.title ?? ''
-                }
-                onClose={() => setTrackDetail(null)}
-                onEdit={(trackId) => {
-                  void window.plucker
-                    .getSettings()
-                    .then((s) => window.plucker.editTrack(trackId, s.transforms))
-                }}
-                onExport={(trackId) => void exportTrackIds([trackId])}
-                onSwitchBranch={(branchId) => {
-                  void window.plucker
-                    .switchBranch(trackDetail.instance.id, branchId)
-                    .then((d) => d && setTrackDetail(d))
-                }}
-                onCreateBranch={(fromVersionId, name) => {
-                  void window.plucker
-                    .createBranch(trackDetail.instance.id, fromVersionId, name)
-                    .then((r) => r.detail && setTrackDetail(r.detail))
-                }}
-                onDeleteVersion={(versionId) => {
-                  void window.plucker.deleteLibraryVersion(versionId)
-                }}
-                onRenameVersion={(versionId, label) => {
-                  const next = window.prompt(t('library.renamePrompt'), label)
-                  if (next != null) void window.plucker.renameVersion(versionId, next)
-                }}
-              />
-            ) : openCol ? (
-              <CollectionView
-                collection={openCol}
-                onBack={() => setOpenCollectionId(null)}
-                onOpenTrack={openTrack}
-                onExportTrack={(trackId) => void exportTrackIds([trackId])}
-                onDeleteTrack={(trackId) => {
-                  void window.plucker.deleteLibraryTrack(trackId).then(() => void refreshLibrary())
-                }}
-                onExportAll={(id) => {
-                  const c = collections.find((x) => x.id === id)
-                  if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))
-                }}
-                onDelete={(id) => {
-                  void window.plucker.deleteLibraryCollection(id).then(() => {
-                    setOpenCollectionId(null)
-                    void refreshLibrary()
-                  })
-                }}
-              />
-            ) : (
-              <Gallery
-                collections={collections}
-                onOpenCollection={setOpenCollectionId}
-                onExportCollection={(id) => {
-                  const c = collections.find((x) => x.id === id)
-                  if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))
-                }}
-                onDeleteCollection={(id) => {
-                  void window.plucker.deleteLibraryCollection(id).then(() => void refreshLibrary())
-                }}
-                onRedownloadCollection={redownloadFromUrl}
-              />
-            )}
-            <ActivityLog events={activity} />
+            <div className="min-h-0 flex-1">
+              {trackDetail ? (
+                <TrackEditor
+                  detail={trackDetail}
+                  collectionTitle={
+                    collections.find((c) => c.id === trackDetail.instance.collectionId)?.title ?? ''
+                  }
+                  onClose={() => setTrackDetail(null)}
+                  onEdit={(trackId) => {
+                    void window.plucker
+                      .getSettings()
+                      .then((s) => window.plucker.editTrack(trackId, s.transforms))
+                  }}
+                  onExport={(trackId) => void exportTrackIds([trackId])}
+                  onSwitchBranch={(branchId) => {
+                    void window.plucker
+                      .switchBranch(trackDetail.instance.id, branchId)
+                      .then((d) => d && setTrackDetail(d))
+                  }}
+                  onCreateBranch={(fromVersionId, name) => {
+                    void window.plucker
+                      .createBranch(trackDetail.instance.id, fromVersionId, name)
+                      .then((r) => r.detail && setTrackDetail(r.detail))
+                  }}
+                  onDeleteVersion={(versionId) => {
+                    void window.plucker.deleteLibraryVersion(versionId)
+                  }}
+                  onRenameVersion={(versionId, label) => {
+                    const next = window.prompt(t('library.renamePrompt'), label)
+                    if (next != null) void window.plucker.renameVersion(versionId, next)
+                  }}
+                />
+              ) : openCol ? (
+                <CollectionView
+                  collection={openCol}
+                  onBack={() => setOpenCollectionId(null)}
+                  onOpenTrack={openTrack}
+                  onExportTrack={(trackId) => void exportTrackIds([trackId])}
+                  onDeleteTrack={(trackId) => {
+                    void window.plucker
+                      .deleteLibraryTrack(trackId)
+                      .then(() => void refreshLibrary())
+                  }}
+                  onExportAll={(id) => {
+                    const c = collections.find((x) => x.id === id)
+                    if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))
+                  }}
+                  onDelete={(id) => {
+                    void window.plucker.deleteLibraryCollection(id).then(() => {
+                      setOpenCollectionId(null)
+                      void refreshLibrary()
+                    })
+                  }}
+                />
+              ) : (
+                <Gallery
+                  collections={collections}
+                  onOpenCollection={setOpenCollectionId}
+                  onExportCollection={(id) => {
+                    const c = collections.find((x) => x.id === id)
+                    if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))
+                  }}
+                  onDeleteCollection={(id) => {
+                    void window.plucker
+                      .deleteLibraryCollection(id)
+                      .then(() => void refreshLibrary())
+                  }}
+                  onRedownloadCollection={redownloadFromUrl}
+                />
+              )}
+            </div>
+            <ActivityDock events={activity} />
           </div>
         </Page>
         <Page active={settingsOpen}>

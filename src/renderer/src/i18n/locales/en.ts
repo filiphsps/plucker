@@ -38,6 +38,7 @@ export default {
     play: 'Play'
   },
   activity: {
+    title: 'Activity',
     empty: 'No activity yet.'
   },
   nav: {

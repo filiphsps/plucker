@@ -39,6 +39,7 @@ const de: typeof en = {
     play: 'Wiedergabe'
   },
   activity: {
+    title: 'Aktivität',
     empty: 'Noch keine Aktivität.'
   },
   nav: {
