@@ -131,6 +131,8 @@ const api = {
     ipcRenderer.invoke('library:deleteTrack', trackId),
   deleteLibraryCollection: (id: string): Promise<CollectionView[]> =>
     ipcRenderer.invoke('library:deleteCollection', id),
+  renameLibraryCollection: (id: string, title: string): Promise<void> =>
+    ipcRenderer.invoke('library:renameCollection', id, title),
   editTrack: (trackId: string, chain: TransformInstance[]): Promise<void> =>
     ipcRenderer.invoke('library:edit', trackId, chain),
   createBranch: (

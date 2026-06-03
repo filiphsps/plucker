@@ -386,6 +386,9 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('library:renameVersion', (_e, versionId: string, label: string) =>
     library.renameVersion(versionId, label)
   )
+  ipcMain.handle('library:renameCollection', (_e, id: string, title: string) =>
+    library.renameCollection(id, title)
+  )
   ipcMain.handle('library:deleteVersion', (_e, versionId: string) => {
     library.deleteVersion(versionId)
   })
