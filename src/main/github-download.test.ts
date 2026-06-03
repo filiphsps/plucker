@@ -1,4 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// `./github-download` imports Electron's `net` at load time. Under Vitest (plain Node, no
+// Electron binary) requiring the real `electron` throws, so we stub it — the helpers under
+// test (pickArchZip, pickBlockmapFor, sha512OfFile) are pure. Same pattern as accent.test.ts.
+vi.mock('electron', () => ({ net: {} }))
+
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

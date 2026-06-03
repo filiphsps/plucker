@@ -1,4 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
+
+// `./context-menu` imports Electron main-process APIs (BrowserWindow, Menu, …) at load
+// time. Under Vitest (plain Node, no Electron binary) requiring the real `electron` throws,
+// so we stub it — `buildMenuTemplate` is pure. Same pattern as accent.test.ts.
+vi.mock('electron', () => ({ BrowserWindow: {}, clipboard: {}, ipcMain: {}, Menu: {} }))
+
 import { buildMenuTemplate } from './context-menu'
 import type { MenuDescriptor } from '../shared/context-menu'
 
