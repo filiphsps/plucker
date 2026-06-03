@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/filiphsps/plucker/compare/plucker-v0.21.0...plucker-v0.21.1) (2026-06-03)
+
+
+### Bug Fixes
+
+* **build:** HOTFIX ([2f173cc](https://github.com/filiphsps/plucker/commit/2f173cc0a3a3e21bbd3a0fab4b8d4314be8082cc))
+
 ## [0.21.0](https://github.com/filiphsps/plucker/compare/plucker-v0.20.0...plucker-v0.21.0) (2026-06-03)
 
 
