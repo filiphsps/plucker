@@ -35,7 +35,8 @@ const de: typeof en = {
     deleteVersion: 'Version löschen',
     rawRoot: 'roh · Wurzel',
     recipeFor: 'Rezept für {{version}}',
-    renamePrompt: 'Version umbenennen'
+    renamePrompt: 'Version umbenennen',
+    play: 'Wiedergabe'
   },
   activity: {
     empty: 'Noch keine Aktivität.'

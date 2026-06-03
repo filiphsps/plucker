@@ -34,7 +34,8 @@ export default {
     deleteVersion: 'Delete version',
     rawRoot: 'raw · root',
     recipeFor: 'Recipe for {{version}}',
-    renamePrompt: 'Rename version'
+    renamePrompt: 'Rename version',
+    play: 'Play'
   },
   activity: {
     empty: 'No activity yet.'
