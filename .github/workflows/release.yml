@@ -106,6 +106,12 @@ jobs:
       # binary loads on both arches. The step self-verifies the result is fat.
       - run: node scripts/build-better-sqlite3-universal.mjs
 
+      # This DMG only ever runs one arch, but several bundled binaries are fat (the universal
+      # better-sqlite3 above, native-context-menu's Module.node, and yt-dlp's onedir dylibs).
+      # Strip the other arch's slice so the DMG isn't carrying ~70 MB of binary it can't run.
+      # lipo ships with the runner's Xcode CLT — no install needed.
+      - run: node scripts/thin-native-bins.mjs ${{ matrix.arch }}
+
       # One build → this arch's zip (+ blockmap) and DMG, plus its latest-mac.yml.
       - run: pnpm exec electron-builder --mac zip dmg --${{ matrix.arch }} --config electron-builder.yml --publish never
 
