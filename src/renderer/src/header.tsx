@@ -2,7 +2,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Download,
-  History as HistoryIcon,
+  Library,
   SlidersHorizontal,
   Terminal,
   type LucideIcon
@@ -66,7 +66,7 @@ export function Header({
       <span className="h-[22px] w-px bg-line" />
       <nav className="no-drag flex gap-0.5">
         {tab('download', t('nav.download'), Download)}
-        {tab('history', t('nav.history'), HistoryIcon)}
+        {tab('history', t('nav.history'), Library)}
       </nav>
       <div className="flex-1" />
       {consoleAvailable && (
