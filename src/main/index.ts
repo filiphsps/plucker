@@ -98,6 +98,13 @@ bootstrapFileLogging({ version: appVersion, logFile: logPath() })
 // (built when the app becomes ready) read "Plucker" instead of "Electron".
 app.setName('Plucker')
 
+// Keep the Dock icon hidden until the first window starts loading, so a packaged launch doesn't
+// park a bare icon in the Dock during the (potentially slow, native-module) startup work before
+// there is any UI. createWindow() reveals it; from then on it persists, so closing the window
+// leaves Plucker in the Dock as macOS users expect. Dev is exempt so electron-vite's hot-restarts
+// don't flicker the icon on every save.
+if (process.platform === 'darwin' && app.isPackaged) app.dock?.hide()
+
 // Privileged scheme so the renderer can stream library blobs (range-capable) for the
 // hover-preview player and the editor transport, without exposing file paths.
 protocol.registerSchemesAsPrivileged([
@@ -735,6 +742,10 @@ function createWindow(): void {
     title: app.getName()
   })
   mainWindow = win
+  // The first window's process is starting — reveal the Dock icon (kept hidden at launch above).
+  // No-op if already shown / never hidden (dev, off-macOS, or subsequent windows). From here it
+  // persists for the app's lifetime, so a later window close leaves Plucker in the Dock.
+  if (process.platform === 'darwin') app.dock?.show()
   // Watch this window's renderer for crashes; a dead renderer leaves a blank "empty shell"
   // that we recover (recreate) from, or hard-exit on if crashes form a loop.
   crashGuard?.attach(win)
@@ -902,6 +913,9 @@ app.whenReady().then(async () => {
   // instead of lingering as a dead, windowless process.
   .catch((err) => {
     log.error('app', 'fatal error during startup:', err)
+    // Startup failed before any window revealed the Dock icon — show it so the error dialog
+    // belongs to a visible app rather than an invisible one.
+    if (process.platform === 'darwin') app.dock?.show()
     try {
       dialog.showErrorBox(
         'Plucker failed to start',
