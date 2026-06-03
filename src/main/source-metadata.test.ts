@@ -25,7 +25,7 @@ describe('extractSourceMetadata', () => {
       album: 'Homework',
       releaseYear: '1997',
       creator: 'Daft Punk',
-      genre: 'House',
+      // genre intentionally dropped — we don't carry YouTube's genre.
       trackNumber: '5',
       uploader: 'Daft Punk - Topic',
       channel: 'Daft Punk',

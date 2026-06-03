@@ -17,7 +17,6 @@ export interface FusedTags {
   album: FusedField
   year: FusedField
   trackNumber: FusedField
-  genre: FusedField
   featured?: string[]
   version?: string
 }
@@ -81,9 +80,8 @@ export function fuseMetadata(
   const album = pick(fromStruct(src.album))
   const year = pick(fromStruct(src.releaseYear))
   const trackNumber = pick(fromStruct(src.trackNumber))
-  const genre = pick(fromStruct(src.genre))
 
-  const fused: FusedTags = { artist, title, album, year, trackNumber, genre }
+  const fused: FusedTags = { artist, title, album, year, trackNumber }
   if (parsed.featured?.length) fused.featured = parsed.featured
   if (parsed.version) fused.version = parsed.version
   return fused
@@ -96,7 +94,6 @@ export function fusedToTags(f: FusedTags): TrackTags {
   if (f.title.value) tags.title = f.title.value
   if (f.album.value) tags.album = f.album.value
   if (f.year.value) tags.year = f.year.value
-  if (f.genre.value) tags.genre = f.genre.value
   if (f.trackNumber.value) tags.trackNumber = f.trackNumber.value
   return tags
 }

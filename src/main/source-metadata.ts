@@ -7,7 +7,6 @@ export interface SourceMetadata {
   album?: string
   releaseYear?: string
   creator?: string
-  genre?: string
   trackNumber?: string
   uploader?: string
   channel?: string
@@ -35,7 +34,9 @@ export function extractSourceMetadata(info: unknown): SourceMetadata {
   set('album', str(o.album))
   set('releaseYear', str(o.release_year))
   set('creator', str(o.creator))
-  set('genre', str(o.genre))
+  // Genre is intentionally not extracted: we don't carry YouTube's genre into
+  // the app's tagging (yt-dlp is also told not to embed it). MusicBrainz remains
+  // the only genre source, via the auto-tag transform's `fetchGenre`.
   set('trackNumber', str(o.track_number))
   set('uploader', str(o.uploader))
   set('channel', str(o.channel))

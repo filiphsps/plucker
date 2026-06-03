@@ -53,6 +53,11 @@ export function buildDownloadArgs(input: DownloadArgsInput): string[] {
     `ExtractAudio:${extractArgs}`,
     '--embed-thumbnail',
     '--embed-metadata',
+    // Don't carry YouTube's genre into the file. Assigning an empty value to the
+    // `meta_genre` field clears the genre the FFmpegMetadata postprocessor would
+    // otherwise embed during the ffmpeg conversion, so the mp3 has no genre tag.
+    '--parse-metadata',
+    ':(?P<meta_genre>)',
     '--ffmpeg-location',
     ffmpegPath,
     '--newline',

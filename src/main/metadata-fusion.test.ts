@@ -60,19 +60,18 @@ describe('fusedToTags', () => {
         track: 'T',
         album: 'Al',
         releaseYear: '2020',
-        genre: 'Pop',
         trackNumber: '3'
       },
       { artist: null, title: 'T', featured: ['G'] },
       'topic',
       { useStructuredMetadata: true, channelArtistFallback: 'never' }
     )
+    // genre is intentionally not fused from structured (YouTube) metadata.
     expect(fusedToTags(fused)).toEqual({
       artist: 'A',
       title: 'T',
       album: 'Al',
       year: '2020',
-      genre: 'Pop',
       trackNumber: '3'
     })
   })

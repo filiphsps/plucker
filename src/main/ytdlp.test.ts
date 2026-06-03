@@ -30,6 +30,18 @@ describe('buildDownloadArgs', () => {
     expect(args[args.length - 1]).toBe('https://yt/playlist')
   })
 
+  it('clears the embedded genre via an empty meta_genre parse-metadata rule', () => {
+    const args = buildDownloadArgs({
+      url: 'u',
+      destFolder: '/o',
+      settings: DEFAULT_SETTINGS,
+      ffmpegPath: '/f'
+    })
+    const i = args.indexOf('--parse-metadata')
+    expect(i).toBeGreaterThan(-1)
+    expect(args[i + 1]).toBe(':(?P<meta_genre>)')
+  })
+
   it('omits --paths when no tempDir is given', () => {
     const args = buildDownloadArgs({
       url: 'u',
