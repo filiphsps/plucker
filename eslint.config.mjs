@@ -21,10 +21,11 @@ export default defineConfig(
       '.specs/**',
       // Native addons' Swift build output (SwiftPM `.build`) — generated artifacts.
       'native/**/.build/**',
-      // Native addons' CommonJS entrypoints are thin hand-written loaders that must use
-      // `require()` to pull in the compiled `.node` binary and, being plain JS, can't
-      // carry TS return types — the TS rules don't apply. (Their `.d.ts` files still lint.)
-      'native/**/*.js'
+      // Native addons' plain-JS files — the CommonJS entrypoints (thin hand-written
+      // loaders that `require()` the compiled `.node` binary) and the ESM build scripts
+      // (`scripts/build.mjs`) — can't carry TS return types, so the TS rules don't apply.
+      // (Their `.d.ts` files still lint.)
+      'native/**/*.{js,mjs,cjs}'
     ]
   },
   tseslint.configs.recommended,
