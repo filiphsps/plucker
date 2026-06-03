@@ -95,6 +95,9 @@ export interface TrackSummary {
   branchCount?: number
   /** Current version duration in seconds, if known (lazy; usually filled in the renderer). */
   durationSec?: number
+  /** Source video id / URL of the original download (for re-download / open-source actions). */
+  sourceVideoId?: string
+  sourceUrl?: string
 }
 export interface CollectionView extends Collection {
   tracks: TrackSummary[]

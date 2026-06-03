@@ -28,6 +28,7 @@ describe('CollectionView', () => {
         onDeleteTrack={noop}
         onExportAll={noop}
         onDelete={noop}
+        onRedownloadTrack={noop}
       />
     )
     expect(html).toContain('Road Trip')

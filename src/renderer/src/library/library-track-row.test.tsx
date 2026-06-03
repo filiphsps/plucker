@@ -16,7 +16,14 @@ const tr: TrackSummary = {
 describe('LibraryTrackRow', () => {
   it('renders the 1-based padded index, title and a vN chip when there is edit history', () => {
     const html = renderToStaticMarkup(
-      <LibraryTrackRow index={2} track={tr} onOpen={() => {}} onExport={() => {}} onDelete={() => {}} />
+      <LibraryTrackRow
+        index={2}
+        track={tr}
+        onOpen={() => {}}
+        onExport={() => {}}
+        onDelete={() => {}}
+        onRedownload={() => {}}
+      />
     )
     expect(html).toContain('Neon Tide')
     expect(html).toContain('03') // 1-based padded index (index 2 → 03)
@@ -30,6 +37,7 @@ describe('LibraryTrackRow', () => {
         onOpen={() => {}}
         onExport={() => {}}
         onDelete={() => {}}
+        onRedownload={() => {}}
       />
     )
     expect(html).toContain('⑂')

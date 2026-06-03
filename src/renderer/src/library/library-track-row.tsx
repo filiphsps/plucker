@@ -5,6 +5,9 @@ import type { TrackSummary } from '../../../shared/library'
 import { useTrackBlob } from './use-track-blob'
 import { useTrackMeta } from './use-track-meta'
 import { hoverPreview } from './preview-player'
+import { showContextMenu } from '../ui/context-menu'
+import { libraryTrackMenuItems } from './library-track-menu'
+import { watchUrl } from '../../../shared/youtube-url'
 
 function fmtDuration(sec: number | null): string {
   if (sec == null) return '—'
@@ -61,13 +64,15 @@ export function LibraryTrackRow({
   track,
   onOpen,
   onExport,
-  onDelete
+  onDelete,
+  onRedownload
 }: {
   index: number
   track: TrackSummary
   onOpen: (trackId: string) => void
   onExport: (trackId: string) => void
   onDelete: (trackId: string) => void
+  onRedownload: (url: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const { cover, hash } = useTrackBlob(track.id)
@@ -92,6 +97,22 @@ export function LibraryTrackRow({
       className="group flex h-[52px] items-center gap-3 border-b border-line2 px-[18px] hover:bg-white/[0.018]"
       onMouseEnter={() => ctrl.current?.enter()}
       onMouseLeave={() => ctrl.current?.leave()}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        const url =
+          track.sourceUrl ?? (track.sourceVideoId ? watchUrl(track.sourceVideoId) : undefined)
+        void showContextMenu(
+          libraryTrackMenuItems({
+            t,
+            videoId: track.sourceVideoId,
+            sourceUrl: track.sourceUrl,
+            onOpen: () => onOpen(track.id),
+            onRedownload: () => url && onRedownload(url),
+            onExport: () => onExport(track.id),
+            onDelete: () => onDelete(track.id)
+          })
+        )
+      }}
     >
       <span className="w-[22px] text-center font-mono text-[11px] text-ink-faint">
         {String(index + 1).padStart(2, '0')}

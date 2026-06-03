@@ -65,7 +65,9 @@ export function createLibraryService(deps: LibraryDeps): LibraryService {
         orderIndex: t.orderIndex,
         currentVersionId: repo.getBranch(t.activeBranchId)!.tipVersionId,
         versionCount: repo.listVersions(t.id).length,
-        branchCount: repo.listBranches(t.id).length
+        branchCount: repo.listBranches(t.id).length,
+        sourceVideoId: t.sourceVideoId,
+        sourceUrl: t.sourceUrl
       }))
     }))
 

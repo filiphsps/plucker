@@ -14,7 +14,8 @@ export function CollectionView({
   onExportTrack,
   onDeleteTrack,
   onExportAll,
-  onDelete
+  onDelete,
+  onRedownloadTrack
 }: {
   collection: CV
   onBack: () => void
@@ -23,6 +24,7 @@ export function CollectionView({
   onDeleteTrack: (trackId: string) => void
   onExportAll: (id: string) => void
   onDelete: (id: string) => void
+  onRedownloadTrack: (url: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const host = collection.sourceUrl?.replace(/^https?:\/\//, '').split('/')[0]
@@ -86,6 +88,7 @@ export function CollectionView({
             onOpen={onOpenTrack}
             onExport={onExportTrack}
             onDelete={onDeleteTrack}
+            onRedownload={onRedownloadTrack}
           />
         ))}
       </div>

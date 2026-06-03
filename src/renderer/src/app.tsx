@@ -617,6 +617,7 @@ export default function App(): React.JSX.Element {
                       void refreshLibrary()
                     })
                   }}
+                  onRedownloadTrack={redownloadFromUrl}
                 />
               ) : (
                 <Gallery
