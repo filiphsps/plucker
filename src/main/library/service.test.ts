@@ -48,6 +48,28 @@ describe('LibraryService', () => {
     expect(views[0].tracks[0].currentVersionId).toBeTruthy()
   })
 
+  it('renameCollection trims, persists, emits, and records a renamed activity', () => {
+    const { service, repo, events } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const id = service.listCollections()[0].id
+    events.length = 0
+    service.renameCollection(id, '  Fresh Name  ')
+    expect(repo.getCollection(id)?.title).toBe('Fresh Name')
+    expect(events).toContain('library:changed')
+    expect(service.listActivity().some((e) => e.type === 'renamed')).toBe(true)
+  })
+
+  it('renameCollection ignores an empty or unchanged title', () => {
+    const { service, repo } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const id = service.listCollections()[0].id
+    const before = repo.getCollection(id)!.title
+    service.renameCollection(id, '   ') // invalid → no-op
+    service.renameCollection(id, before) // unchanged → no-op
+    expect(repo.getCollection(id)?.title).toBe(before)
+    expect(service.listActivity().some((e) => e.type === 'renamed')).toBe(false)
+  })
+
   it('getTrack returns instance + versions + branches', () => {
     const { service } = svc()
     service.ingestJobResult('j1', done('a'))

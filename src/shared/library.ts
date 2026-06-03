@@ -1,4 +1,5 @@
 import type { TrackTags } from './types'
+import type { FieldSpec } from './forms/field'
 
 export type CollectionKind = 'playlist' | 'album' | 'single'
 
@@ -106,4 +107,15 @@ export interface TrackDetail {
   instance: TrackInstance
   versions: Version[]
   branches: Branch[]
+}
+
+/** Editable fields for a collection (first member: title). Shared by the inline editor
+ * and the main-process service so validation rules match on both sides. */
+export const COLLECTION_TITLE_FIELD: FieldSpec = {
+  key: 'title',
+  type: 'text',
+  labelKey: 'library.collectionTitle',
+  required: true,
+  maxLength: 200,
+  trim: true
 }

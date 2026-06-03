@@ -6,7 +6,13 @@ import type { TransformInstance } from '../../shared/transforms'
 import type { TrackTags } from '../../shared/types'
 import { foldJobResultIntoLibrary } from './ingest'
 import { exportTracks as exportTracksToFolder } from './export'
-import type { CollectionView, TrackDetail, ActivityEvent } from '../../shared/library'
+import {
+  COLLECTION_TITLE_FIELD,
+  type CollectionView,
+  type TrackDetail,
+  type ActivityEvent
+} from '../../shared/library'
+import { normalizeFieldValue, validateField } from '../../shared/forms/field'
 
 export interface LibraryDeps {
   repo: Repo
@@ -36,6 +42,7 @@ export interface LibraryService {
   ingestJobResult: (jobId: string, result: JobResult) => string
   deleteTrack: (trackId: string) => void
   deleteCollection: (collectionId: string) => void
+  renameCollection: (collectionId: string, title: string) => void
   edit: (trackId: string, chain: TransformInstance[]) => Promise<void>
   foldEditResult: (args: {
     trackId: string
@@ -115,6 +122,23 @@ export function createLibraryService(deps: LibraryDeps): LibraryService {
           ts: clock.now(),
           summary: `Deleted “${c.title}”`
         })
+      emit('library:changed')
+      emit('library:activityChanged')
+    },
+
+    renameCollection(collectionId: string, title: string): void {
+      const c = repo.getCollection(collectionId)
+      if (!c) return
+      const next = normalizeFieldValue(COLLECTION_TITLE_FIELD, title)
+      if (validateField(COLLECTION_TITLE_FIELD, title) || next === c.title) return
+      repo.renameCollection(collectionId, next)
+      repo.insertActivity({
+        id: clock.idGen(),
+        type: 'renamed',
+        ts: clock.now(),
+        collectionId,
+        summary: `Renamed “${c.title}” → “${next}”`
+      })
       emit('library:changed')
       emit('library:activityChanged')
     },
