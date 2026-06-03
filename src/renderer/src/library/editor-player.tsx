@@ -83,8 +83,16 @@ export function EditorPlayer({
             full width instead of being squeezed by a side column. */}
         <div className="mt-auto flex items-center justify-between gap-3 pt-3">
           <span className="truncate font-mono text-[9px] tracking-[.4px] text-ink-faint">
-            {t('library.showing', { version: versionLabel })}
-            {isCurrent ? ` · ${t('library.current')}` : ''}
+            {isCurrent ? (
+              <>
+                {t('library.showing', { version: versionLabel })} · {t('library.current')}
+              </>
+            ) : (
+              // selected ≠ current: echo the amber graph selection so the anchor is legible
+              <span className="text-warn">
+                ◆ {t('library.from')} {versionLabel}
+              </span>
+            )}
           </span>
           <div className="flex flex-none items-center gap-2">{branchSwitcher}</div>
         </div>

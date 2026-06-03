@@ -389,8 +389,10 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     library.deleteCollection(id)
     return library.listCollections()
   })
-  ipcMain.handle('library:edit', (_e, trackId: string, chain: TransformInstance[]) =>
-    library.edit(trackId, chain)
+  ipcMain.handle(
+    'library:createVersion',
+    (_e, trackId: string, parentVersionId: string, chain: TransformInstance[]) =>
+      library.createVersion(trackId, parentVersionId, chain)
   )
   ipcMain.handle(
     'library:createBranch',
@@ -438,7 +440,6 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
     if (payload.kind === 'libraryEdit') {
       const res = library.foldEditResult({
         trackId: payload.trackId,
-        branchId: payload.branchId,
         parentVersionId: payload.parentVersionId,
         chainSteps: payload.chain.map((c) => ({ type: c.type, config: c.config })),
         result

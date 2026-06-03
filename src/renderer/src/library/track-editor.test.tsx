@@ -44,7 +44,7 @@ const render = (): string =>
       detail={detail}
       collectionTitle="Road Trip"
       onClose={noop}
-      onEdit={noop}
+      onCreateVersion={noop}
       onExport={noop}
       onSwitchBranch={noop}
       onCreateBranch={noop}
@@ -58,7 +58,7 @@ describe('TrackEditor', () => {
     const html = render()
     expect(html).toContain('Neon Tide')
     expect(html).toContain('Original') // root node label in the graph
-    expect(html).toContain('Apply transforms') // action bar
+    expect(html).toContain('New version') // action bar opens the composer
     expect(html).toContain('normalize') // recipe of the current version
   })
 

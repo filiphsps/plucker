@@ -115,6 +115,28 @@ body {
   }
 }
 
+/* Version composer rack rises from the action bar over the version graph. */
+@keyframes composer-rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.composer-rise {
+  animation: composer-rise 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-rise {
+    animation: none;
+  }
+}
+
 /* Gallery hover waveform scroll (Plan 5 replaces this with playback-synced scroll). */
 @keyframes wave-marquee {
   from {

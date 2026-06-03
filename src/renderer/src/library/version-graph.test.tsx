@@ -42,4 +42,21 @@ describe('VersionGraph', () => {
     expect(html).toContain('is-current') // class on the current card
     expect(html).toContain('main') // branch ref
   })
+
+  it('marks the selected version distinctly from the current one', () => {
+    // select the root while `a` stays current → the two roles must be visibly different
+    const html = renderToStaticMarkup(
+      <VersionGraph
+        versions={versions}
+        branches={branches}
+        currentVersionId="a"
+        selectedVersionId="root"
+        composing
+        onSelect={() => {}}
+      />
+    )
+    expect(html).toContain('◆ from') // the amber "from" chip on the selected card
+    expect(html).toContain('border-warn') // amber focus border, distinct from the accent ring
+    expect(html).toContain('opacity-40') // the non-selected current card dims while composing
+  })
 })

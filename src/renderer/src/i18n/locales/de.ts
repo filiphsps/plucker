@@ -49,7 +49,19 @@ const de: typeof en = {
     trackN: 'Titel {{n}}',
     versionsN: '{{count}} Versionen',
     branchesN: '{{count}} Branches',
-    editFailed: 'Bearbeitung fehlgeschlagen: {{reason}}'
+    editFailed: 'Bearbeitung fehlgeschlagen: {{reason}}',
+    newVersion: 'Neue Version',
+    fromVersion: 'Von',
+    from: 'von',
+    signalChain: 'Signalkette',
+    loadSettingsChain: 'Einstellungskette laden',
+    composerEmpty: 'Füge mindestens eine Transformation hinzu, um eine Version zu erstellen.',
+    output: 'Ausgabe',
+    newChildOf: 'Neues Kind von {{version}}',
+    onBranch: 'auf Branch: {{name}}',
+    newBranch: 'neuer Branch: {{name}}',
+    stepsN: '{{count}} Schritte',
+    create: 'Version erstellen'
   },
   activity: {
     title: 'Aktivität',

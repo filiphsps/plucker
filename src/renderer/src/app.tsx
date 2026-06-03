@@ -581,10 +581,12 @@ export default function App(): React.JSX.Element {
                     collections.find((c) => c.id === trackDetail.instance.collectionId)?.title ?? ''
                   }
                   onClose={() => setTrackDetail(null)}
-                  onEdit={(trackId) => {
-                    void window.plucker
-                      .getSettings()
-                      .then((s) => window.plucker.editTrack(trackId, s.transforms))
+                  onCreateVersion={(parentVersionId, chain) => {
+                    void window.plucker.createTrackVersion(
+                      trackDetail.instance.id,
+                      parentVersionId,
+                      chain
+                    )
                   }}
                   onExport={(trackId) => void exportTrackIds([trackId])}
                   onSwitchBranch={(branchId) => {

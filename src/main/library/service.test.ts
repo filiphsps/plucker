@@ -120,7 +120,6 @@ describe('LibraryService', () => {
     // success → ok, a new child version is created
     const ok = service.foldEditResult({
       trackId,
-      branchId,
       parentVersionId: tip,
       chainSteps: [{ type: 'x', config: {} }],
       result: done('edited')
@@ -139,7 +138,6 @@ describe('LibraryService', () => {
     }
     const res = service.foldEditResult({
       trackId,
-      branchId,
       parentVersionId: tip,
       chainSteps: [],
       result: failedResult
@@ -175,7 +173,6 @@ describe('LibraryService', () => {
     writeFileSync(editedFile, 'edited')
     service.foldEditResult({
       trackId,
-      branchId: before.activeBranchId,
       parentVersionId: tipBefore,
       chainSteps: [{ type: 'trim-silence', config: { db: -40 } }],
       result: {
@@ -193,6 +190,39 @@ describe('LibraryService', () => {
     expect(child.recipe.steps[0].type).toBe('trim-silence')
     expect(repo.getBranch(before.activeBranchId)!.tipVersionId).toBe(child.id)
     expect(service.listActivity().some((a) => a.type === 'edited')).toBe(true)
+  })
+
+  it('foldEditResult forks a new active branch when the parent is an interior version', () => {
+    const { service, repo } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const trackId = service.listCollections()[0].tracks[0].id
+    const main = repo.getTrack(trackId)!.activeBranchId
+    const root = repo.getBranch(main)!.tipVersionId
+
+    // grow main once so `root` becomes an interior (non-tip) version
+    service.foldEditResult({
+      trackId,
+      parentVersionId: root,
+      chainSteps: [{ type: 'trim-silence', config: {} }],
+      result: done('v2')
+    })
+    expect(repo.getBranch(main)!.tipVersionId).not.toBe(root)
+
+    // fold a child off the now-interior root → a brand-new branch, made active
+    service.foldEditResult({
+      trackId,
+      parentVersionId: root,
+      chainSteps: [{ type: 'rename', config: {} }],
+      result: done('fork')
+    })
+    const branches = repo.listBranches(trackId)
+    expect(branches).toHaveLength(2)
+    const forked = branches.find((b) => b.id !== main)!
+    expect(forked.name).toBe('edit')
+    expect(repo.getVersion(forked.tipVersionId)!.parentId).toBe(root)
+    expect(repo.getTrack(trackId)!.activeBranchId).toBe(forked.id) // new branch is active
+    expect(repo.getBranch(main)!.tipVersionId).not.toBe(forked.tipVersionId) // main untouched
+    expect(service.listActivity().some((a) => a.type === 'branched')).toBe(true)
   })
 
   it('createBranch forks off a node, sets it active; editing then advances only that branch', () => {

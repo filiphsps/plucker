@@ -48,7 +48,19 @@ export default {
     trackN: 'Track {{n}}',
     versionsN: '{{count}} versions',
     branchesN: '{{count}} branches',
-    editFailed: 'Edit failed: {{reason}}'
+    editFailed: 'Edit failed: {{reason}}',
+    newVersion: 'New version',
+    fromVersion: 'From',
+    from: 'from',
+    signalChain: 'Signal chain',
+    loadSettingsChain: 'Load settings chain',
+    composerEmpty: 'Add at least one transform to build a version.',
+    output: 'Output',
+    newChildOf: 'New child of {{version}}',
+    onBranch: 'on branch: {{name}}',
+    newBranch: 'new branch: {{name}}',
+    stepsN: '{{count}} steps',
+    create: 'Create version'
   },
   activity: {
     title: 'Activity',

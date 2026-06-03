@@ -12,6 +12,7 @@ import {
   type TrackDetail,
   type ActivityEvent
 } from '@shared/library'
+import { resolveVersionBranchTarget } from '@shared/version-branch-target'
 import { normalizeFieldValue, validateField } from '@shared/forms/field'
 
 export interface LibraryDeps {
@@ -43,10 +44,14 @@ export interface LibraryService {
   deleteTrack: (trackId: string) => void
   deleteCollection: (collectionId: string) => void
   renameCollection: (collectionId: string, title: string) => void
-  edit: (trackId: string, chain: TransformInstance[]) => Promise<void>
+  /** Start an edit job that folds a new child version off `parentVersionId`. */
+  createVersion: (
+    trackId: string,
+    parentVersionId: string,
+    chain: TransformInstance[]
+  ) => Promise<void>
   foldEditResult: (args: {
     trackId: string
-    branchId: string
     parentVersionId: string
     chainSteps: { type: string; config: Record<string, unknown> }[]
     result: JobResult
@@ -143,26 +148,32 @@ export function createLibraryService(deps: LibraryDeps): LibraryService {
       emit('library:activityChanged')
     },
 
-    /** Start an edit job: materialize the branch tip, run `chain`, fold into a child version. */
-    async edit(trackId: string, chain: TransformInstance[]): Promise<void> {
+    /** Start an edit job: materialize `parentVersionId`, run `chain`, fold into a child of it. */
+    async createVersion(
+      trackId: string,
+      parentVersionId: string,
+      chain: TransformInstance[]
+    ): Promise<void> {
       const track = repo.getTrack(trackId)
       if (!track) return
-      const branch = repo.getBranch(track.activeBranchId)!
-      const sourceFile = await deps.materialize!(branch.tipVersionId)
+      const parent = repo.getVersion(parentVersionId)
+      if (!parent || parent.trackId !== trackId) return
+      const sourceFile = await deps.materialize!(parentVersionId)
       await deps.dispatchEdit!({
         trackId,
-        branchId: branch.id,
-        parentVersionId: branch.tipVersionId,
+        // payload-only; the actual target branch is re-resolved at fold time so a
+        // failed job (or a branch switch in between) never leaves a dangling branch.
+        branchId: track.activeBranchId,
+        parentVersionId,
         sourceFile,
         chain
       })
       // foldEditResult is called by index.ts when the job completes.
     },
 
-    /** Fold a finished libraryEdit job into a new child version on the branch tip. */
+    /** Fold a finished libraryEdit job into a new child version off `parentVersionId`. */
     foldEditResult(args: {
       trackId: string
-      branchId: string
       parentVersionId: string
       chainSteps: { type: string; config: Record<string, unknown> }[]
       result: JobResult
@@ -207,7 +218,46 @@ export function createLibraryService(deps: LibraryDeps): LibraryService {
         }
       })
       repo.refBlob(blob, store)
-      repo.setBranchTip(args.branchId, versionId)
+
+      // Land the child on the branch its parent implies: advance the active branch
+      // tip, advance+switch a sibling branch's tip, or fork a new branch off an
+      // interior version (keeps every leaf reachable as a branch tip).
+      const target = resolveVersionBranchTarget(
+        repo.listBranches(args.trackId),
+        track.activeBranchId,
+        args.parentVersionId
+      )
+      if (target.kind === 'fork') {
+        const branchId = clock.idGen()
+        repo.insertBranch({
+          id: branchId,
+          trackId: args.trackId,
+          name: target.branchName,
+          tipVersionId: versionId
+        })
+        repo.setActiveBranch(args.trackId, branchId)
+        repo.insertActivity({
+          id: clock.idGen(),
+          type: 'branched',
+          ts: clock.now(),
+          trackId: args.trackId,
+          versionId,
+          summary: `Branched “${target.branchName}”`
+        })
+      } else {
+        repo.setBranchTip(target.branchId, versionId)
+        if (target.kind === 'switch') {
+          repo.setActiveBranch(args.trackId, target.branchId)
+          const b = repo.getBranch(target.branchId)
+          repo.insertActivity({
+            id: clock.idGen(),
+            type: 'switched',
+            ts: clock.now(),
+            trackId: args.trackId,
+            summary: `Switched to “${b?.name ?? target.branchId}”`
+          })
+        }
+      }
       repo.insertActivity({
         id: clock.idGen(),
         type: 'edited',
