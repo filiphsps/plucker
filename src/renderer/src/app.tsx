@@ -5,6 +5,7 @@ import { CollectionView } from './library/collection-view'
 import { TrackEditor } from './library/track-editor'
 import { ActivityLog } from './library/activity-log'
 import { useLibrary } from './library/use-library'
+import { initPreviewSettings } from './library/preview-settings'
 import { SettingsPanel } from './settings-panel'
 import { CacheView } from './cache-view'
 import { TransportDeck } from './transport-deck'
@@ -95,6 +96,9 @@ export default function App(): React.JSX.Element {
     load()
     return window.plucker.onLibraryActivityChanged(load)
   }, [])
+
+  // Cache the audioPreviews setting for the hover-preview engine.
+  useEffect(() => initPreviewSettings(), [])
 
   // When the library changes while a track editor is open, re-pull that track's detail
   // so a finished edit / branch switch reflects immediately.
