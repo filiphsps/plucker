@@ -28,7 +28,9 @@ function VersionCard({
       onClick={() => onSelect(node.versionId)}
       className={
         'version-node absolute z-[2] w-[120px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[9px] border bg-panel2 text-left ' +
-        (node.isCurrent ? 'is-current border-accent shadow-[0_0_0_1px_var(--color-accent)] ' : 'border-line ') +
+        (node.isCurrent
+          ? 'is-current border-accent shadow-[0_0_0_1px_var(--color-accent)] '
+          : 'border-line ') +
         (node.isCold ? 'opacity-60 ' : '') +
         (selected && !node.isCurrent ? 'border-accent ' : '')
       }

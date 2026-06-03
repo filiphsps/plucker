@@ -35,7 +35,8 @@ export function CollectionWaveform({
     if (!active || !posRef || !peaks) return
     let raf = 0
     const tick = (): void => {
-      if (stripRef.current) stripRef.current.style.transform = `translateX(${-posRef.current * 50}%)`
+      if (stripRef.current)
+        stripRef.current.style.transform = `translateX(${-posRef.current * 50}%)`
       raf = requestAnimationFrame(tick)
     }
     tick()

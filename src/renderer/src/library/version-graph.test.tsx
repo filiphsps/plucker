@@ -4,8 +4,25 @@ import { VersionGraph } from './version-graph'
 import type { Version, Branch } from '../../../shared/library'
 
 const versions: Version[] = [
-  { id: 'root', trackId: 't', parentId: null, blobHash: 'h1', recipe: { steps: [] }, materialized: true, createdAt: '1', label: 'Original' },
-  { id: 'a', trackId: 't', parentId: 'root', blobHash: 'h2', recipe: { steps: [{ type: 'trim-silence', config: {} }] }, materialized: true, createdAt: '2' }
+  {
+    id: 'root',
+    trackId: 't',
+    parentId: null,
+    blobHash: 'h1',
+    recipe: { steps: [] },
+    materialized: true,
+    createdAt: '1',
+    label: 'Original'
+  },
+  {
+    id: 'a',
+    trackId: 't',
+    parentId: 'root',
+    blobHash: 'h2',
+    recipe: { steps: [{ type: 'trim-silence', config: {} }] },
+    materialized: true,
+    createdAt: '2'
+  }
 ]
 const branches: Branch[] = [{ id: 'b', trackId: 't', name: 'main', tipVersionId: 'a' }]
 

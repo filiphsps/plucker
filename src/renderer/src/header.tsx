@@ -1,12 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  Download,
-  Library,
-  SlidersHorizontal,
-  Terminal,
-  type LucideIcon
-} from 'lucide-react'
+import { Download, Library, SlidersHorizontal, Terminal, type LucideIcon } from 'lucide-react'
 import { Logo } from './logo'
 import { HeaderIconButton } from './ui/header-icon-button'
 import { useFullscreen } from './use-fullscreen'

@@ -92,7 +92,9 @@ describe('TrackDetail', () => {
 
   it('omits the waveform when showWaveform is false, even if peaks are provided', () => {
     const wf: Waveform = { peaks: Array.from({ length: 120 }, () => 0.5), durationSec: 243 }
-    const html = renderToStaticMarkup(<TrackDetail meta={META} waveform={wf} showWaveform={false} />)
+    const html = renderToStaticMarkup(
+      <TrackDetail meta={META} waveform={wf} showWaveform={false} />
+    )
     expect(html).not.toContain('data-wave-bar')
   })
 })

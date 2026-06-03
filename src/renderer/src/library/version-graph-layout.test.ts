@@ -48,7 +48,12 @@ describe('layoutVersionGraph', () => {
     // no two nodes share a (col, lane) cell
     const cells = nodes.map((n) => `${n.col}:${n.lane}`)
     expect(new Set(cells).size).toBe(cells.length)
-    expect(edges).toContainEqual({ fromVersionId: 'root', toVersionId: 'club', lane: 1, fork: true })
+    expect(edges).toContainEqual({
+      fromVersionId: 'root',
+      toVersionId: 'club',
+      lane: 1,
+      fork: true
+    })
   })
 
   it('labels the root "Original" and edits by their transform types', () => {

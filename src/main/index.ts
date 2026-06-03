@@ -834,99 +834,101 @@ function hardCrash(reason: string): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(async () => {
-  // Relocate the legacy ~/.plucker.json config into ~/.plucker/config.json before any
-  // settings read, so existing installs carry their settings over transparently.
-  migrateLegacyConfig()
+app
+  .whenReady()
+  .then(async () => {
+    // Relocate the legacy ~/.plucker.json config into ~/.plucker/config.json before any
+    // settings read, so existing installs carry their settings over transparently.
+    migrateLegacyConfig()
 
-  // Last-resort recovery: on a packaged macOS build, account for the previous launch and —
-  // if the app has failed to become usable several times in a row — roll back to the previous
-  // release before attempting startup again. Dev/non-macOS builds can't self-install, so the
-  // guard is skipped entirely (also avoids hot-restart noise inflating the bad-launch streak).
-  if (app.isPackaged && process.platform === 'darwin') {
-    safetyGuard = createSafetyGuard(() => mainWindow)
-    const { recoverNow } = safetyGuard.beginLaunch()
-    if (recoverNow) {
-      log.error('app', 'repeated failed launches detected; attempting rollback before startup')
-      if (await safetyGuard.recover()) return // app is quitting to roll back
+    // Last-resort recovery: on a packaged macOS build, account for the previous launch and —
+    // if the app has failed to become usable several times in a row — roll back to the previous
+    // release before attempting startup again. Dev/non-macOS builds can't self-install, so the
+    // guard is skipped entirely (also avoids hot-restart noise inflating the bad-launch streak).
+    if (app.isPackaged && process.platform === 'darwin') {
+      safetyGuard = createSafetyGuard(() => mainWindow)
+      const { recoverNow } = safetyGuard.beginLaunch()
+      if (recoverNow) {
+        log.error('app', 'repeated failed launches detected; attempting rollback before startup')
+        if (await safetyGuard.recover()) return // app is quitting to roll back
+      }
     }
-  }
 
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.plucker.app')
+    // Set app user model id for windows
+    electronApp.setAppUserModelId('com.plucker.app')
 
-  // macOS "About Plucker" panel details.
-  app.setAboutPanelOptions({
-    applicationName: 'Plucker',
-    applicationVersion: appVersion,
-    copyright: '© 2026 Filiph Sandström',
-    credits: 'Download YouTube playlists as tagged MP3s'
+    // macOS "About Plucker" panel details.
+    app.setAboutPanelOptions({
+      applicationName: 'Plucker',
+      applicationVersion: appVersion,
+      copyright: '© 2026 Filiph Sandström',
+      credits: 'Download YouTube playlists as tagged MP3s'
+    })
+
+    // Default open or close DevTools by F12 in development
+    // and ignore CommandOrControl + R in production.
+    // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+
+    // IPC test
+    ipcMain.on('ping', () => console.log('pong'))
+
+    registerIpc(() => mainWindow)
+    registerUpdaterIpc(() => mainWindow)
+    registerContextMenuIpc(() => mainWindow)
+
+    // Push OS accent-color changes to the renderer so --color-accent updates live.
+    systemPreferences.subscribeNotification?.('AppleColorPreferencesChangedNotification', () =>
+      mainWindow?.webContents.send('accent:changed', getAccentColor())
+    )
+
+    // Prime SF-Symbol icons (native, macOS-only) before building so the menu shows them
+    // on first paint; a no-op off macOS or when the addon isn't built.
+    await primeMenuIcons()
+    buildAppMenu(() => mainWindow)
+
+    // Renderer-crash safeguard: recreate a crashed window, or hard-exit if crashes form a loop,
+    // so a dead renderer never leaves a blank "empty shell". Created before the first window so
+    // createWindow() can attach it.
+    crashGuard = createCrashGuard({ recover: recreateMainWindow, fatal: hardCrash })
+    // A non-clean child-process exit (GPU/utility) is logged for diagnosis; Chromium recovers
+    // these itself, so unlike a renderer crash it needs no window rebuild.
+    app.on('child-process-gone', (_e, details) => {
+      if (details.reason !== 'clean-exit')
+        log.warn('app', `child process gone: ${details.type} (${details.reason})`)
+    })
+
+    createWindow()
+
+    // Start the no-window watchdog: if nothing is visible within WATCHDOG_MS, recover.
+    safetyGuard?.armWatchdog()
+
+    // Attach the file + live-stream log transports if the console is enabled.
+    applyConsoleLogging()
+    log.info('app', `Plucker ${appVersion} ready`)
+
+    // Reopen the console floating if that's how the user left it (and the feature is on).
+    const consoleEnabled = !app.isPackaged || loadSettings().developer.console
+    if (consoleEnabled && loadSettings().developer.consoleWindow.mode === 'floating') {
+      openConsoleWindow(() => mainWindow)
+    }
+
+    // Surface any job that was interrupted by a crash/quit as a resumable entry.
+    recoverInterruptedJobs()
+
+    // Background auto-updater: checks every 15 min and auto-downloads (throttled) any
+    // available update, arming it to install on quit. Respects the "check on launch"
+    // setting as its master switch (see startBackgroundUpdates).
+    startBackgroundUpdates(() => mainWindow)
+
+    app.on('activate', () => {
+      // On macOS it's common to re-create a window in the app when the
+      // dock icon is clicked and there are no other windows open.
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
   })
-
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
-  registerIpc(() => mainWindow)
-  registerUpdaterIpc(() => mainWindow)
-  registerContextMenuIpc(() => mainWindow)
-
-  // Push OS accent-color changes to the renderer so --color-accent updates live.
-  systemPreferences.subscribeNotification?.('AppleColorPreferencesChangedNotification', () =>
-    mainWindow?.webContents.send('accent:changed', getAccentColor())
-  )
-
-  // Prime SF-Symbol icons (native, macOS-only) before building so the menu shows them
-  // on first paint; a no-op off macOS or when the addon isn't built.
-  await primeMenuIcons()
-  buildAppMenu(() => mainWindow)
-
-  // Renderer-crash safeguard: recreate a crashed window, or hard-exit if crashes form a loop,
-  // so a dead renderer never leaves a blank "empty shell". Created before the first window so
-  // createWindow() can attach it.
-  crashGuard = createCrashGuard({ recover: recreateMainWindow, fatal: hardCrash })
-  // A non-clean child-process exit (GPU/utility) is logged for diagnosis; Chromium recovers
-  // these itself, so unlike a renderer crash it needs no window rebuild.
-  app.on('child-process-gone', (_e, details) => {
-    if (details.reason !== 'clean-exit')
-      log.warn('app', `child process gone: ${details.type} (${details.reason})`)
-  })
-
-  createWindow()
-
-  // Start the no-window watchdog: if nothing is visible within WATCHDOG_MS, recover.
-  safetyGuard?.armWatchdog()
-
-  // Attach the file + live-stream log transports if the console is enabled.
-  applyConsoleLogging()
-  log.info('app', `Plucker ${appVersion} ready`)
-
-  // Reopen the console floating if that's how the user left it (and the feature is on).
-  const consoleEnabled = !app.isPackaged || loadSettings().developer.console
-  if (consoleEnabled && loadSettings().developer.consoleWindow.mode === 'floating') {
-    openConsoleWindow(() => mainWindow)
-  }
-
-  // Surface any job that was interrupted by a crash/quit as a resumable entry.
-  recoverInterruptedJobs()
-
-  // Background auto-updater: checks every 15 min and auto-downloads (throttled) any
-  // available update, arming it to install on quit. Respects the "check on launch"
-  // setting as its master switch (see startBackgroundUpdates).
-  startBackgroundUpdates(() => mainWindow)
-
-  app.on('activate', () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
   // A throw anywhere in the startup sequence above (e.g. the Library DB's native module
   // failing to load on a mismatched-arch build) would otherwise reject silently — leaving
   // the user with no window. Persist it to the log file (already attached at boot) and

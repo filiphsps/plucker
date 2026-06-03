@@ -106,7 +106,8 @@ export default function App(): React.JSX.Element {
 
   // Surface a failed library edit (Apply transforms) as a toast.
   useEffect(
-    () => window.plucker.onLibraryEditFailed((reason) => setToast(t('library.editFailed', { reason }))),
+    () =>
+      window.plucker.onLibraryEditFailed((reason) => setToast(t('library.editFailed', { reason }))),
     [t]
   )
 

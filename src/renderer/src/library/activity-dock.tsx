@@ -20,7 +20,10 @@ export function ActivityDock({ events }: { events: ActivityEvent[] }): React.JSX
             >
               <span className="h-1 w-1 flex-none rounded-full bg-ok" />
               <span className="truncate">{e.summary}</span>
-              <time dateTime={e.ts} className="ml-auto flex-none font-mono text-[10px] text-ink-faint">
+              <time
+                dateTime={e.ts}
+                className="ml-auto flex-none font-mono text-[10px] text-ink-faint"
+              >
                 {new Date(e.ts).toLocaleString()}
               </time>
             </li>
@@ -39,7 +42,9 @@ export function ActivityDock({ events }: { events: ActivityEvent[] }): React.JSX
         </span>
         <ChevronUp
           size={13}
-          className={'ml-auto flex-none text-ink-faint transition-transform ' + (open ? 'rotate-180' : '')}
+          className={
+            'ml-auto flex-none text-ink-faint transition-transform ' + (open ? 'rotate-180' : '')
+          }
         />
       </button>
     </div>

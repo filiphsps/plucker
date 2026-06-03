@@ -15,7 +15,10 @@ import { execFileSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const ensureAbiScript = join(dirname(fileURLToPath(import.meta.url)), 'ensure-better-sqlite3-abi.mjs')
+const ensureAbiScript = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'ensure-better-sqlite3-abi.mjs'
+)
 
 /** Reconcile the installed better-sqlite3 binary to Electron's ABI via the shared ABI guard. */
 function reconcileElectronAbi() {

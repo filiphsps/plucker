@@ -117,9 +117,7 @@ const api = {
   getCollections: (): Promise<CollectionView[]> => ipcRenderer.invoke('library:getCollections'),
   getLibraryTrack: (trackId: string): Promise<TrackDetail | null> =>
     ipcRenderer.invoke('library:getTrack', trackId),
-  getLibraryTrackBlob: (
-    trackId: string
-  ): Promise<{ file: string | null; hash: string | null }> =>
+  getLibraryTrackBlob: (trackId: string): Promise<{ file: string | null; hash: string | null }> =>
     ipcRenderer.invoke('library:getTrackBlob', trackId),
   getLibraryVersionBlob: (
     versionId: string

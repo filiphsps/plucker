@@ -5,10 +5,32 @@ import { TrackEditor } from './track-editor'
 import type { TrackDetail } from '../../../shared/library'
 
 const detail: TrackDetail = {
-  instance: { id: 't1', collectionId: 'c1', orderIndex: 1, title: 'Neon Tide', activeBranchId: 'b1' },
+  instance: {
+    id: 't1',
+    collectionId: 'c1',
+    orderIndex: 1,
+    title: 'Neon Tide',
+    activeBranchId: 'b1'
+  },
   versions: [
-    { id: 'root', trackId: 't1', parentId: null, blobHash: 'h1', recipe: { steps: [] }, materialized: true, createdAt: '1' },
-    { id: 'v1', trackId: 't1', parentId: 'root', blobHash: 'h2', recipe: { steps: [{ type: 'normalize', config: {} }] }, materialized: true, createdAt: '2' }
+    {
+      id: 'root',
+      trackId: 't1',
+      parentId: null,
+      blobHash: 'h1',
+      recipe: { steps: [] },
+      materialized: true,
+      createdAt: '1'
+    },
+    {
+      id: 'v1',
+      trackId: 't1',
+      parentId: 'root',
+      blobHash: 'h2',
+      recipe: { steps: [{ type: 'normalize', config: {} }] },
+      materialized: true,
+      createdAt: '2'
+    }
   ],
   branches: [
     { id: 'b1', trackId: 't1', name: 'main', tipVersionId: 'v1' },

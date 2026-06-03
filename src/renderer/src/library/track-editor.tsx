@@ -39,8 +39,7 @@ export function TrackEditor({
     detail.versions.find((v) => v.id === currentVersionId)!
   const isTip = detail.branches.some((b) => b.tipVersionId === selected.id)
   const recipeText = selected.recipe.steps.map((s) => s.type).join(' · ') || t('library.rawRoot')
-  const versionLabel =
-    selected.label ?? (selected.parentId === null ? 'Original' : recipeText)
+  const versionLabel = selected.label ?? (selected.parentId === null ? 'Original' : recipeText)
 
   const confirmBranch = (): void => {
     if (branchName.trim()) {

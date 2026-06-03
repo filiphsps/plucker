@@ -32,7 +32,9 @@ describe('bootstrapFileLogging', () => {
     dispose = bootstrapFileLogging({ version: '1.0.0', logFile: f })
     log.error('app', 'native module failed to load: incompatible architecture')
     const content = readFileSync(f, 'utf8')
-    expect(content).toContain('[error] [app] native module failed to load: incompatible architecture')
+    expect(content).toContain(
+      '[error] [app] native module failed to load: incompatible architecture'
+    )
   })
 
   it('creates the parent directory if missing', () => {

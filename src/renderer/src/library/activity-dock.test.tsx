@@ -7,7 +7,12 @@ import type { ActivityEvent } from '../../../shared/library'
 // The service returns events most-recent-first, so events[0] is the latest.
 const events: ActivityEvent[] = [
   { id: 'a2', type: 'edited', ts: '2026-06-02T11:00:00.000Z', summary: 'Edited Song A' },
-  { id: 'a1', type: 'ingested', ts: '2026-06-02T10:00:00.000Z', summary: 'Downloaded Mix (3 tracks)' }
+  {
+    id: 'a1',
+    type: 'ingested',
+    ts: '2026-06-02T10:00:00.000Z',
+    summary: 'Downloaded Mix (3 tracks)'
+  }
 ]
 
 describe('ActivityDock', () => {
