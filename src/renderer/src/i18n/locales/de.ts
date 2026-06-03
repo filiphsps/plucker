@@ -11,7 +11,11 @@ const de: typeof en = {
     back: 'Zurück'
   },
   library: {
-    empty: 'Deine Bibliothek ist leer — lade etwas herunter, um zu starten.',
+    empty: 'Deine Bibliothek ist leer',
+    emptyHint: 'Lade etwas herunter, um zu starten.',
+    search: 'Bibliothek durchsuchen…',
+    count: '{{collections}} Sammlungen · {{tracks}} Titel',
+    sort: { recent: 'Neueste', az: 'A–Z', kind: 'Art' },
     kind: { playlist: 'Playlist', album: 'Album', single: 'Einzeltitel' },
     applyTransforms: 'Transformationen anwenden',
     export: 'Exportieren',

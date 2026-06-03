@@ -10,7 +10,11 @@ export default {
     back: 'Back'
   },
   library: {
-    empty: 'Your library is empty — download something to get started.',
+    empty: 'Your library is empty',
+    emptyHint: 'Download something to get started.',
+    search: 'Search library…',
+    count: '{{collections}} collections · {{tracks}} tracks',
+    sort: { recent: 'Recent', az: 'A–Z', kind: 'Kind' },
     kind: { playlist: 'Playlist', album: 'Album', single: 'Single' },
     applyTransforms: 'Apply transforms',
     export: 'Export',
