@@ -27,7 +27,9 @@ const de: typeof en = {
     cold: 'Wird beim Öffnen neu berechnet',
     backToLibrary: 'Bibliothek',
     tracksN: '{{count}} Titel',
-    added: 'hinzugefügt {{date}}'
+    added: 'hinzugefügt {{date}}',
+    showing: 'zeige {{version}}',
+    current: 'aktuell'
   },
   activity: {
     empty: 'Noch keine Aktivität.'

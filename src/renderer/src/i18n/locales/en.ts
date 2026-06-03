@@ -26,7 +26,9 @@ export default {
     cold: 'Recomputes on open',
     backToLibrary: 'Library',
     tracksN: '{{count}} tracks',
-    added: 'added {{date}}'
+    added: 'added {{date}}',
+    showing: 'showing {{version}}',
+    current: 'current'
   },
   activity: {
     empty: 'No activity yet.'
