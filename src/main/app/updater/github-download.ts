@@ -32,9 +32,11 @@ import {
 } from '@app/app/updater/diff/differential'
 import { findCachedUpdate, storeCachedUpdate } from './update-cache'
 import { nextPause } from './throttle'
+import { parseLatestMacYml } from './latest-mac-yml'
 import { formatBytes } from '@shared/format-bytes'
 
 const LATEST_RELEASE_API = 'https://api.github.com/repos/filiphsps/plucker/releases/latest'
+const RELEASES_API = 'https://api.github.com/repos/filiphsps/plucker/releases?per_page=30'
 
 /** Cap on a single HTTP range request, so a large changed region streams in pieces. */
 const MAX_RANGE_CHUNK = 8 * 1024 * 1024
@@ -53,6 +55,14 @@ export interface GithubAsset {
   name: string
   browser_download_url: string
   size: number
+}
+
+export interface GithubRelease {
+  tag_name: string
+  name: string | null
+  draft: boolean
+  prerelease: boolean
+  assets: GithubAsset[]
 }
 
 /**
@@ -76,7 +86,7 @@ export function pickBlockmapFor(assets: GithubAsset[], zipName: string): GithubA
 }
 
 /** GET a URL via Electron's net stack and parse the JSON body (follows redirects). */
-function fetchJson(url: string): Promise<{ assets?: GithubAsset[] }> {
+function fetchJson<T>(url: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const req = net.request({ url, method: 'GET' })
     req.setHeader('User-Agent', 'Plucker-Updater')
@@ -96,6 +106,27 @@ function fetchJson(url: string): Promise<{ assets?: GithubAsset[] }> {
           reject(err instanceof Error ? err : new Error(String(err)))
         }
       })
+      res.on('error', reject)
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+/** GET a URL via Electron's net stack and resolve its body as UTF-8 text (follows redirects). */
+function fetchText(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = net.request({ url, method: 'GET' })
+    req.setHeader('User-Agent', 'Plucker-Updater')
+    req.on('response', (res) => {
+      const status = res.statusCode ?? 0
+      if (status >= 400) {
+        reject(new Error(`request failed: HTTP ${status}`))
+        return
+      }
+      const chunks: Buffer[] = []
+      res.on('data', (c) => chunks.push(c))
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
       res.on('error', reject)
     })
     req.on('error', reject)
@@ -293,7 +324,7 @@ export async function downloadMacUpdate(opts: {
   const { destDir, cacheDir, arch, expectedSha512, onProgress, onStatus } = opts
   const throttle = opts.throttleBytesPerSec ?? 0
   log.info('app', `update download starting (arch=${arch}, throttle=${throttle} B/s)`)
-  const release = await fetchJson(LATEST_RELEASE_API)
+  const release = await fetchJson<{ assets?: GithubAsset[] }>(LATEST_RELEASE_API)
   const assets = release.assets ?? []
   const zipAsset = pickArchZip(assets, arch)
   if (!zipAsset) throw new Error(`no macOS ${arch} update asset in the latest release`)
@@ -394,5 +425,57 @@ export async function downloadMacUpdate(opts: {
     log.warn('app', 'could not refresh update cache:', err)
   }
 
+  return zipDest
+}
+
+/** Fetch the repository's recent releases (newest first), as returned by the GitHub API. */
+export async function fetchReleases(): Promise<GithubRelease[]> {
+  const data = await fetchJson<GithubRelease[]>(RELEASES_API)
+  return Array.isArray(data) ? data : []
+}
+
+/**
+ * Full-download a *specific* release's per-arch zip into `destDir` and verify it.
+ * Used by the recovery rollback path (no differential reuse — recovery favours a
+ * simple, robust full download). The expected SHA-512 is read from that release's
+ * `latest-mac.yml` asset when available; if absent, the zip is installed unverified
+ * (recovery is best-effort) and a warning is logged. Resolves the on-disk zip path.
+ */
+export async function downloadReleaseZip(opts: {
+  release: GithubRelease
+  arch: string
+  destDir: string
+  expectedSha512?: string
+  throttleBytesPerSec?: number
+  onProgress?: (percent: number) => void
+}): Promise<string> {
+  const { release, arch, destDir, throttleBytesPerSec = 0, onProgress } = opts
+  const zipAsset = pickArchZip(release.assets, arch)
+  if (!zipAsset) throw new Error(`no macOS ${arch} asset in release ${release.tag_name}`)
+
+  let expected = opts.expectedSha512
+  if (!expected) {
+    const manifest = release.assets.find((a) => a.name === 'latest-mac.yml')
+    if (manifest) {
+      try {
+        const { sha512ByName } = parseLatestMacYml(await fetchText(manifest.browser_download_url))
+        expected = sha512ByName[zipAsset.name]
+      } catch (err) {
+        log.warn('app', 'could not read latest-mac.yml for rollback verification:', err)
+      }
+    }
+  }
+
+  const zipDest = join(destDir, zipAsset.name)
+  log.info('app', `rollback download: ${zipAsset.name} (${formatBytes(zipAsset.size)})`)
+  await downloadToFile(zipAsset.browser_download_url, zipDest, { onProgress, throttleBytesPerSec })
+  if (expected) {
+    if ((await sha512OfFile(zipDest)) !== expected) {
+      throw new Error('rollback verification failed: SHA-512 mismatch')
+    }
+    log.info('app', 'rollback download verified (SHA-512 OK)')
+  } else {
+    log.warn('app', 'rollback download not verified (no checksum available)')
+  }
   return zipDest
 }
