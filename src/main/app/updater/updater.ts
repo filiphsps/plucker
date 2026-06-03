@@ -13,7 +13,7 @@
 // manually. Nothing is auto-installed there.
 import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron'
 import { autoUpdater, type UpdateInfo } from 'electron-updater'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { log } from '@app/app/logging/log'
 import { logPath, loadSettings } from '@app/app/settings/settings'
 import { appBundlePath, installMacUpdate } from './mac-installer'
@@ -249,7 +249,8 @@ function installUpdateUi(): boolean {
     bundlePath,
     pid: process.pid,
     logPath: logPath(),
-    scriptDir: app.getPath('temp')
+    scriptDir: app.getPath('temp'),
+    exeName: basename(app.getPath('exe'))
   })
   // Consume the staged update so `before-quit` doesn't stage a second swap.
   pendingZipPath = null
@@ -346,6 +347,7 @@ export function installPendingUpdateOnQuit(): boolean {
     pid: process.pid,
     logPath: logPath(),
     scriptDir: app.getPath('temp'),
+    exeName: basename(app.getPath('exe')),
     relaunch: false
   })
   return true
@@ -407,7 +409,8 @@ async function downloadAndOfferInstall(
     bundlePath,
     pid: process.pid,
     logPath: logPath(),
-    scriptDir: app.getPath('temp')
+    scriptDir: app.getPath('temp'),
+    exeName: basename(app.getPath('exe'))
   })
   // The detached script waits for us to exit, then swaps the bundle and relaunches.
   app.quit()

@@ -24,7 +24,8 @@ describe('buildSwapScript', () => {
     zipPath: '/tmp/cache/update.zip',
     bundlePath: '/Applications/Plucker.app',
     pid: 4321,
-    logPath: '/Users/me/.plucker/plucker.log'
+    logPath: '/Users/me/.plucker/plucker.log',
+    exeName: 'Plucker'
   })
 
   it('waits for the running pid before swapping', () => {
@@ -38,8 +39,23 @@ describe('buildSwapScript', () => {
     expect(script).toContain(`mv "$STAGE"/'Plucker.app' '/Applications/Plucker.app'`)
   })
 
-  it('relaunches the freshly installed bundle by default', () => {
-    expect(script).toContain(`open '/Applications/Plucker.app'`)
+  it('relaunches with a fresh instance (open -n), retrying', () => {
+    expect(script).toContain(`open -n '/Applications/Plucker.app'`)
+    expect(script).toContain('for i in 1 2 3 4 5; do')
+  })
+
+  it('refreshes the LaunchServices registration before relaunching', () => {
+    expect(script).toContain('lsregister')
+    expect(script).toContain(`-f '/Applications/Plucker.app'`)
+  })
+
+  it('logs each relaunch attempt outcome', () => {
+    expect(script).toContain('[plucker-update] relaunched')
+    expect(script).toContain('[plucker-update] open attempt')
+  })
+
+  it('falls back to launching the executable directly when open keeps failing', () => {
+    expect(script).toContain(`'/Applications/Plucker.app/Contents/MacOS/Plucker'`)
   })
 
   it('skips the relaunch when relaunch is false (install-on-quit)', () => {
@@ -48,9 +64,10 @@ describe('buildSwapScript', () => {
       bundlePath: '/Applications/Plucker.app',
       pid: 4321,
       logPath: '/Users/me/.plucker/plucker.log',
+      exeName: 'Plucker',
       relaunch: false
     })
-    expect(s).not.toContain('open ')
+    expect(s).not.toContain('open -n')
     expect(s).toContain('not relaunching')
     // still performs the swap
     expect(s).toContain(`mv "$STAGE"/'Plucker.app' '/Applications/Plucker.app'`)
@@ -61,9 +78,11 @@ describe('buildSwapScript', () => {
       zipPath: '/tmp/u.zip',
       bundlePath: '/Applications/My App.app',
       pid: 1,
-      logPath: '/tmp/l.log'
+      logPath: '/tmp/l.log',
+      exeName: 'My App'
     })
     expect(s).toContain(`rm -rf '/Applications/My App.app'`)
     expect(s).toContain(`mv "$STAGE"/'My App.app' '/Applications/My App.app'`)
+    expect(s).toContain(`'/Applications/My App.app/Contents/MacOS/My App'`)
   })
 })

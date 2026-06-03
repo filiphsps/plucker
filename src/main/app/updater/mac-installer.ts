@@ -41,9 +41,11 @@ export function buildSwapScript(opts: {
   bundlePath: string
   pid: number
   logPath: string
+  /** Bundle executable name (basename of `app.getPath('exe')`) for the direct-launch fallback. */
+  exeName: string
   relaunch?: boolean
 }): string {
-  const { zipPath, bundlePath, pid, logPath } = opts
+  const { zipPath, bundlePath, pid, logPath, exeName } = opts
   const relaunch = opts.relaunch ?? true
   const slash = bundlePath.lastIndexOf('/')
   const parent = bundlePath.slice(0, slash) || '/'
@@ -51,6 +53,27 @@ export function buildSwapScript(opts: {
   // Single-quote every interpolated path and escape embedded single quotes so paths
   // with spaces (e.g. "/Applications/Plucker.app") survive the shell unharmed.
   const q = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`
+  const exePath = `${bundlePath}/Contents/MacOS/${exeName}`
+  // Relaunch is deliberately OUTSIDE `set -e`: a bare `open` can reactivate the just-killed
+  // instance (launching nothing) or fail transiently. We force a fresh instance (`open -n`),
+  // retry, log each attempt, and finally launch the binary directly — bypassing LaunchServices.
+  const relaunchBlock = `echo "[plucker-update] refreshing LaunchServices registration"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+[ -x "$LSREGISTER" ] && "$LSREGISTER" -f ${q(bundlePath)} || echo "[plucker-update] lsregister unavailable; continuing"
+launched=0
+for i in 1 2 3 4 5; do
+  if /usr/bin/open -n ${q(bundlePath)}; then
+    echo "[plucker-update] relaunched (attempt $i)"
+    launched=1
+    break
+  fi
+  echo "[plucker-update] open attempt $i failed (exit $?)"
+  sleep 0.5
+done
+if [ "$launched" -ne 1 ]; then
+  echo "[plucker-update] open failed; launching binary directly"
+  ${q(exePath)} >/dev/null 2>&1 &
+fi`
   // Extract into a staging dir on the *same* volume as the bundle first, so the only
   // moment the app is absent is a near-atomic same-filesystem `mv` — not the whole
   // (slow) unzip. If anything fails before the swap, `set -e` aborts with the old app
@@ -68,11 +91,7 @@ trap 'rm -rf "$STAGE"' EXIT
 ditto -x -k ${q(zipPath)} "$STAGE"
 rm -rf ${q(bundlePath)}
 mv "$STAGE"/${q(basename)} ${q(bundlePath)}
-${
-  relaunch
-    ? `echo "[plucker-update] relaunching"\nopen ${q(bundlePath)}`
-    : `echo "[plucker-update] installed; not relaunching (install-on-quit)"`
-}
+${relaunch ? relaunchBlock : `echo "[plucker-update] installed; not relaunching (install-on-quit)"`}
 rm -f "$0"
 `
 }
@@ -88,6 +107,7 @@ export function installMacUpdate(opts: {
   pid: number
   logPath: string
   scriptDir: string
+  exeName: string
   relaunch?: boolean
 }): string {
   const { scriptDir } = opts
