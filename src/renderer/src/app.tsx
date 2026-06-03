@@ -13,6 +13,7 @@ import { JobRail } from './job-rail'
 import { Header, type View } from './header'
 import { ConsoleDrawer } from './console-drawer'
 import { Page } from './ui/page'
+import { Toast } from './ui/toast'
 import { ResumeBanner, type InterruptedJob } from './resume-banner'
 import { StatusBar } from './status-bar'
 import { useNetworkStatus } from './use-network-status'
@@ -72,6 +73,7 @@ export default function App(): React.JSX.Element {
   const [trackDetail, setTrackDetail] = useState<TrackDetail | null>(null)
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
+  const [toast, setToast] = useState<string | null>(null)
   const openCol = openCollectionId
     ? (collections.find((c) => c.id === openCollectionId) ?? null)
     : null
@@ -114,7 +116,9 @@ export default function App(): React.JSX.Element {
 
   const exportTrackIds = async (trackIds: string[]): Promise<void> => {
     const folder = await window.plucker.chooseFolder()
-    if (folder) await window.plucker.exportLibraryTracks(trackIds, folder)
+    if (!folder) return
+    const written = await window.plucker.exportLibraryTracks(trackIds, folder)
+    setToast(t('library.exportDone', { count: written.length }))
   }
 
   // Bottom info bar: currently just connectivity, but the bar grows by pushing more
@@ -687,6 +691,8 @@ export default function App(): React.JSX.Element {
           onUndock={() => void window.plucker.undockConsole()}
         />
       )}
+
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </div>
   )
 }
