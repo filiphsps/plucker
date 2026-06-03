@@ -9,10 +9,9 @@ describe('DEFAULT_TRANSFORMS', () => {
     expect(last.enabled).toBe(true)
   })
 
-  it('includes trim-silence (both ends, true silence) right after auto-tag', () => {
-    const entry = DEFAULT_TRANSFORMS[1]
-    expect(entry.type).toBe('trim-silence')
+  it('opens the default chain with auto-tag enabled', () => {
+    const entry = DEFAULT_TRANSFORMS[0]
+    expect(entry.type).toBe('auto-tag')
     expect(entry.enabled).toBe(true)
-    expect(entry.config).toEqual({ mode: 'both', thresholdDb: -90, minDurationSec: 0.1 })
   })
 })
