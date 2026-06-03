@@ -1,11 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { Waveform } from '../../../shared/types'
 
+/** Milliseconds for the free-running marquee to scroll one full peak set (50%). */
+const MARQUEE_MS = 9000
+
 /**
  * The signature hover waveform: the cover fades to black (handled by the tile) and a
- * symmetric waveform scrolls. When a `posRef` is supplied, the scroll is driven by the
- * 0..1 playback position (synced to the preview audio); otherwise it falls back to a CSS
- * marquee. `posRef` staying at 0 (previews off / reduced-motion) → a static waveform.
+ * symmetric waveform scrolls. A single rAF drives the scroll — a free-running marquee
+ * by default, handing off seamlessly to audio-synced scroll whenever a preview is
+ * actually advancing `posRef` (> 0). This means hover always animates, regardless of
+ * whether audio previews are enabled or still buffering. Reduced motion → static.
  */
 export function CollectionWaveform({
   active,
@@ -30,23 +34,38 @@ export function CollectionWaveform({
     }
   }, [active, peaks, loadWaveform])
 
-  // Playback-synced scroll: when a position ref is supplied, drive the transform from it.
+  // One animation loop for both modes. While the preview is advancing (posRef > 0) the
+  // scroll locks to playback; otherwise a time-based marquee keeps it moving. Driving
+  // both from rAF (rather than a CSS class we toggle) avoids the cascade conflict that
+  // previously froze the waveform whenever a posRef was supplied.
   useEffect(() => {
-    if (!active || !posRef || !peaks) return
+    if (!active || !peaks) return
+    const reduce = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     let raf = 0
-    const tick = (): void => {
-      if (stripRef.current)
-        stripRef.current.style.transform = `translateX(${-posRef.current * 50}%)`
+    let phase = 0
+    let last = performance.now()
+    const tick = (now: number): void => {
+      const dt = now - last
+      last = now
+      const pos = posRef?.current ?? 0
+      let x = 0
+      if (reduce) x = 0
+      else if (pos > 0)
+        x = -pos * 50 // audio-synced
+      else {
+        phase = (phase + dt / MARQUEE_MS) % 1 // free-running marquee
+        x = -phase * 50
+      }
+      if (stripRef.current) stripRef.current.style.transform = `translateX(${x}%)`
       raf = requestAnimationFrame(tick)
     }
-    tick()
+    raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [active, posRef, peaks])
+  }, [active, peaks, posRef])
 
   if (!peaks) return <></>
   // Duplicate the peak set so the scroll (translateX -50%) loops seamlessly.
   const bars = [...peaks, ...peaks]
-  const synced = !!posRef
   return (
     <div
       className={
@@ -60,10 +79,7 @@ export function CollectionWaveform({
     >
       <div
         ref={stripRef}
-        className={
-          'absolute inset-y-0 left-0 flex w-[200%] items-center gap-[1.5px] ' +
-          (synced ? '' : 'motion-safe:animate-[wave-marquee_9s_linear_infinite]')
-        }
+        className="absolute inset-y-0 left-0 flex w-[200%] items-center gap-[1.5px]"
         style={{ filter: 'drop-shadow(0 0 7px rgba(10,132,255,.45))' }}
       >
         {bars.map((p, i) => (
