@@ -89,6 +89,12 @@ export interface TrackSummary {
   title: string
   orderIndex: number
   currentVersionId: string
+  /** Total versions across all branches (for the "vN" chip). Optional for back-compat. */
+  versionCount?: number
+  /** Number of named branches (for the "⑂ branches" chip). */
+  branchCount?: number
+  /** Current version duration in seconds, if known (lazy; usually filled in the renderer). */
+  durationSec?: number
 }
 export interface CollectionView extends Collection {
   tracks: TrackSummary[]

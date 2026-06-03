@@ -57,6 +57,14 @@ describe('LibraryService', () => {
     expect(detail.branches[0].name).toBe('main')
   })
 
+  it('listCollections reports versionCount and branchCount per track', () => {
+    const { service } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const tr = service.listCollections()[0].tracks[0]
+    expect(tr.versionCount).toBe(1)
+    expect(tr.branchCount).toBe(1)
+  })
+
   it('deleteTrack removes the row, derefs the blob, logs activity, emits change', () => {
     const { service, repo, store, events } = svc()
     service.ingestJobResult('j1', done('a'))
