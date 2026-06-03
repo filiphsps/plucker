@@ -1,68 +1,134 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TrackDetail } from '../../../shared/library'
+import { EditorPlayer } from './editor-player'
 import { VersionGraph } from './version-graph'
+import { MetadataDrawer } from './metadata-drawer'
+import { Button } from '../ui/button'
 
 export function TrackEditor({
   detail,
+  collectionTitle,
+  onClose,
   onEdit,
   onExport,
-  onClose,
   onSwitchBranch,
-  onCreateBranch
+  onCreateBranch,
+  onDeleteVersion,
+  onRenameVersion
 }: {
   detail: TrackDetail
+  collectionTitle: string
+  onClose: () => void
   onEdit: (trackId: string) => void
   onExport: (trackId: string) => void
-  onClose: () => void
-  onSwitchBranch?: (branchId: string) => void
-  onCreateBranch?: (fromVersionId: string, name: string) => void
+  onSwitchBranch: (branchId: string) => void
+  onCreateBranch: (fromVersionId: string, name: string) => void
+  onDeleteVersion: (versionId: string) => void
+  onRenameVersion: (versionId: string, label: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const [selected, setSelected] = useState<string | null>(null)
-  const current = detail.branches.find((b) => b.id === detail.instance.activeBranchId)!
-  const isTip = detail.branches.some((b) => b.tipVersionId === selected)
+  const activeBranch = detail.branches.find((b) => b.id === detail.instance.activeBranchId)!
+  const currentVersionId = activeBranch.tipVersionId
+  const [selectedId, setSelectedId] = useState<string>(currentVersionId)
+  const [branching, setBranching] = useState(false)
+  const [branchName, setBranchName] = useState('')
+
+  const selected =
+    detail.versions.find((v) => v.id === selectedId) ??
+    detail.versions.find((v) => v.id === currentVersionId)!
+  const isTip = detail.branches.some((b) => b.tipVersionId === selected.id)
+  const recipeText = selected.recipe.steps.map((s) => s.type).join(' · ') || t('library.rawRoot')
+  const versionLabel =
+    selected.label ?? (selected.parentId === null ? 'Original' : recipeText)
+
+  const confirmBranch = (): void => {
+    if (branchName.trim()) {
+      onCreateBranch(selected.id, branchName.trim())
+      setBranching(false)
+      setBranchName('')
+    }
+  }
+
+  const branchSwitcher = (
+    <select
+      value={detail.instance.activeBranchId}
+      onChange={(e) => onSwitchBranch(e.target.value)}
+      className="pl-select rounded-md border border-line bg-accent-dim px-2.5 py-1 font-mono text-[11px] text-accent"
+    >
+      {detail.branches.map((b) => (
+        <option key={b.id} value={b.id}>
+          {b.name}
+        </option>
+      ))}
+    </select>
+  )
+
   return (
-    <div className="track-editor">
-      <header>
-        <button onClick={onClose}>{t('common.back')}</button>
-        <h2>{detail.instance.title}</h2>
-        {detail.branches.length > 0 && (
-          <select
-            className="branch-select"
-            value={detail.instance.activeBranchId}
-            onChange={(e) => onSwitchBranch?.(e.target.value)}
-          >
-            {detail.branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </header>
-      <VersionGraph
-        versions={detail.versions}
-        branches={detail.branches}
-        currentVersionId={current.tipVersionId}
-        onSelect={(id) => setSelected(id)}
+    <div className="flex h-full min-h-0 flex-col">
+      <EditorPlayer
+        trackId={detail.instance.id}
+        title={detail.instance.title}
+        collectionTitle={collectionTitle}
+        versionLabel={versionLabel}
+        isCurrent={selected.id === currentVersionId}
+        onBack={onClose}
+        branchSwitcher={branchSwitcher}
       />
-      {selected && !isTip && onCreateBranch && (
-        <div className="branch-from">
-          <button
-            onClick={() => {
-              const name = window.prompt(t('library.branchNamePrompt'))
-              if (name) onCreateBranch(selected, name)
-            }}
-          >
-            {t('library.branchFrom')}
-          </button>
-        </div>
-      )}
-      <footer>
-        <button onClick={() => onEdit(detail.instance.id)}>{t('library.applyTransforms')}</button>
-        <button onClick={() => onExport(detail.instance.id)}>{t('library.export')}</button>
-      </footer>
+
+      {/* version graph with the folding metadata drawer over it */}
+      <MetadataDrawer trackId={detail.instance.id}>
+        <VersionGraph
+          versions={detail.versions}
+          branches={detail.branches}
+          currentVersionId={currentVersionId}
+          selectedVersionId={selected.id}
+          onSelect={setSelectedId}
+        />
+      </MetadataDrawer>
+
+      {/* recipe of the selected version */}
+      <div className="flex flex-none items-center gap-2 border-t border-line2 px-[18px] py-2.5 font-mono text-[9.5px] uppercase tracking-[.5px] text-ink-faint">
+        <span>
+          {t('library.recipeFor', { version: versionLabel })} —{' '}
+          <span className="text-[#4aa3ff]">{recipeText}</span>
+        </span>
+      </div>
+
+      {/* action bar */}
+      <div className="flex flex-none items-center gap-2 border-t border-line2 px-[18px] py-2.5">
+        <Button variant="primary" onClick={() => onEdit(detail.instance.id)}>
+          {t('library.applyTransforms')}
+        </Button>
+        {branching ? (
+          <span className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={branchName}
+              onChange={(e) => setBranchName(e.target.value)}
+              placeholder={t('library.branchNamePrompt')}
+              className="h-[30px] rounded-md border border-line bg-[#0a0b0e] px-2 font-mono text-[12px] text-ink outline-none focus:border-accent"
+            />
+            <Button variant="primary" onClick={confirmBranch}>
+              {t('library.branchFrom')}
+            </Button>
+          </span>
+        ) : (
+          <Button onClick={() => setBranching(true)}>⑂ {t('library.branchFrom')}</Button>
+        )}
+        <Button onClick={() => onRenameVersion(selected.id, selected.label ?? '')}>
+          {t('library.rename')}
+        </Button>
+        <span className="flex-1" />
+        <Button
+          onClick={() => onDeleteVersion(selected.id)}
+          disabled={isTip}
+          className="text-bad disabled:opacity-40"
+        >
+          {t('library.deleteVersion')}
+        </Button>
+        <Button onClick={() => onExport(detail.instance.id)}>{t('library.export')}</Button>
+      </div>
     </div>
   )
 }

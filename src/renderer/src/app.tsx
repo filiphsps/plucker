@@ -17,6 +17,7 @@ import { StatusBar } from './status-bar'
 import { useNetworkStatus } from './use-network-status'
 import { NetworkStatusBadge } from './network-status'
 import { applyLanguage } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { showContextMenu, type MenuItem } from './ui/context-menu'
 import type { JobStatus, LogEntry, PlaylistEntry, ResolvedJob } from '../../shared/types'
 import type { ActivityEvent, TrackDetail } from '../../shared/library'
@@ -27,6 +28,7 @@ import type { PendingJob } from './pending-job'
 const ACTIVE = new Set(['queued', 'downloading', 'transforming'])
 
 export default function App(): React.JSX.Element {
+  const { t } = useTranslation()
   const [view, setView] = useState<View>('download')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cacheOpen, setCacheOpen] = useState(false)
@@ -557,6 +559,9 @@ export default function App(): React.JSX.Element {
             {trackDetail ? (
               <TrackEditor
                 detail={trackDetail}
+                collectionTitle={
+                  collections.find((c) => c.id === trackDetail.instance.collectionId)?.title ?? ''
+                }
                 onClose={() => setTrackDetail(null)}
                 onEdit={(trackId) => {
                   void window.plucker
@@ -573,6 +578,13 @@ export default function App(): React.JSX.Element {
                   void window.plucker
                     .createBranch(trackDetail.instance.id, fromVersionId, name)
                     .then((r) => r.detail && setTrackDetail(r.detail))
+                }}
+                onDeleteVersion={(versionId) => {
+                  void window.plucker.deleteLibraryVersion(versionId)
+                }}
+                onRenameVersion={(versionId, label) => {
+                  const next = window.prompt(t('library.renamePrompt'), label)
+                  if (next != null) void window.plucker.renameVersion(versionId, next)
                 }}
               />
             ) : openCol ? (

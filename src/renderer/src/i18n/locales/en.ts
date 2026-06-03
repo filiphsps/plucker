@@ -28,7 +28,13 @@ export default {
     tracksN: '{{count}} tracks',
     added: 'added {{date}}',
     showing: 'showing {{version}}',
-    current: 'current'
+    current: 'current',
+    metadata: 'Metadata',
+    rename: 'Rename',
+    deleteVersion: 'Delete version',
+    rawRoot: 'raw · root',
+    recipeFor: 'Recipe for {{version}}',
+    renamePrompt: 'Rename version'
   },
   activity: {
     empty: 'No activity yet.'

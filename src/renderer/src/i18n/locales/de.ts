@@ -29,7 +29,13 @@ const de: typeof en = {
     tracksN: '{{count}} Titel',
     added: 'hinzugefügt {{date}}',
     showing: 'zeige {{version}}',
-    current: 'aktuell'
+    current: 'aktuell',
+    metadata: 'Metadaten',
+    rename: 'Umbenennen',
+    deleteVersion: 'Version löschen',
+    rawRoot: 'roh · Wurzel',
+    recipeFor: 'Rezept für {{version}}',
+    renamePrompt: 'Version umbenennen'
   },
   activity: {
     empty: 'Noch keine Aktivität.'
