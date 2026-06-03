@@ -114,3 +114,13 @@ body {
     animation: none;
   }
 }
+
+/* Gallery hover waveform scroll (Plan 5 replaces this with playback-synced scroll). */
+@keyframes wave-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
