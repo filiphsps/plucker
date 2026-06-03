@@ -9,23 +9,26 @@ export interface TrackBlobArt {
 
 /**
  * Resolve a library track's current-version blob, then its cover. The waveform is
- * fetched on demand (hover) and cached. Returns `null` cover until loaded.
+ * fetched on demand (hover) and cached. The cover is keyed by `trackId` and derived,
+ * so it reads `null` until the new track's cover loads — without a synchronous
+ * setState in the effect body.
  */
 export function useTrackBlob(trackId: string | null): TrackBlobArt {
-  const [cover, setCover] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState<{ id: string; url: string | null } | null>(null)
   const blob = useRef<{ file: string | null; hash: string | null }>({ file: null, hash: null })
   const wave = useRef<Waveform | null>(null)
 
   useEffect(() => {
     let live = true
-    setCover(null)
     blob.current = { file: null, hash: null }
     wave.current = null
     if (!trackId) return
     void window.plucker.getLibraryTrackBlob(trackId).then((b) => {
       if (!live) return
       blob.current = b
-      if (b.file) window.plucker.getCover(b.file).then((url) => live && setCover(url))
+      if (b.file)
+        window.plucker.getCover(b.file).then((url) => live && setLoaded({ id: trackId, url }))
+      else setLoaded({ id: trackId, url: null })
     })
     return () => {
       live = false
@@ -41,5 +44,7 @@ export function useTrackBlob(trackId: string | null): TrackBlobArt {
     return wf
   }
 
+  // Only surface the cover once it matches the current trackId (avoids a stale flash).
+  const cover = loaded && loaded.id === trackId ? loaded.url : null
   return { cover, loadWaveform }
 }

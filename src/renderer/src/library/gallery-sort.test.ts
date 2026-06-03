@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { filterAndSort, type GallerySort } from './gallery-sort'
 import type { CollectionView } from '../../../shared/library'
 
-const c = (id: string, title: string, kind: CollectionView['kind'], createdAt: string): CollectionView => ({
+const c = (
+  id: string,
+  title: string,
+  kind: CollectionView['kind'],
+  createdAt: string
+): CollectionView => ({
   id,
   title,
   kind,
