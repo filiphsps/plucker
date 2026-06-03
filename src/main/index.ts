@@ -33,14 +33,8 @@ import {
   clearWindowBounds,
   isOnScreen
 } from '@app/app/windows/window-state'
-import {
-  log,
-  addLogTransport,
-  getLogTail,
-  installProcessErrorHandlers,
-  replayLogEntry
-} from '@app/app/logging/log'
-import { createFileTransport } from '@app/app/logging/log-file'
+import { log, addLogTransport, getLogTail, replayLogEntry } from '@app/app/logging/log'
+import { bootstrapFileLogging } from '@app/app/logging/bootstrap'
 import { binaryPaths, type BinaryPaths } from '@app/app/download/binaries'
 import { resolveJob, type JobResult } from '@app/app/pipeline/pipeline'
 import { createJobPool, type JobPool } from '@app/app/pipeline/jobs/job-pool'
@@ -94,6 +88,12 @@ import type {
   JobCheckpoint
 } from '@shared/types'
 
+// Attach the durable file log + process error handlers as the very first thing the main
+// process does — before any window or native-module work — so a startup crash (e.g. a
+// native module failing to `dlopen`) is written to ~/.plucker/plucker.log and surfaced,
+// instead of vanishing into a silent no-window launch.
+bootstrapFileLogging({ version: appVersion, logFile: logPath() })
+
 // Set the app name as early as possible so the macOS app menu + About panel
 // (built when the app becomes ready) read "Plucker" instead of "Electron".
 app.setName('Plucker')
@@ -106,10 +106,6 @@ protocol.registerSchemesAsPrivileged([
     privileges: { stream: true, supportFetchAPI: true, secure: true, bypassCSP: true }
   }
 ])
-
-// Surface otherwise-fatal errors into the unified log (file + dev console) instead of
-// letting them vanish into a silent crash. Installed before any async work runs.
-installProcessErrorHandlers()
 
 let mainWindow: BrowserWindow | null = null
 let consoleWindow: BrowserWindow | null = null
@@ -148,10 +144,10 @@ function getMetaCache(): MetadataCache {
   return metaCache
 }
 
-// Console logging (file + live IPC stream) is a developer feature: on in dev, and
-// otherwise gated behind the `developer.console` setting. We attach/detach the
-// transports as the setting changes so a normal user gets no log file at all.
-let detachFileLog: (() => void) | null = null
+// The developer console's *live IPC stream* (the in-app renderer overlay) is a developer
+// feature: on in dev, otherwise gated behind the `developer.console` setting. The durable
+// **file** log is separate and always on — it's attached at startup by bootstrapFileLogging
+// so crashes are always captured to disk — so only this in-app live stream toggles here.
 let detachIpcLog: (() => void) | null = null
 
 function applyConsoleLogging(): void {
@@ -165,12 +161,6 @@ function applyConsoleLogging(): void {
   } else if (!enabled && detachIpcLog) {
     detachIpcLog()
     detachIpcLog = null
-  }
-  if (enabled && !detachFileLog) {
-    detachFileLog = addLogTransport(createFileTransport(logPath()))
-  } else if (!enabled && detachFileLog) {
-    detachFileLog()
-    detachFileLog = null
   }
 }
 
@@ -905,6 +895,24 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+  // A throw anywhere in the startup sequence above (e.g. the Library DB's native module
+  // failing to load on a mismatched-arch build) would otherwise reject silently — leaving
+  // the user with no window. Persist it to the log file (already attached at boot) and
+  // surface it in a dialog so the failure is visible and diagnosable, then exit non-zero
+  // instead of lingering as a dead, windowless process.
+  .catch((err) => {
+    log.error('app', 'fatal error during startup:', err)
+    try {
+      dialog.showErrorBox(
+        'Plucker failed to start',
+        `${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n\n` +
+          `Details were written to:\n${logPath()}`
+      )
+    } catch {
+      // A failing dialog (e.g. no display) must not mask the original error.
+    }
+    app.exit(1)
+  })
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
