@@ -802,6 +802,13 @@ export async function runPipeline(source: JobSource, deps: RunJobDeps): Promise<
       'app',
       `job ${outcome} "${resolved.title}": ${doneCount} done, ${failedCount} failed, ${skippedCount} skipped, ${cancelledCount} cancelled`
     )
+    // Spell out *why* each failed track failed — the summary above only carries counts.
+    for (const t of tracks.filter((tr) => tr.status === 'failed')) {
+      log.error(
+        'app',
+        `  ✗ "${t.title}": ${t.errorCode ? `[${t.errorCode}] ` : ''}${t.reason ?? 'unknown error'}`
+      )
+    }
 
     return {
       title: resolved.title,

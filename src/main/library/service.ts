@@ -43,7 +43,7 @@ export interface LibraryService {
     parentVersionId: string
     chainSteps: { type: string; config: Record<string, unknown> }[]
     result: JobResult
-  }) => void
+  }) => { ok: boolean; reason?: string }
   createBranch: (trackId: string, fromVersionId: string, name: string) => string
   switchBranch: (trackId: string, branchId: string) => void
   renameBranch: (branchId: string, name: string) => void
@@ -142,12 +142,24 @@ export function createLibraryService(deps: LibraryDeps): LibraryService {
       parentVersionId: string
       chainSteps: { type: string; config: Record<string, unknown> }[]
       result: JobResult
-    }): void {
+    }): { ok: boolean; reason?: string } {
       const track = repo.getTrack(args.trackId)
       const finished = args.result.tracks.find((t) => t.status === 'done' && t.file)
       if (!track || !finished?.file) {
+        // The edit job produced no usable output — surface *why* instead of swallowing it.
+        const failed = args.result.tracks.find((t) => t.status === 'failed')
+        const reason = failed?.reason ?? failed?.errorCode ?? 'Edit produced no output'
+        if (track)
+          repo.insertActivity({
+            id: clock.idGen(),
+            type: 'edited',
+            ts: clock.now(),
+            trackId: args.trackId,
+            summary: `Edit failed: ${reason}`
+          })
         emit('library:changed')
-        return
+        emit('library:activityChanged')
+        return { ok: false, reason }
       }
       const blob = store.put(finished.file)
       const versionId = clock.idGen()
@@ -182,6 +194,7 @@ export function createLibraryService(deps: LibraryDeps): LibraryService {
       })
       emit('library:changed')
       emit('library:activityChanged')
+      return { ok: true }
     },
 
     /** Fork a new named branch off any version and make it active. Returns its id. */

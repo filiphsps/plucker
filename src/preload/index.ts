@@ -155,6 +155,12 @@ const api = {
     ipcRenderer.on('library:activityChanged', fn)
     return () => ipcRenderer.removeListener('library:activityChanged', fn)
   },
+  // A library edit job finished without producing a new version — surface the reason.
+  onLibraryEditFailed: (cb: (reason: string) => void): (() => void) => {
+    const fn = (_: unknown, reason: string): void => cb(reason)
+    ipcRenderer.on('library:editFailed', fn)
+    return () => ipcRenderer.removeListener('library:editFailed', fn)
+  },
   // Interrupted / resumable jobs (crash, clean quit, or user cancel).
   listInterruptedJobs: (): Promise<
     { jobId: string; title: string; done: number; total: number }[]

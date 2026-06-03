@@ -396,13 +396,18 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       return
     }
     if (payload.kind === 'libraryEdit') {
-      library.foldEditResult({
+      const res = library.foldEditResult({
         trackId: payload.trackId,
         branchId: payload.branchId,
         parentVersionId: payload.parentVersionId,
         chainSteps: payload.chain.map((c) => ({ type: c.type, config: c.config })),
         result
       })
+      // Surface a failed edit to the user instead of letting it vanish silently.
+      if (!res.ok) {
+        log.error('app', `library edit failed: ${res.reason}`)
+        win()?.webContents.send('library:editFailed', res.reason)
+      }
       return
     }
     // retransform / retryFailed: removed; editing is now a libraryEdit job.

@@ -36,7 +36,8 @@ const de: typeof en = {
     rawRoot: 'roh · Wurzel',
     recipeFor: 'Rezept für {{version}}',
     renamePrompt: 'Version umbenennen',
-    play: 'Wiedergabe'
+    play: 'Wiedergabe',
+    editFailed: 'Bearbeitung fehlgeschlagen: {{reason}}'
   },
   activity: {
     title: 'Aktivität',

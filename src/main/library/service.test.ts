@@ -88,6 +88,45 @@ describe('LibraryService', () => {
     expect(repo.getVersion(tip)).not.toBeNull()
   })
 
+  it('foldEditResult creates a child version on success and reports failure with a reason', () => {
+    const { service, repo } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const trackId = service.listCollections()[0].tracks[0].id
+    const branchId = repo.getTrack(trackId)!.activeBranchId
+    const tip = repo.getBranch(branchId)!.tipVersionId
+
+    // success → ok, a new child version is created
+    const ok = service.foldEditResult({
+      trackId,
+      branchId,
+      parentVersionId: tip,
+      chainSteps: [{ type: 'x', config: {} }],
+      result: done('edited')
+    })
+    expect(ok.ok).toBe(true)
+    expect(repo.listVersions(trackId)).toHaveLength(2)
+
+    // failure → not ok, carries the reason, creates no version (no silent swallow)
+    const failedResult: JobResult = {
+      title: 'edit',
+      folder: dir,
+      url: 'u',
+      kind: 'video',
+      outcome: 'failed',
+      tracks: [{ title: 'edit', status: 'failed', reason: 'ffmpeg exploded' }]
+    }
+    const res = service.foldEditResult({
+      trackId,
+      branchId,
+      parentVersionId: tip,
+      chainSteps: [],
+      result: failedResult
+    })
+    expect(res.ok).toBe(false)
+    expect(res.reason).toContain('ffmpeg')
+    expect(repo.listVersions(trackId)).toHaveLength(2) // unchanged
+  })
+
   it('deleteTrack removes the row, derefs the blob, logs activity, emits change', () => {
     const { service, repo, store, events } = svc()
     service.ingestJobResult('j1', done('a'))

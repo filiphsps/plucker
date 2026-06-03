@@ -102,6 +102,12 @@ export default function App(): React.JSX.Element {
   // Cache the audioPreviews setting for the hover-preview engine.
   useEffect(() => initPreviewSettings(), [])
 
+  // Surface a failed library edit (Apply transforms) as a toast.
+  useEffect(
+    () => window.plucker.onLibraryEditFailed((reason) => setToast(t('library.editFailed', { reason }))),
+    [t]
+  )
+
   // When the library changes while a track editor is open, re-pull that track's detail
   // so a finished edit / branch switch reflects immediately.
   useEffect(() => {

@@ -35,7 +35,8 @@ export default {
     rawRoot: 'raw · root',
     recipeFor: 'Recipe for {{version}}',
     renamePrompt: 'Rename version',
-    play: 'Play'
+    play: 'Play',
+    editFailed: 'Edit failed: {{reason}}'
   },
   activity: {
     title: 'Activity',
