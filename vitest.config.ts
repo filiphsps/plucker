@@ -3,5 +3,9 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'], passWithNoTests: true }
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
+    passWithNoTests: true
+  }
 })
