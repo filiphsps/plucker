@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { DownloadView } from './download-view'
 import { Gallery } from './library/gallery'
-import { CollectionTracklist } from './library/collection-tracklist'
+import { CollectionView } from './library/collection-view'
 import { TrackEditor } from './library/track-editor'
 import { ActivityLog } from './library/activity-log'
 import { useLibrary } from './library/use-library'
@@ -576,10 +576,14 @@ export default function App(): React.JSX.Element {
                 }}
               />
             ) : openCol ? (
-              <CollectionTracklist
+              <CollectionView
                 collection={openCol}
                 onBack={() => setOpenCollectionId(null)}
                 onOpenTrack={openTrack}
+                onExportTrack={(trackId) => void exportTrackIds([trackId])}
+                onDeleteTrack={(trackId) => {
+                  void window.plucker.deleteLibraryTrack(trackId).then(() => void refreshLibrary())
+                }}
                 onExportAll={(id) => {
                   const c = collections.find((x) => x.id === id)
                   if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))
