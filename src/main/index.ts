@@ -308,6 +308,22 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   // Library read/mutate IPC (editor model; replaces the old history:* surface).
   ipcMain.handle('library:getCollections', () => library.listCollections())
   ipcMain.handle('library:getTrack', (_e, trackId: string) => library.getTrack(trackId))
+  // Resolve a track's *current* (active-branch tip) version to its on-disk blob. The tip
+  // is always materialized (model policy), so file/hash are non-null in practice; callers
+  // must still tolerate nulls (cold/broken root). Reuses the existing cover:/waveform:/
+  // metadata: handlers, which take a file path.
+  ipcMain.handle(
+    'library:getTrackBlob',
+    (_e, trackId: string): { file: string | null; hash: string | null } => {
+      const t = libraryRepo.getTrack(trackId)
+      if (!t) return { file: null, hash: null }
+      const branch = libraryRepo.getBranch(t.activeBranchId)
+      if (!branch) return { file: null, hash: null }
+      const ver = libraryRepo.getVersion(branch.tipVersionId)
+      const hash = ver?.blobHash ?? null
+      return { file: hash ? libraryStore.pathFor(hash) : null, hash }
+    }
+  )
   ipcMain.handle('library:getActivity', (_e, limit?: number) => library.listActivity(limit))
   ipcMain.handle('library:deleteTrack', (_e, trackId: string) => {
     library.deleteTrack(trackId)
