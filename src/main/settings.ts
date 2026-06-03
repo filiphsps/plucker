@@ -80,7 +80,8 @@ function mergeDefaults(partial: unknown): Settings {
         ...((p.developer as { consoleWindow?: Partial<Settings['developer']['consoleWindow']> })
           ?.consoleWindow ?? {})
       }
-    }
+    },
+    library: { ...d.library, ...(p.library ?? {}) }
   }
 }
 

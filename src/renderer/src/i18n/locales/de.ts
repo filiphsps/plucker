@@ -263,7 +263,9 @@ const de: typeof en = {
       off: 'Aus',
       sampleRate: 'Abtastrate',
       sampleRateDesc: 'Ausgabe-Abtastrate; Quelle behält die Originalrate',
-      sampleRateSource: 'Quelle'
+      sampleRateSource: 'Quelle',
+      previews: 'Audiovorschau',
+      previewsDesc: 'Beim Überfahren einer Sammlung oder eines Titels kurz anspielen'
     },
     cookies: {
       label: 'Cookie-Quelle',

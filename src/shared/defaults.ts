@@ -49,5 +49,6 @@ export const DEFAULT_SETTINGS: Settings = {
   developer: {
     console: false,
     consoleWindow: { mode: 'docked', alwaysOnTop: false, zoom: CONSOLE_ZOOM_DEFAULT }
-  }
+  },
+  library: { audioPreviews: true }
 }

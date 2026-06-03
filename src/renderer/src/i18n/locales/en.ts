@@ -262,7 +262,9 @@ export default {
       off: 'Off',
       sampleRate: 'Sample rate',
       sampleRateDesc: 'Output sample rate; Source keeps the original',
-      sampleRateSource: 'Source'
+      sampleRateSource: 'Source',
+      previews: 'Audio previews',
+      previewsDesc: 'Play a short snippet when you hover a collection or track'
     },
     cookies: {
       label: 'Cookie source',

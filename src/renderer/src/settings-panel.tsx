@@ -226,6 +226,12 @@ export function SettingsPanel({
               ))}
             </select>
           </PanelRow>
+          <PanelRow name={t('settings.audio.previews')} desc={t('settings.audio.previewsDesc')}>
+            <Switch
+              checked={s.library.audioPreviews}
+              onChange={(v) => set({ library: { ...s.library, audioPreviews: v } })}
+            />
+          </PanelRow>
         </Panel>
 
         <Panel icon={Cookie} title={t('settings.sections.cookies')}>

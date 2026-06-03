@@ -63,6 +63,8 @@ export interface Settings {
   updates: { checkOnLaunch: boolean }
   /** Developer/diagnostics options. */
   developer: { console: boolean; consoleWindow: ConsoleWindowState }
+  /** Library hover audio previews (on by default; disable to silence the gallery). */
+  library: { audioPreviews: boolean }
 }
 
 /** Severity of a log line, in ascending order. */
