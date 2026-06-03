@@ -121,6 +121,10 @@ const api = {
     trackId: string
   ): Promise<{ file: string | null; hash: string | null }> =>
     ipcRenderer.invoke('library:getTrackBlob', trackId),
+  getLibraryVersionBlob: (
+    versionId: string
+  ): Promise<{ file: string | null; hash: string | null }> =>
+    ipcRenderer.invoke('library:getVersionBlob', versionId),
   getActivity: (limit?: number): Promise<ActivityEvent[]> =>
     ipcRenderer.invoke('library:getActivity', limit),
   deleteLibraryTrack: (trackId: string): Promise<CollectionView[]> =>

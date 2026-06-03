@@ -1,12 +1,14 @@
 import React from 'react'
 import type { Version, Branch } from '../../../shared/library'
 import { layoutVersionGraph, type GraphNode } from './version-graph-layout'
+import { useVersionWaveform } from './use-version-waveform'
 
 const COL_W = 176
 const ROW_H = 90
 const X = (col: number): number => col * COL_W + 62
 const Y = (lane: number): number => lane * ROW_H + 54
 const LANE_COLORS = ['#0a84ff', '#3fc97f', '#e8a23a', '#c678dd', '#4aa3ff']
+const CARD_WAVE_BARS = 28
 
 function VersionCard({
   node,
@@ -17,6 +19,10 @@ function VersionCard({
   selected: boolean
   onSelect: (id: string) => void
 }): React.JSX.Element {
+  // The card's own waveform: the real peaks of this version's blob, downsampled
+  // to fit the chip. `null` (cold version / still loading) → a flat baseline.
+  const peaks = useVersionWaveform(node.versionId, CARD_WAVE_BARS)
+  const bars = peaks ?? new Array<number>(CARD_WAVE_BARS).fill(0)
   return (
     <button
       onClick={() => onSelect(node.versionId)}
@@ -29,12 +35,12 @@ function VersionCard({
       style={{ left: X(node.col), top: Y(node.lane) }}
     >
       <div className="flex h-[26px] items-center gap-px overflow-hidden bg-[#0c0e12] px-1.5">
-        {Array.from({ length: 28 }, (_, i) => (
+        {bars.map((p, i) => (
           <span
             key={i}
             data-version-wave-bar
             className="min-w-0 flex-1 rounded-[1px] bg-gradient-to-b from-[rgba(74,163,255,.45)] via-accent to-[rgba(74,163,255,.45)]"
-            style={{ height: `${20 + Math.abs(Math.sin(i * 0.7)) * 70}%` }}
+            style={{ height: `${Math.max(16, p * 100)}%` }}
           />
         ))}
       </div>

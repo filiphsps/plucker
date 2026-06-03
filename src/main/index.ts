@@ -343,6 +343,17 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
       return { file: hash ? libraryStore.pathFor(hash) : null, hash }
     }
   )
+  // Resolve a *specific* version to its on-disk blob (for the version-graph card
+  // waveforms). Cold/unmaterialized versions have no blob → nulls. Like
+  // getTrackBlob, the file path feeds the shared waveform:/metadata: handlers.
+  ipcMain.handle(
+    'library:getVersionBlob',
+    (_e, versionId: string): { file: string | null; hash: string | null } => {
+      const ver = libraryRepo.getVersion(versionId)
+      const hash = ver?.blobHash ?? null
+      return { file: hash ? libraryStore.pathFor(hash) : null, hash }
+    }
+  )
   ipcMain.handle('library:getActivity', (_e, limit?: number) => library.listActivity(limit))
   ipcMain.handle('library:deleteTrack', (_e, trackId: string) => {
     library.deleteTrack(trackId)
