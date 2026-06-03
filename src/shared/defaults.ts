@@ -13,20 +13,8 @@ export const DEFAULT_TRANSFORMS: TransformInstance[] = [
       fetchCoverArt: true,
       fetchGenre: true,
       fetchTrackNumber: true,
-      minMatchScore: 80
+      minMatchScore: 95
     }
-  },
-  {
-    instanceId: 'trim-silence-default',
-    type: 'trim-silence',
-    enabled: true,
-    config: { mode: 'both', thresholdDb: -90, minDurationSec: 0.1 }
-  },
-  {
-    instanceId: 'rename-default',
-    type: 'rename',
-    enabled: true,
-    config: { template: '{artist} - {track}. {title} - {album} ({year})' }
   },
   {
     instanceId: 'square-cover-default',
