@@ -1,8 +1,8 @@
 import { basename } from 'node:path'
-import type { TransformInstance } from '../../shared/transforms'
-import type { ChainResult, TransformDefinition, TransformServices } from '../transforms/types'
-import { runTransformChain } from '../transforms/run-chain'
-import type { Recipe } from '../../shared/library'
+import type { TransformInstance } from '@shared/transforms'
+import type { ChainResult, TransformDefinition, TransformServices } from '@app/transforms/types'
+import { runTransformChain } from '@app/transforms/run-chain'
+import type { Recipe } from '@shared/library'
 
 /** Build a stored recipe from the instances that ran and the chain's result. */
 export function buildRecipe(instances: TransformInstance[], result: ChainResult): Recipe {

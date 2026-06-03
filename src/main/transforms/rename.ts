@@ -1,7 +1,7 @@
 // src/main/transforms/rename.ts
-import type { ConfigField } from '../../shared/transforms'
+import type { ConfigField } from '@shared/transforms'
 import type { TransformDefinition, TrackContext, TransformServices } from './types'
-import { buildFileName } from '../rename'
+import { buildFileName } from '@app/app/metadata/rename'
 
 export interface RenameConfig {
   template: string

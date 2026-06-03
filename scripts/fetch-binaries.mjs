@@ -4,7 +4,7 @@
 //   pnpm fetch-binaries          # host arch only (dev)
 //   pnpm fetch-binaries --all    # both arm64 + x64 (for packaging two DMGs)
 //
-// Layout produced (matches src/main/binaries.ts → binaryPaths):
+// Layout produced (matches src/main/app/download/binaries.ts → binaryPaths):
 //   resources/bin/<arch>/yt-dlp/yt-dlp_macos   (PyInstaller onedir: exe + _internal/)
 //   resources/bin/<arch>/ffmpeg                (static build per arch)
 import { mkdirSync, chmodSync, existsSync, copyFileSync, createWriteStream, rmSync } from 'node:fs'

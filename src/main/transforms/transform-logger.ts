@@ -1,5 +1,5 @@
 // src/main/transforms/transform-logger.ts
-import { log } from '../log'
+import { log } from '@app/app/logging/log'
 import type { TransformLog } from './types'
 
 const SCOPE = 'transform'

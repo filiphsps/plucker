@@ -7,7 +7,7 @@ import { migrate } from './schema'
 import { createRepo } from './repo'
 import { createContentStore } from './content-store'
 import { createMaterializer } from './materialize'
-import type { TransformServices } from '../transforms/types'
+import type { TransformServices } from '@app/transforms/types'
 
 let dir: string
 beforeEach(() => {

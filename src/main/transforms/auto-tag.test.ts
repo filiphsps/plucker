@@ -9,8 +9,8 @@ import {
   type AutoTagConfig
 } from './auto-tag'
 import { silentTransformLog } from './transform-logger'
-import type { MetadataCache } from '../metadata-cache'
-import type { TrackTags } from '../../shared/types'
+import type { MetadataCache } from '@app/app/metadata/metadata-cache'
+import type { TrackTags } from '@shared/types'
 
 const baseConfig: AutoTagConfig = {
   primarySource: 'youtube',

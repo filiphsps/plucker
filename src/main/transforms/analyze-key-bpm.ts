@@ -1,12 +1,12 @@
 // src/main/transforms/analyze-key-bpm.ts
-import type { ConfigField } from '../../shared/transforms'
+import type { ConfigField } from '@shared/transforms'
 import type { TransformDefinition, TrackContext, TransformServices, TransformLog } from './types'
-import type { AnalysisTags } from '../tagger'
-import { writeAnalysisTags } from '../tagger'
-import { decodePcm, ffmpegPcmDeps } from '../audio-pcm'
-import { estimateKey } from '../../shared/chroma'
-import { estimateBpm, type TempoRange } from '../../shared/tempo'
-import { keyToCamelot } from '../../shared/camelot'
+import type { AnalysisTags } from '@app/app/metadata/id3/tagger'
+import { writeAnalysisTags } from '@app/app/metadata/id3/tagger'
+import { decodePcm, ffmpegPcmDeps } from '@app/app/audio/audio-pcm'
+import { estimateKey } from '@shared/chroma'
+import { estimateBpm, type TempoRange } from '@shared/tempo'
+import { keyToCamelot } from '@shared/camelot'
 import {
   getEssentia,
   analyzeKeyEssentia,
@@ -14,7 +14,7 @@ import {
   KEY_STRENGTH_MIN,
   BPM_CONFIDENCE_MIN,
   type EssentiaLike
-} from '../essentia'
+} from '@app/app/audio/essentia'
 
 export interface AnalyzeKeyBpmConfig {
   detectKey: boolean

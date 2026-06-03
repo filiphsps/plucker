@@ -3,9 +3,9 @@ import { renameSync, rmSync, existsSync } from 'node:fs'
 import { copyFile } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import type { TransformInstance } from '../../shared/transforms'
+import type { TransformInstance } from '@shared/transforms'
 import type { ChainResult, TransformDefinition, TransformServices, TrackContext } from './types'
-import { writeTrackTags, readTrackTags } from '../tagger'
+import { writeTrackTags, readTrackTags } from '@app/app/metadata/id3/tagger'
 import { withPrefix } from './transform-logger'
 
 /**

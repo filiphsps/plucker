@@ -104,7 +104,7 @@ jobs:
 
       # The zip + its differential blockmap are the electron-updater artifacts; the
       # DMG is the standalone installer. Blockmaps are required by Plucker's
-      # differential updater (src/main/differential.ts): it diffs the new zip's
+      # differential updater (src/main/app/updater/diff/differential.ts): it diffs the new zip's
       # blockmap against the cached previous one to fetch only changed byte ranges.
       # nullglob keeps this resilient if a glob matches nothing.
       - name: Upload zip + DMG

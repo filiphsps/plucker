@@ -10,12 +10,12 @@ import type {
   JobKind,
   JobState,
   JobMeta
-} from '../../shared/types'
-import type { BinaryPaths } from '../binaries'
-import type { JobResult } from '../pipeline'
-import type { RetransformTarget } from '../retransform-source'
-import type { IndexedTrack } from '../resume-merge'
-import type { TransformInstance } from '../../shared/transforms'
+} from '@shared/types'
+import type { BinaryPaths } from '@app/app/download/binaries'
+import type { JobResult } from '@app/app/pipeline/pipeline'
+import type { RetransformTarget } from '@app/app/pipeline/retransform-source'
+import type { IndexedTrack } from '@app/app/pipeline/resume-merge'
+import type { TransformInstance } from '@shared/transforms'
 
 export type { JobKind, JobState, JobMeta }
 

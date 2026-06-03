@@ -7,7 +7,7 @@ import { migrate } from './schema'
 import { createRepo } from './repo'
 import { createContentStore } from './content-store'
 import { foldJobResultIntoLibrary } from './ingest'
-import type { JobResult } from '../pipeline'
+import type { JobResult } from '@app/app/pipeline/pipeline'
 
 let dir: string
 let seq = 0

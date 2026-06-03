@@ -2,8 +2,8 @@
 // commands, and fans worker events out to injected handlers. The worker factory is
 // injected so this logic is unit-testable without a real thread; the production
 // factory (which imports the bundled worker via `?nodeWorker`) lives in job-host.ts.
-import type { JobProgress, JobStatus, LogEntry } from '../../shared/types'
-import type { JobResult } from '../pipeline'
+import type { JobProgress, JobStatus, LogEntry } from '@shared/types'
+import type { JobResult } from '@app/app/pipeline/pipeline'
 import type {
   JobDepsConfig,
   JobStartPayload,

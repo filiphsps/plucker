@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { migrate } from './schema'
-import { pluckerDir } from '../settings'
+import { pluckerDir } from '@app/app/settings/settings'
 
 let handle: Database.Database | null = null
 

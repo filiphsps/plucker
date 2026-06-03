@@ -1,8 +1,8 @@
 import { mkdirSync, copyFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Repo } from './repo'
-import type { TrackTags } from '../../shared/types'
-import { sanitizeFileName } from '../rename'
+import type { TrackTags } from '@shared/types'
+import { sanitizeFileName } from '@app/app/metadata/rename'
 
 export interface ExportDeps {
   repo: Repo

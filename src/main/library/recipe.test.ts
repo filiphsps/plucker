@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildRecipe, isReplayable } from './recipe'
-import type { TransformDefinition } from '../transforms/types'
+import type { TransformDefinition } from '@app/transforms/types'
 
 const reg = new Map<string, TransformDefinition>([
   ['auto-tag', { deterministicGivenInput: false } as TransformDefinition],

@@ -1,7 +1,7 @@
 // i18n strings for the native application menu ("chrome"). These live in src/shared so
 // the main process (which builds the menu) and the renderer i18n catalog can both use
 // them. The app resolves the menu language to exactly 'en' or 'de' (see
-// src/main/menu.ts → resolveLang), so we own every label here — including standard
+// src/main/app/menus/menu.ts → resolveLang), so we own every label here — including standard
 // role items like Copy/Paste — rather than relying on Electron's per-OS localization,
 // which would never apply.
 export const menu = {

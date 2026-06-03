@@ -1,11 +1,11 @@
 // src/main/transforms/types.ts
-import type { TrackTags } from '../../shared/types'
-import type { ConfigField } from '../../shared/transforms'
-import type { BinaryPaths } from '../binaries'
-import type { MetadataCache } from '../metadata-cache'
-import type { SourceMetadata } from '../source-metadata'
-import type { OffThreadAnalyze } from '../workers/analyze-protocol'
-import type { OffThreadMedia } from '../workers/media-protocol'
+import type { TrackTags } from '@shared/types'
+import type { ConfigField } from '@shared/transforms'
+import type { BinaryPaths } from '@app/app/download/binaries'
+import type { MetadataCache } from '@app/app/metadata/metadata-cache'
+import type { SourceMetadata } from '@app/app/metadata/source-metadata'
+import type { OffThreadAnalyze } from '@app/workers/analyze-protocol'
+import type { OffThreadMedia } from '@app/workers/media-protocol'
 
 /** Mutable state threaded through a transform chain for one track. */
 export interface TrackContext {

@@ -5,7 +5,7 @@
 // real thread; the production factory (which imports the bundled worker via
 // `?nodeWorker`) lives in media-host.ts so this module — and its test — never
 // touches the electron-vite-only import.
-import type { TrackTags } from '../../shared/types'
+import type { TrackTags } from '@shared/types'
 import type {
   MediaOp,
   MediaResult,

@@ -5,7 +5,7 @@
 // without spawning a real thread. The production factory (which imports the
 // bundled worker via `?nodeWorker`) lives in analyze-host.ts so this module —
 // and its test — never touches the electron-vite-only import.
-import type { AnalyzeKeyBpmConfig } from '../transforms/analyze-key-bpm'
+import type { AnalyzeKeyBpmConfig } from '@app/transforms/analyze-key-bpm'
 import type {
   AnalyzeOutcome,
   AnalyzeWorkerRequest,

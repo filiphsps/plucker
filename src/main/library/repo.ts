@@ -9,7 +9,7 @@ import type {
   ActivityEvent,
   ActivityType,
   Recipe
-} from '../../shared/library'
+} from '@shared/library'
 
 /** A raw SQLite row: column name → value. Mappers narrow it to a typed model. */
 type Row = Record<string, unknown>

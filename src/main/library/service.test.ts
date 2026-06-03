@@ -7,7 +7,7 @@ import { migrate } from './schema'
 import { createRepo, type Repo } from './repo'
 import { createContentStore, type ContentStore } from './content-store'
 import { createLibraryService, type LibraryService } from './service'
-import type { JobResult } from '../pipeline'
+import type { JobResult } from '@app/app/pipeline/pipeline'
 
 let dir: string
 beforeEach(() => {

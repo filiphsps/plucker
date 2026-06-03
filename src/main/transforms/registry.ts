@@ -1,5 +1,5 @@
 // src/main/transforms/registry.ts
-import type { TransformManifest } from '../../shared/transforms'
+import type { TransformManifest } from '@shared/transforms'
 import type { TransformDefinition } from './types'
 import { autoTagTransform } from './auto-tag'
 import { analyzeKeyBpmTransform } from './analyze-key-bpm'

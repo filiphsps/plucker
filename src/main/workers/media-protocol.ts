@@ -5,7 +5,7 @@
 // synchronous CPU pass over the whole buffer — both stall the main thread (and
 // thus every IPC progress frame) when several tracks run at once. Pure types
 // only, so importing this never pulls the worker or node-id3 into a bundle.
-import type { TrackTags } from '../../shared/types'
+import type { TrackTags } from '@shared/types'
 
 /** A raw cover image plus its mime, shuttled across the worker boundary. */
 export interface CoverImage {

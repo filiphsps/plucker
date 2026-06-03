@@ -6,8 +6,8 @@
 // Built as a separate main-process entry (see electron.vite.config) and loaded
 // from beside index.js at runtime.
 import { parentPort } from 'node:worker_threads'
-import { analyzeTrack, buildAnalyzeDeps } from '../transforms/analyze-key-bpm'
-import type { TransformLog } from '../transforms/types'
+import { analyzeTrack, buildAnalyzeDeps } from '@app/transforms/analyze-key-bpm'
+import type { TransformLog } from '@app/transforms/types'
 import type {
   AnalyzeLogLine,
   AnalyzeWorkerCancel,

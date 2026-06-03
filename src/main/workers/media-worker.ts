@@ -6,8 +6,13 @@
 // Built as a separate main-process entry via the `?nodeWorker` import in
 // media-host.ts and loaded from beside index.js at runtime.
 import { parentPort } from 'node:worker_threads'
-import { readTrackTags, writeTrackTags, embedCover, readCoverImage } from '../tagger'
-import { hashAudioFile } from '../audio-hash'
+import {
+  readTrackTags,
+  writeTrackTags,
+  embedCover,
+  readCoverImage
+} from '@app/app/metadata/id3/tagger'
+import { hashAudioFile } from '@app/app/audio/audio-hash'
 import type { MediaWorkerRequest, MediaWorkerResponse } from './media-protocol'
 
 if (!parentPort) throw new Error('media-worker must be run as a worker thread')

@@ -92,11 +92,16 @@ Each module's colocated `*.test.ts` moves with it. Two extra test companions:
 
 ## Path aliases
 
-Two aliases. Resolved via `baseUrl: "./src"` so the tsconfig `paths` **values
-never contain `src`**:
+Two aliases:
 
-- `@shared/*` → `shared/*`  (i.e. `src/shared/*`)
-- `@app/*`    → `main/*`    (i.e. `src/main/*` — the whole main process scope)
+- `@shared/*` → `src/shared/*`
+- `@app/*`    → `src/main/*`  (the whole main process scope)
+
+> `baseUrl` was the way to keep `src` out of the tsconfig `paths` values, but it
+> is deprecated in this repo's TypeScript (`TS5101`, removed in TS 7.0), and the
+> existing `@renderer` alias already uses the `./src/*` form. So the `paths`
+> values are `["./src/shared/*"]` / `["./src/main/*"]` — no `baseUrl`. Import
+> specifiers never contain `src` regardless.
 
 `@app` is the single, main-scoped alias (it replaces the earlier `@main` idea).
 Because the reorganized tree lives under `src/main/app/`, a module there is
@@ -134,14 +139,12 @@ Examples:
 
 ## Wiring changes (4 files)
 
-1. **`tsconfig.node.json`** — add `baseUrl` + `paths` to `compilerOptions`
-   (typecheck:node covers main/preload/shared). `baseUrl: "./src"` keeps `src`
-   out of the path values:
+1. **`tsconfig.node.json`** — add `paths` to `compilerOptions` (typecheck:node
+   covers main/preload/shared), no `baseUrl` (deprecated — see above):
    ```jsonc
-   "baseUrl": "./src",
    "paths": {
-     "@shared/*": ["shared/*"],
-     "@app/*":    ["main/*"]
+     "@shared/*": ["./src/shared/*"],
+     "@app/*":    ["./src/main/*"]
    }
    ```
 
@@ -158,18 +161,14 @@ Examples:
    (`preload` keeps relative `../shared` imports — untouched; renderer keeps
    `@renderer`.)
 
-3. **`vitest.config.ts`** (NEW, repo root) — alias only, so all vitest defaults
-   (include glob, node env, esbuild jsx) are preserved:
+3. **`vitest.config.ts`** (ALREADY EXISTS — react plugin + `test` block) — add a
+   `resolve.alias` block; the existing plugins/test config are preserved:
    ```ts
-   import { resolve } from 'node:path'
-   import { defineConfig } from 'vitest/config'
-   export default defineConfig({
-     resolve: { alias: {
-       '@shared': resolve(__dirname, 'src/shared'),
-       '@app': resolve(__dirname, 'src/main'),
-       '@renderer': resolve(__dirname, 'src/renderer/src')
-     } }
-   })
+   resolve: { alias: {
+     '@shared': resolve(__dirname, 'src/shared'),
+     '@app': resolve(__dirname, 'src/main'),
+     '@renderer': resolve(__dirname, 'src/renderer/src')
+   } },
    ```
 
 4. **`tsconfig.web.json`** — no change (renderer/shared don't reference the new
@@ -195,3 +194,26 @@ Examples:
 
 Pure move + import rewrite + alias config. No behavior changes; fully reversible
 via git.
+
+## Outcome (executed)
+
+Codemod moved **97 files** (48 modules + 49 tests) and rewrote **225 import
+specifiers**, 0 unresolved. Verification all green:
+
+- `pnpm typecheck` (node + web) — clean.
+- `pnpm test` — **138 files / 788 tests** passed.
+- `pnpm lint` — 0 errors (pre-existing renderer warnings only).
+- `pnpm build` — `out/main/index.js` + `out/preload/index.js` bundled, no
+  resolution errors.
+- `prettier --check` — the longer aliased import lines were re-wrapped to
+  multi-line in `index.ts` + the two worker files; whole tree clean.
+
+Also updated three stale **comment** path references (not historical specs) to
+the new locations: `.github/workflows/release.yml` (→ `app/updater/diff/`),
+`scripts/fetch-binaries.mjs` (→ `app/download/`), `src/shared/menu-strings.ts`
+(→ `app/menus/`). The dated plan/design docs under `.specs/` keep their
+point-in-time paths.
+
+Deviations from the original plan: (1) tsconfig `paths` use the `./src/*` form,
+no `baseUrl` (deprecated); (2) `vitest.config.ts` already existed and was
+amended (alias added) rather than created.

@@ -12,18 +12,23 @@ import {
   buildDownloadSourceFromEntries,
   type RunJobDeps,
   type JobControls
-} from '../pipeline'
-import { buildRetransformSource, buildEditSource } from '../retransform-source'
-import { createMetadataCache } from '../metadata-cache'
-import { createCheckpointSink } from '../job-checkpoint'
-import { resumeAllChildren, pauseAllChildren } from '../spawn'
-import { analyzeTrack, buildAnalyzeDeps } from '../transforms/analyze-key-bpm'
-import { readTrackTags, writeTrackTags, embedCover, readCoverImage } from '../tagger'
-import { hashAudioFile } from '../audio-hash'
-import { addLogTransport } from '../log'
+} from '@app/app/pipeline/pipeline'
+import { buildRetransformSource, buildEditSource } from '@app/app/pipeline/retransform-source'
+import { createMetadataCache } from '@app/app/metadata/metadata-cache'
+import { createCheckpointSink } from '@app/app/pipeline/jobs/job-checkpoint'
+import { resumeAllChildren, pauseAllChildren } from '@app/app/process/spawn'
+import { analyzeTrack, buildAnalyzeDeps } from '@app/transforms/analyze-key-bpm'
+import {
+  readTrackTags,
+  writeTrackTags,
+  embedCover,
+  readCoverImage
+} from '@app/app/metadata/id3/tagger'
+import { hashAudioFile } from '@app/app/audio/audio-hash'
+import { addLogTransport } from '@app/app/logging/log'
 import type { OffThreadAnalyze, AnalyzeLogLine } from './analyze-protocol'
 import type { OffThreadMedia } from './media-protocol'
-import type { TransformLog } from '../transforms/types'
+import type { TransformLog } from '@app/transforms/types'
 import type {
   JobWorkerCommand,
   JobWorkerEvent,

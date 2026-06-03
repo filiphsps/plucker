@@ -1,9 +1,9 @@
 // src/main/transforms/trim-silence.ts
 import { renameSync } from 'node:fs'
-import type { ConfigField } from '../../shared/transforms'
+import type { ConfigField } from '@shared/transforms'
 import type { TransformDefinition, TrackContext, TransformServices } from './types'
-import type { TrimMode } from '../../shared/silence-filter'
-import { trimSilence, ffmpegTrimDeps } from '../audio-trim'
+import type { TrimMode } from '@shared/silence-filter'
+import { trimSilence, ffmpegTrimDeps } from '@app/app/audio/audio-trim'
 
 export interface TrimSilenceConfig {
   mode: TrimMode

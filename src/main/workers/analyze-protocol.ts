@@ -1,8 +1,8 @@
 // Wire types shared between the main-thread analyze client and the worker that
 // runs key/BPM analysis off the main thread. Pure types only (no runtime code),
 // so importing this never pulls the worker or its deps into a bundle.
-import type { AnalyzeKeyBpmConfig } from '../transforms/analyze-key-bpm'
-import type { AnalysisTags } from '../tagger'
+import type { AnalyzeKeyBpmConfig } from '@app/transforms/analyze-key-bpm'
+import type { AnalysisTags } from '@app/app/metadata/id3/tagger'
 
 /** A log line captured in the worker, replayed by the caller into its logger. */
 export interface AnalyzeLogLine {

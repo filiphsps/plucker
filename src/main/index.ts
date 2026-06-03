@@ -1,4 +1,14 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences, screen, protocol, net } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  systemPreferences,
+  screen,
+  protocol,
+  net
+} from 'electron'
 import { join } from 'path'
 import { arch } from 'node:os'
 import { existsSync } from 'node:fs'
@@ -16,60 +26,73 @@ import {
   logPath,
   migrateLegacyConfig,
   pluckerDir
-} from './settings'
-import { loadWindowBounds, saveWindowBounds, clearWindowBounds, isOnScreen } from './window-state'
+} from '@app/app/settings/settings'
+import {
+  loadWindowBounds,
+  saveWindowBounds,
+  clearWindowBounds,
+  isOnScreen
+} from '@app/app/windows/window-state'
 import {
   log,
   addLogTransport,
   getLogTail,
   installProcessErrorHandlers,
   replayLogEntry
-} from './log'
-import { createFileTransport } from './log-file'
-import { binaryPaths, type BinaryPaths } from './binaries'
-import { resolveJob, type JobResult } from './pipeline'
-import { createJobPool, type JobPool } from './job-pool'
-import { spawnJobClient } from './workers/job-host'
-import type { JobStartPayload } from './workers/job-protocol'
+} from '@app/app/logging/log'
+import { createFileTransport } from '@app/app/logging/log-file'
+import { binaryPaths, type BinaryPaths } from '@app/app/download/binaries'
+import { resolveJob, type JobResult } from '@app/app/pipeline/pipeline'
+import { createJobPool, type JobPool } from '@app/app/pipeline/jobs/job-pool'
+import { spawnJobClient } from '@app/workers/job-host'
+import type { JobStartPayload } from '@app/workers/job-protocol'
 import {
   listCheckpoints,
   deleteCheckpoint,
   dismissCheckpoint,
   readCheckpoint
-} from './job-checkpoint'
-import { partitionCheckpoint } from './resume-merge'
-import { terminateAnalyzeClient } from './workers/analyze-host'
-import { terminateMediaClient } from './workers/media-host'
-import { getCatalog } from './transforms/registry'
-import { readCoverDataUrl, writeTrackTags } from './tagger'
-import { getTrackMetadata, forBinaries } from './metadata'
-import { getWaveform, forWaveform } from './waveform'
-import { getLibraryDb } from './library/db'
-import { createRepo } from './library/repo'
-import { createContentStore } from './library/content-store'
-import { createLibraryService } from './library/service'
-import { createMaterializer } from './library/materialize'
-import { collectGarbage } from './library/gc'
-import { buildRegistry } from './transforms/registry'
-import { transformLog } from './transforms/transform-logger'
-import { buildFileName } from './rename'
-import { addUrl, removeUrl } from '../shared/url-history'
-import { clampConsoleZoom } from '../shared/console-zoom'
-import type { TransformInstance } from '../shared/transforms'
-import { killAllChildren } from './spawn'
-import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
-import { registerContextMenuIpc } from './context-menu'
-import { createCrashGuard, type CrashGuard } from './window-recovery'
-import { buildAppMenu, primeMenuIcons } from './menu'
-import { getAccentColor } from './accent'
-import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
+} from '@app/app/pipeline/jobs/job-checkpoint'
+import { partitionCheckpoint } from '@app/app/pipeline/resume-merge'
+import { terminateAnalyzeClient } from '@app/workers/analyze-host'
+import { terminateMediaClient } from '@app/workers/media-host'
+import { getCatalog } from '@app/transforms/registry'
+import { readCoverDataUrl, writeTrackTags } from '@app/app/metadata/id3/tagger'
+import { getTrackMetadata, forBinaries } from '@app/app/metadata/metadata'
+import { getWaveform, forWaveform } from '@app/app/audio/waveform'
+import { getLibraryDb } from '@app/library/db'
+import { createRepo } from '@app/library/repo'
+import { createContentStore } from '@app/library/content-store'
+import { createLibraryService } from '@app/library/service'
+import { createMaterializer } from '@app/library/materialize'
+import { collectGarbage } from '@app/library/gc'
+import { buildRegistry } from '@app/transforms/registry'
+import { transformLog } from '@app/transforms/transform-logger'
+import { buildFileName } from '@app/app/metadata/rename'
+import { addUrl, removeUrl } from '@shared/url-history'
+import { clampConsoleZoom } from '@shared/console-zoom'
+import type { TransformInstance } from '@shared/transforms'
+import { killAllChildren } from '@app/app/process/spawn'
+import {
+  registerUpdaterIpc,
+  startBackgroundUpdates,
+  installPendingUpdateOnQuit
+} from '@app/app/updater/updater'
+import { registerContextMenuIpc } from '@app/app/menus/context-menu'
+import { createCrashGuard, type CrashGuard } from '@app/app/windows/window-recovery'
+import { buildAppMenu, primeMenuIcons } from '@app/app/menus/menu'
+import { getAccentColor } from '@app/app/accent'
+import {
+  createMetadataCache,
+  type MetadataCache,
+  type CacheRecord
+} from '@app/app/metadata/metadata-cache'
 import type {
   Settings,
   CachedTrack,
   TrackTags,
   StartJobRequest,
   JobCheckpoint
-} from '../shared/types'
+} from '@shared/types'
 
 // Set the app name as early as possible so the macOS app menu + About panel
 // (built when the app becomes ready) read "Plucker" instead of "Electron".

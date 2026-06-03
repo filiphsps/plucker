@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Repo } from './repo'
 import type { ContentStore } from './content-store'
-import type { TransformDefinition, TransformServices } from '../transforms/types'
+import type { TransformDefinition, TransformServices } from '@app/transforms/types'
 import { isReplayable, replayChain } from './recipe'
-import type { Version } from '../../shared/library'
+import type { Version } from '@shared/library'
 
 export interface MaterializerDeps {
   repo: Repo

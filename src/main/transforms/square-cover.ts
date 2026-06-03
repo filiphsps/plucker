@@ -1,8 +1,8 @@
 // src/main/transforms/square-cover.ts
-import type { ConfigField } from '../../shared/transforms'
+import type { ConfigField } from '@shared/transforms'
 import type { TransformDefinition, TrackContext, TransformServices } from './types'
-import { readCoverImage, embedCover } from '../tagger'
-import { cropToSquare } from '../image-crop'
+import { readCoverImage, embedCover } from '@app/app/metadata/id3/tagger'
+import { cropToSquare } from '@app/app/audio/image-crop'
 
 export type SquareCoverConfig = Record<string, never>
 

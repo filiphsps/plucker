@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { Repo } from './repo'
 import type { ContentStore } from './content-store'
-import type { JobResult } from '../pipeline'
-import type { TransformInstance } from '../../shared/transforms'
-import type { TrackTags } from '../../shared/types'
+import type { JobResult } from '@app/app/pipeline/pipeline'
+import type { TransformInstance } from '@shared/transforms'
+import type { TrackTags } from '@shared/types'
 import { foldJobResultIntoLibrary } from './ingest'
 import { exportTracks as exportTracksToFolder } from './export'
 import {
@@ -11,8 +11,8 @@ import {
   type CollectionView,
   type TrackDetail,
   type ActivityEvent
-} from '../../shared/library'
-import { normalizeFieldValue, validateField } from '../../shared/forms/field'
+} from '@shared/library'
+import { normalizeFieldValue, validateField } from '@shared/forms/field'
 
 export interface LibraryDeps {
   repo: Repo

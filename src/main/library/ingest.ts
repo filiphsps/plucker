@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs'
-import type { JobResult } from '../pipeline'
+import type { JobResult } from '@app/app/pipeline/pipeline'
 import type { Repo } from './repo'
 import type { ContentStore } from './content-store'
-import type { CollectionKind } from '../../shared/library'
+import type { CollectionKind } from '@shared/library'
 
 export interface IngestClock {
   idGen: () => string
