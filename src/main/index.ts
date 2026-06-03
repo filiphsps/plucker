@@ -59,6 +59,7 @@ import type { TransformInstance } from '../shared/transforms'
 import { killAllChildren } from './spawn'
 import { registerUpdaterIpc, startBackgroundUpdates, installPendingUpdateOnQuit } from './updater'
 import { registerContextMenuIpc } from './context-menu'
+import { createCrashGuard, type CrashGuard } from './window-recovery'
 import { buildAppMenu, primeMenuIcons } from './menu'
 import { getAccentColor } from './accent'
 import { createMetadataCache, type MetadataCache, type CacheRecord } from './metadata-cache'
@@ -100,6 +101,8 @@ let pendingResolve: { url: string; cookieFile?: string } | null = null
 let resolveAbort: AbortController | null = null
 /** The job scheduler (bounded pool + queue). Created in registerIpc. */
 let jobPool: JobPool | null = null
+/** Renderer-crash safeguard: recreates a crashed window, or hard-exits on a crash loop. */
+let crashGuard: CrashGuard | null = null
 
 /** Resolve the bundled binary paths for the current runtime. */
 function currentBin(): BinaryPaths {
@@ -616,6 +619,15 @@ function openConsoleWindow(getMain: () => BrowserWindow | null): void {
   // a document is loaded). The console scales independently of the main window.
   win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(clampConsoleZoom(zoom)))
 
+  // A crashed console renderer would strand a blank floating window; fold it back into the
+  // in-app drawer (destroy → 'closed' redocks) instead. It's reopenable via ⌘J / the console
+  // button. The essential main window has its own recover-or-hard-exit guard.
+  win.webContents.on('render-process-gone', (_e, details) => {
+    if (details.reason === 'clean-exit') return
+    log.error('app', `console renderer gone (${details.reason}); redocking`)
+    if (!win.isDestroyed()) win.destroy()
+  })
+
   // The shared index.html sets <title>Plucker</title>; keep our explicit
   // "Console — Plucker" window title instead of letting the page override it.
   win.on('page-title-updated', (e) => e.preventDefault())
@@ -707,6 +719,9 @@ function createWindow(): void {
     title: app.getName()
   })
   mainWindow = win
+  // Watch this window's renderer for crashes; a dead renderer leaves a blank "empty shell"
+  // that we recover (recreate) from, or hard-exit on if crashes form a loop.
+  crashGuard?.attach(win)
 
   win.on('ready-to-show', () => {
     // The screenshot tooling (scripts/build-screenshots.mjs) shows the window without
@@ -751,6 +766,39 @@ function createWindow(): void {
   }
 }
 
+/**
+ * Recover from a renderer crash by replacing the dead (blank) frame with a fresh window. The
+ * replacement is created *before* the old one is destroyed so the open-window count never hits
+ * zero — otherwise `window-all-closed` would quit the app on Linux/Windows mid-recovery. The
+ * live `() => mainWindow` getter handed to registerIpc/updater/etc. picks up the new window, so
+ * no IPC re-registration is needed; the renderer rehydrates its own state on load.
+ */
+function recreateMainWindow(): void {
+  log.warn('app', 'recreating main window after renderer crash')
+  const dead = mainWindow
+  createWindow() // points mainWindow at the fresh window (and attaches the crash guard)
+  if (dead && !dead.isDestroyed()) dead.destroy()
+}
+
+/**
+ * Last resort when crashes form an unrecoverable loop: kill child processes so nothing is
+ * orphaned, then hard-exit non-zero. A real exit (not a polite `app.quit()`) guarantees we never
+ * leave the user staring at a dead, empty Electron shell.
+ */
+function hardCrash(reason: string): void {
+  log.error('app', `unrecoverable renderer crash loop (${reason}); exiting`)
+  try {
+    resolveAbort?.abort()
+    jobPool?.shutdown()
+    killAllChildren()
+    terminateAnalyzeClient()
+    terminateMediaClient()
+  } catch (err) {
+    log.error('app', 'cleanup during hard-crash failed:', err)
+  }
+  app.exit(1)
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -793,6 +841,17 @@ app.whenReady().then(async () => {
   // on first paint; a no-op off macOS or when the addon isn't built.
   await primeMenuIcons()
   buildAppMenu(() => mainWindow)
+
+  // Renderer-crash safeguard: recreate a crashed window, or hard-exit if crashes form a loop,
+  // so a dead renderer never leaves a blank "empty shell". Created before the first window so
+  // createWindow() can attach it.
+  crashGuard = createCrashGuard({ recover: recreateMainWindow, fatal: hardCrash })
+  // A non-clean child-process exit (GPU/utility) is logged for diagnosis; Chromium recovers
+  // these itself, so unlike a renderer crash it needs no window rebuild.
+  app.on('child-process-gone', (_e, details) => {
+    if (details.reason !== 'clean-exit')
+      log.warn('app', `child process gone: ${details.type} (${details.reason})`)
+  })
 
   createWindow()
 
