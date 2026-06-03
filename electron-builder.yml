@@ -10,19 +10,19 @@ concurrency: 6
 directories:
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - "!**/.vscode/*"
+  - "!src/*"
+  - "!electron.vite.config.{js,ts,mjs,cjs}"
+  - "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}"
+  - "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
+  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
   # Native addon: ship only the JS loader + the staged prebuilds/Module.node — never
   # SwiftPM's .build tree (hundreds of MB), the Swift sources, or the build toolchain.
-  - '!node_modules/@plucker/native-context-menu/.build/**'
-  - '!node_modules/@plucker/native-context-menu/Sources/**'
-  - '!node_modules/@plucker/native-context-menu/scripts/**'
-  - '!node_modules/@plucker/native-context-menu/node_modules/**'
-  - '!node_modules/@plucker/native-context-menu/{Package.swift,Package.resolved,.swiftpm}'
+  - "!node_modules/@plucker/native-context-menu/.build/**"
+  - "!node_modules/@plucker/native-context-menu/Sources/**"
+  - "!node_modules/@plucker/native-context-menu/scripts/**"
+  - "!node_modules/@plucker/native-context-menu/node_modules/**"
+  - "!node_modules/@plucker/native-context-menu/{Package.swift,Package.resolved,.swiftpm}"
 asarUnpack:
   - resources/**
   # The native .node must live on disk (can't be loaded from inside the asar).
@@ -56,7 +56,7 @@ mac:
   extraResources:
     - from: build
       to: .
-      filter: ['Assets.car']
+      filter: ["Assets.car"]
   target:
     - target: dmg
       arch:
@@ -72,14 +72,13 @@ extraResources:
   # Per-arch bin/: the yt-dlp onedir folder (yt-dlp/yt-dlp_macos + _internal/) and ffmpeg.
   - from: resources/bin/${arch}
     to: bin/${arch}
-    filter: ['**/*']
+    filter: ["**/*"]
 dmg:
   artifactName: ${name}-${version}-${arch}.${ext}
   # zlib-compressed disk image (electron-builder's default): much faster to
   # build/mount than bzip2 (UDBZ) for only a slightly larger image — the extra
   # compression wasn't worth the long CI release times.
   format: UDZO
-  filesystem: APFS
 linux:
   target:
     - AppImage
