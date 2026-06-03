@@ -14,4 +14,18 @@ describe('WaveformStrip', () => {
     const html = renderToStaticMarkup(<WaveformStrip peaks={[]} />)
     expect(html).toBe('')
   })
+
+  it('renders a playhead at the given progress, and none without it', () => {
+    expect(renderToStaticMarkup(<WaveformStrip peaks={peaks} progress={0.5} />)).toContain(
+      'data-playhead'
+    )
+    expect(renderToStaticMarkup(<WaveformStrip peaks={peaks} />)).not.toContain('data-playhead')
+  })
+
+  it('marks the strip as seekable (cursor affordance) only when onSeek is given', () => {
+    expect(renderToStaticMarkup(<WaveformStrip peaks={peaks} onSeek={() => {}} />)).toContain(
+      'cursor-pointer'
+    )
+    expect(renderToStaticMarkup(<WaveformStrip peaks={peaks} />)).not.toContain('cursor-pointer')
+  })
 })

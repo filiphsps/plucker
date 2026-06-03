@@ -9,10 +9,9 @@ import { clamp, timeAtFraction } from './waveform-utils'
  * (see `wave-rise` in index.css; disabled under prefers-reduced-motion).
  *
  * Hovering shows the timestamp under the cursor (a thin guide line + a floating
- * label), derived from `durationSec`. That hover math — cursor → fraction →
- * time — is the playback-ready seam: a future interactive version reuses it for
- * a moving playhead (`progress`) and click-to-seek (`onSeek`) without changing
- * geometry.
+ * label), derived from `durationSec`. That same cursor → fraction math drives
+ * click-to-seek: clicking calls `onSeek(fraction)`. A `progress` (0..1) renders
+ * the playhead so the strip doubles as a transport.
  */
 export function WaveformStrip({
   peaks,
@@ -24,13 +23,11 @@ export function WaveformStrip({
   peaks: number[]
   durationSec?: number
   onContextMenu?: (e: React.MouseEvent) => void
-  /** 0..1 playhead position (future). */
+  /** 0..1 playhead position; renders a playhead line when set. */
   progress?: number
-  /** Seek callback, fraction 0..1 (future). */
+  /** Seek callback (fraction 0..1) fired on click. */
   onSeek?: (fraction: number) => void
 }): React.JSX.Element | null {
-  void progress
-  void onSeek
   const ref = useRef<HTMLDivElement>(null)
   // Hover position as a 0..1 fraction across the strip; null when not hovering.
   const [hover, setHover] = useState<number | null>(null)
@@ -39,20 +36,31 @@ export function WaveformStrip({
 
   const showCursor = hover != null && durationSec != null
 
-  const onMouseMove = (e: React.MouseEvent): void => {
+  const fractionAt = (e: React.MouseEvent): number | null => {
     const el = ref.current
-    if (!el || durationSec == null) return
+    if (!el) return null
     const rect = el.getBoundingClientRect()
-    setHover(clamp((e.clientX - rect.left) / rect.width, 0, 1))
+    return clamp((e.clientX - rect.left) / rect.width, 0, 1)
+  }
+  const onMouseMove = (e: React.MouseEvent): void => {
+    if (durationSec == null) return
+    const f = fractionAt(e)
+    if (f != null) setHover(f)
+  }
+  const onClick = (e: React.MouseEvent): void => {
+    if (!onSeek) return
+    const f = fractionAt(e)
+    if (f != null) onSeek(f)
   }
 
   return (
     <div
       ref={ref}
-      className="relative mt-1.5 w-full"
+      className={'relative mt-1.5 w-full ' + (onSeek ? 'cursor-pointer' : '')}
       onContextMenu={onContextMenu}
       onMouseMove={onMouseMove}
       onMouseLeave={() => setHover(null)}
+      onClick={onClick}
     >
       {showCursor && (
         <>
@@ -67,6 +75,13 @@ export function WaveformStrip({
             style={{ left: `${clamp(hover * 100, 0, 100)}%` }}
           />
         </>
+      )}
+      {progress != null && (
+        <span
+          data-playhead
+          className="pointer-events-none absolute inset-y-0 z-10 w-[2px] -translate-x-1/2 rounded-full bg-white shadow-[0_0_8px_var(--color-accent)]"
+          style={{ left: `${clamp(progress * 100, 0, 100)}%` }}
+        />
       )}
       <div className="flex h-9 w-full items-center gap-px" aria-hidden>
         {peaks.map((p, i) => (

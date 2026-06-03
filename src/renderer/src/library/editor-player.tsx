@@ -4,7 +4,7 @@ import { ChevronLeft, Music, Play, Pause } from 'lucide-react'
 import type { Waveform } from '../../../shared/types'
 import { useTrackBlob } from './use-track-blob'
 import { useTrackMeta } from './use-track-meta'
-import { playPreview, stopPreview } from './preview-player'
+import { useEditorTransport } from './use-editor-transport'
 import { WaveformStrip } from '../ui/meta/waveform-strip'
 
 function fmtDuration(sec: number | null): string {
@@ -33,8 +33,6 @@ export function EditorPlayer({
   const { t } = useTranslation()
   const { cover, hash } = useTrackBlob(trackId)
   const { artist, durationSec } = useTrackMeta(trackId)
-  const [playing, setPlaying] = useState(false)
-  const [pos, setPos] = useState(0)
 
   // Fetch the current-version waveform, keyed by trackId (derived → no setState-in-effect).
   const [loaded, setLoaded] = useState<{ id: string; wave: Waveform | null } | null>(null)
@@ -54,19 +52,7 @@ export function EditorPlayer({
   const total = wave?.durationSec ?? 0
   const canPlay = !!hash && total > 0
 
-  const toggle = (): void => {
-    if (playing) {
-      stopPreview()
-      setPlaying(false)
-    } else if (hash && total > 0) {
-      playPreview(hash, [0, total], {
-        onFrame: setPos,
-        onState: (s) => setPlaying(s !== 'stopped')
-      })
-    }
-  }
-  // Stop playback when the editor unmounts.
-  useEffect(() => () => stopPreview(), [])
+  const { playing, position, toggle, seek } = useEditorTransport(hash, total)
 
   const dur = fmtDuration(durationSec)
 
@@ -117,15 +103,14 @@ export function EditorPlayer({
           </button>
           <div className="relative flex-1">
             {wave ? (
-              <WaveformStrip peaks={wave.peaks} durationSec={wave.durationSec} />
+              <WaveformStrip
+                peaks={wave.peaks}
+                durationSec={wave.durationSec}
+                progress={canPlay ? position : undefined}
+                onSeek={seek}
+              />
             ) : (
               <div className="h-[34px] rounded-md bg-panel2" />
-            )}
-            {playing && (
-              <div
-                className="pointer-events-none absolute inset-y-0 w-[2px] bg-white shadow-[0_0_8px_var(--color-accent)]"
-                style={{ left: `${pos * 100}%` }}
-              />
             )}
           </div>
         </div>
