@@ -22,7 +22,8 @@ export default {
     exportDone: 'Exported {{count}} track(s)',
     branchFrom: 'Branch from here',
     branchNamePrompt: 'Name the new branch',
-    cold: 'Recomputes on open'
+    cold: 'Recomputes on open',
+    backToLibrary: 'Library'
   },
   activity: {
     empty: 'No activity yet.'

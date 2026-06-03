@@ -23,7 +23,8 @@ const de: typeof en = {
     exportDone: '{{count}} Titel exportiert',
     branchFrom: 'Hier verzweigen',
     branchNamePrompt: 'Benenne den neuen Branch',
-    cold: 'Wird beim Öffnen neu berechnet'
+    cold: 'Wird beim Öffnen neu berechnet',
+    backToLibrary: 'Bibliothek'
   },
   activity: {
     empty: 'Noch keine Aktivität.'
