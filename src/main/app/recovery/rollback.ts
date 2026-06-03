@@ -71,7 +71,9 @@ export async function performRollback(getWindow: () => BrowserWindow | null): Pr
     })
 
     // Persist the target + post-recovery notice immediately before the relaunch.
-    saveRecoveryState(noteRollbackTarget(loadRecoveryState(), { to: target.version, from: current }))
+    saveRecoveryState(
+      noteRollbackTarget(loadRecoveryState(), { to: target.version, from: current })
+    )
     installMacUpdate({
       zipPath,
       bundlePath,

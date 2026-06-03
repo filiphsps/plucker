@@ -40,7 +40,11 @@ describe('recovery-state', () => {
   })
 
   it('drops a malformed pendingRecoveryNotice', () => {
-    writeFileSync(file, JSON.stringify({ badStreak: 1, pendingRecoveryNotice: { nope: 1 } }), 'utf8')
+    writeFileSync(
+      file,
+      JSON.stringify({ badStreak: 1, pendingRecoveryNotice: { nope: 1 } }),
+      'utf8'
+    )
     const loaded = loadRecoveryState(file)
     expect(loaded.badStreak).toBe(1)
     expect(loaded.pendingRecoveryNotice).toBeNull()

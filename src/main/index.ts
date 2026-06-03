@@ -71,6 +71,7 @@ import {
   startBackgroundUpdates,
   installPendingUpdateOnQuit
 } from '@app/app/updater/updater'
+import { createSafetyGuard, type SafetyGuard } from '@app/app/recovery/safety-guard'
 import { registerContextMenuIpc } from '@app/app/menus/context-menu'
 import { createCrashGuard, type CrashGuard } from '@app/app/windows/window-recovery'
 import { buildAppMenu, primeMenuIcons } from '@app/app/menus/menu'
@@ -129,6 +130,8 @@ let resolveAbort: AbortController | null = null
 let jobPool: JobPool | null = null
 /** Renderer-crash safeguard: recreates a crashed window, or hard-exits on a crash loop. */
 let crashGuard: CrashGuard | null = null
+/** Last-resort recovery guard: rolls back to the previous release if the app can't start. */
+let safetyGuard: SafetyGuard | null = null
 
 /** Resolve the bundled binary paths for the current runtime. */
 function currentBin(): BinaryPaths {
@@ -742,6 +745,8 @@ function createWindow(): void {
     title: app.getName()
   })
   mainWindow = win
+  // Feed the recovery guard: a visible window that stays up marks the launch healthy.
+  win.on('show', () => safetyGuard?.onWindowVisible())
   // The first window's process is starting — reveal the Dock icon (kept hidden at launch above).
   // No-op if already shown / never hidden (dev, off-macOS, or subsequent windows). From here it
   // persists for the app's lifetime, so a later window close leaves Plucker in the Dock.
@@ -834,6 +839,19 @@ app.whenReady().then(async () => {
   // settings read, so existing installs carry their settings over transparently.
   migrateLegacyConfig()
 
+  // Last-resort recovery: on a packaged macOS build, account for the previous launch and —
+  // if the app has failed to become usable several times in a row — roll back to the previous
+  // release before attempting startup again. Dev/non-macOS builds can't self-install, so the
+  // guard is skipped entirely (also avoids hot-restart noise inflating the bad-launch streak).
+  if (app.isPackaged && process.platform === 'darwin') {
+    safetyGuard = createSafetyGuard(() => mainWindow)
+    const { recoverNow } = safetyGuard.beginLaunch()
+    if (recoverNow) {
+      log.error('app', 'repeated failed launches detected; attempting rollback before startup')
+      if (await safetyGuard.recover()) return // app is quitting to roll back
+    }
+  }
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.plucker.app')
 
@@ -881,6 +899,9 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+
+  // Start the no-window watchdog: if nothing is visible within WATCHDOG_MS, recover.
+  safetyGuard?.armWatchdog()
 
   // Attach the file + live-stream log transports if the console is enabled.
   applyConsoleLogging()
@@ -940,6 +961,8 @@ app.on('window-all-closed', () => {
 // Force-kill any in-flight yt-dlp/ffmpeg subprocesses when the app exits, so a
 // download in progress can never leave orphaned processes running afterwards.
 app.on('before-quit', () => {
+  // A clean quit (⌘Q) is never counted as a bad launch by the recovery guard.
+  safetyGuard?.onCleanExit()
   // Closing the console during shutdown must not reset its remembered floating mode.
   consoleRedockOnClose = false
   resolveAbort?.abort()
