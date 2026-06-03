@@ -37,6 +37,10 @@ const de: typeof en = {
     recipeFor: 'Rezept für {{version}}',
     renamePrompt: 'Version umbenennen',
     play: 'Wiedergabe',
+    trackN: 'Titel {{n}}',
+    versionsN: '{{count}} Versionen',
+    branchesN: '{{count}} Branches',
+    previewing: 'Vorschau',
     editFailed: 'Bearbeitung fehlgeschlagen: {{reason}}'
   },
   activity: {
