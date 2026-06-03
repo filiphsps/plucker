@@ -10,6 +10,7 @@ describe('collectionMenuItems', () => {
       t,
       sourceUrl: 'https://youtube.com/playlist?list=x',
       onOpen: vi.fn(),
+      onBeginRename: vi.fn(),
       onRedownload,
       onExportAll: vi.fn(),
       onDelete: vi.fn()
@@ -26,6 +27,7 @@ describe('collectionMenuItems', () => {
     const items = collectionMenuItems({
       t,
       onOpen: vi.fn(),
+      onBeginRename: vi.fn(),
       onRedownload: vi.fn(),
       onExportAll: vi.fn(),
       onDelete: vi.fn()
@@ -33,5 +35,21 @@ describe('collectionMenuItems', () => {
     const labels = items.map((i) => i.label)
     expect(labels).not.toContain('context.redownloadAll')
     expect(labels).not.toContain('context.copyPlaylistUrl')
+  })
+
+  it('includes a Rename item that fires its begin-rename handler', () => {
+    const onBeginRename = vi.fn()
+    const items = collectionMenuItems({
+      t,
+      onOpen: vi.fn(),
+      onBeginRename,
+      onRedownload: vi.fn(),
+      onExportAll: vi.fn(),
+      onDelete: vi.fn()
+    })
+    const rename = items.find((i) => i.label === 'library.rename')!
+    expect(rename).toBeTruthy()
+    rename.onClick!()
+    expect(onBeginRename).toHaveBeenCalledOnce()
   })
 })

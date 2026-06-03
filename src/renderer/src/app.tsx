@@ -72,6 +72,8 @@ export default function App(): React.JSX.Element {
   const { collections, refresh: refreshLibrary } = useLibrary()
   const [trackDetail, setTrackDetail] = useState<TrackDetail | null>(null)
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
+  // One-shot intent: open this collection with its title already in edit mode.
+  const [renameTargetId, setRenameTargetId] = useState<string | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const openCol = openCollectionId
@@ -626,12 +628,18 @@ export default function App(): React.JSX.Element {
                   onRename={(id, title) => {
                     void window.plucker.renameLibraryCollection(id, title)
                   }}
+                  autoBeginRename={renameTargetId === openCol.id}
+                  onAutoRenameConsumed={() => setRenameTargetId(null)}
                   onRedownloadTrack={redownloadFromUrl}
                 />
               ) : (
                 <Gallery
                   collections={collections}
                   onOpenCollection={setOpenCollectionId}
+                  onBeginRenameCollection={(id) => {
+                    setRenameTargetId(id)
+                    setOpenCollectionId(id)
+                  }}
                   onExportCollection={(id) => {
                     const c = collections.find((x) => x.id === id)
                     if (c) void exportTrackIds(c.tracks.map((tr) => tr.id))

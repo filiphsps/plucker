@@ -8,13 +8,15 @@ export function collectionMenuItems(opts: {
   t: TFunction
   sourceUrl?: string
   onOpen: () => void
+  onBeginRename: () => void
   onRedownload: () => void
   onExportAll: () => void
   onDelete: () => void
 }): MenuItem[] {
   const { t, sourceUrl } = opts
   const items: MenuItem[] = [
-    { label: t('common.open'), symbol: 'rectangle.stack', onClick: opts.onOpen }
+    { label: t('common.open'), symbol: 'rectangle.stack', onClick: opts.onOpen },
+    { label: t('library.rename'), symbol: 'pencil', onClick: opts.onBeginRename }
   ]
   if (sourceUrl) {
     items.push(

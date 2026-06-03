@@ -18,6 +18,7 @@ describe('CollectionTile', () => {
       <CollectionTile
         collection={col}
         onOpen={() => {}}
+        onBeginRename={() => {}}
         onExport={() => {}}
         onDelete={() => {}}
         onRedownload={() => {}}

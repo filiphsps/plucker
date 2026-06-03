@@ -10,12 +10,14 @@ const SORTS: GallerySort[] = ['recent', 'az', 'kind']
 export function Gallery({
   collections,
   onOpenCollection,
+  onBeginRenameCollection,
   onExportCollection,
   onDeleteCollection,
   onRedownloadCollection
 }: {
   collections: CollectionView[]
   onOpenCollection: (id: string) => void
+  onBeginRenameCollection: (id: string) => void
   onExportCollection: (id: string) => void
   onDeleteCollection: (id: string) => void
   onRedownloadCollection: (url: string) => void
@@ -75,6 +77,7 @@ export function Gallery({
               key={c.id}
               collection={c}
               onOpen={onOpenCollection}
+              onBeginRename={onBeginRenameCollection}
               onExport={onExportCollection}
               onDelete={onDeleteCollection}
               onRedownload={onRedownloadCollection}

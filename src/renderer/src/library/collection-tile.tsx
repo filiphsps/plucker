@@ -16,12 +16,14 @@ const TILE_PREVIEW_RANGE: [number, number] = [6, 22]
 export function CollectionTile({
   collection,
   onOpen,
+  onBeginRename,
   onExport,
   onDelete,
   onRedownload
 }: {
   collection: CollectionView
   onOpen: (id: string) => void
+  onBeginRename: (id: string) => void
   onExport: (id: string) => void
   onDelete: (id: string) => void
   onRedownload: (url: string) => void
@@ -45,6 +47,7 @@ export function CollectionTile({
             t,
             sourceUrl: collection.sourceUrl,
             onOpen: () => onOpen(collection.id),
+            onBeginRename: () => onBeginRename(collection.id),
             onRedownload: () => collection.sourceUrl && onRedownload(collection.sourceUrl),
             onExportAll: () => onExport(collection.id),
             onDelete: () => onDelete(collection.id)

@@ -15,6 +15,7 @@ describe('Gallery', () => {
       <Gallery
         collections={cols}
         onOpenCollection={noop}
+        onBeginRenameCollection={noop}
         onExportCollection={noop}
         onDeleteCollection={noop}
         onRedownloadCollection={noop}
@@ -28,6 +29,7 @@ describe('Gallery', () => {
       <Gallery
         collections={[]}
         onOpenCollection={noop}
+        onBeginRenameCollection={noop}
         onExportCollection={noop}
         onDeleteCollection={noop}
         onRedownloadCollection={noop}
