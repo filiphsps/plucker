@@ -1,0 +1,90 @@
+import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Upload, Trash2 } from 'lucide-react'
+import type { CollectionView } from '../../../shared/library'
+import { CollectionCover } from './collection-cover'
+import { CollectionWaveform } from './collection-waveform'
+import { useTrackBlob } from './use-track-blob'
+
+/** One cinematic gallery tile: cover/mosaic, hover waveform, scrim caption, hover actions. */
+export function CollectionTile({
+  collection,
+  onOpen,
+  onExport,
+  onDelete
+}: {
+  collection: CollectionView
+  onOpen: (id: string) => void
+  onExport: (id: string) => void
+  onDelete: (id: string) => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const [hover, setHover] = useState(false)
+  // The collection's signature waveform = its first track's current version.
+  const first = collection.tracks[0]?.id ?? null
+  const { loadWaveform } = useTrackBlob(first)
+
+  const stop = (e: React.MouseEvent): void => e.stopPropagation()
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(collection.id)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="group relative aspect-square overflow-hidden rounded-[10px] border border-line bg-black text-left transition-transform duration-150 hover:-translate-y-[3px] hover:border-[#33373f]"
+    >
+      <div
+        className={
+          'absolute inset-0 z-[1] transition-opacity duration-500 ' +
+          (hover ? 'opacity-[0.07]' : 'opacity-100')
+        }
+      >
+        <CollectionCover kind={collection.kind} tracks={collection.tracks} />
+      </div>
+
+      <CollectionWaveform active={hover} loadWaveform={loadWaveform} />
+
+      {/* scrim + caption */}
+      <div className="pointer-events-none absolute inset-0 z-[4] bg-gradient-to-t from-black/85 via-transparent to-transparent" />
+      <div className="absolute inset-x-3 bottom-2.5 z-[5]">
+        <div className="truncate text-[14px] font-semibold text-white">{collection.title}</div>
+        <div className="mt-0.5 font-mono text-[9px] uppercase tracking-[1.1px] text-white/60">
+          {t(`library.kind.${collection.kind}`)}
+          {collection.kind !== 'single' && ` · ${collection.tracks.length}`}
+        </div>
+      </div>
+
+      {/* hover actions */}
+      <div
+        className={
+          'absolute right-2 top-2 z-[5] flex gap-1.5 transition-opacity ' +
+          (hover ? 'opacity-100' : 'opacity-0')
+        }
+      >
+        <span
+          role="button"
+          aria-label={t('library.exportAll')}
+          onClick={(e) => {
+            stop(e)
+            onExport(collection.id)
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-white/15 bg-black/60 text-white backdrop-blur"
+        >
+          <Upload size={13} />
+        </span>
+        <span
+          role="button"
+          aria-label={t('common.delete')}
+          onClick={(e) => {
+            stop(e)
+            onDelete(collection.id)
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-white/15 bg-black/60 text-white backdrop-blur"
+        >
+          <Trash2 size={13} />
+        </span>
+      </div>
+    </button>
+  )
+}
