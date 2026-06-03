@@ -78,6 +78,7 @@ export function TrackDetail({
   onCancel,
   onOpenExternal,
   waveform,
+  showWaveform = true,
   onContextMenu
 }: {
   meta: TrackMetadata | null
@@ -91,6 +92,9 @@ export function TrackDetail({
   onOpenExternal?: (url: string) => void
   /** Precomputed peaks; when present (and not editing) the strip is shown. */
   waveform?: Waveform
+  /** When false, the waveform strip is suppressed even if peaks are supplied
+   *  (e.g. the editor, which shows the waveform in its player instead). */
+  showWaveform?: boolean
   /** Row context-menu handler, forwarded onto the waveform. */
   onContextMenu?: (e: React.MouseEvent) => void
 }): React.JSX.Element {
@@ -209,7 +213,7 @@ export function TrackDetail({
         </MetaGrid>
       </div>
 
-      {waveform && (
+      {showWaveform && waveform && (
         <WaveformStrip
           peaks={waveform.peaks}
           durationSec={waveform.durationSec}
