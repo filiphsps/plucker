@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.23.0](https://github.com/filiphsps/plucker/compare/plucker-v0.22.0...plucker-v0.23.0) (2026-06-03)
+
+
+### Features
+
+* **logging:** always-on early file log + startup crash dialog ([0e3e216](https://github.com/filiphsps/plucker/commit/0e3e21622d64d67ab4088e1634e2bdf0d4cd4220))
+* **macos:** defer Dock icon until the first window loads ([1554c77](https://github.com/filiphsps/plucker/commit/1554c7752051b35a21d7a9dc8b793eaa54ae31e1))
+
+
+### Bug Fixes
+
+* **build:** ship universal arm64+x64 better-sqlite3 so the x64 DMG opens ([52499ce](https://github.com/filiphsps/plucker/commit/52499cea3e72e78ce1df748a4a78e2743d68abac))
+
 ## [0.22.0](https://github.com/filiphsps/plucker/compare/plucker-v0.21.0...plucker-v0.22.0) (2026-06-03)
 
 
