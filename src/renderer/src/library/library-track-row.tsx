@@ -4,7 +4,7 @@ import { Music, ArrowUpRight, Upload, Trash2 } from 'lucide-react'
 import type { TrackSummary } from '../../../shared/library'
 import { useTrackBlob } from './use-track-blob'
 import { useTrackMeta } from './use-track-meta'
-import { hoverPreview } from './preview-player'
+import { useHoverPreview } from './use-hover-preview'
 import { showContextMenu } from '../ui/context-menu'
 import { libraryTrackMenuItems } from './library-track-menu'
 import { watchUrl } from '../../../shared/youtube-url'
@@ -19,6 +19,8 @@ function fmtDuration(sec: number | null): string {
 }
 
 const ROW_WAVE_BARS = 56
+/** Preview snippet window (seconds) for a track row's hover-to-play. */
+const ROW_PREVIEW_RANGE: [number, number] = [8, 24]
 
 /** Render one layer of the row waveform — fixed-width so the bright clip never reflows it. */
 function RowWaveBars({ peaks, color }: { peaks: number[]; color: string }): React.JSX.Element {
@@ -96,17 +98,7 @@ export function LibraryTrackRow({
   const stop = (e: React.MouseEvent): void => e.stopPropagation()
   const versions = track.versionCount ?? 0
   const branches = track.branchCount ?? 0
-  const posRef = useRef(0)
-  const [playing, setPlaying] = useState(false)
-  const ctrl = useRef<{ enter: () => void; leave: () => void } | null>(null)
-  useEffect(() => {
-    ctrl.current = hash
-      ? hoverPreview(hash, [8, 24], {
-          onState: (s) => setPlaying(s === 'playing' || s === 'buffering'),
-          onFrame: (p) => (posRef.current = p)
-        })
-      : null
-  }, [hash])
+  const { setHovered, playing, posRef } = useHoverPreview(hash, ROW_PREVIEW_RANGE)
 
   // The row's own waveform peaks, fetched (and cached) lazily on first hover so
   // the strip shows the real track — not a shared placeholder shape.
@@ -123,9 +115,9 @@ export function LibraryTrackRow({
       className="group flex h-[52px] items-center gap-3 border-b border-line2 px-[18px] hover:bg-white/[0.018]"
       onMouseEnter={() => {
         ensurePeaks()
-        ctrl.current?.enter()
+        setHovered(true)
       }}
-      onMouseLeave={() => ctrl.current?.leave()}
+      onMouseLeave={() => setHovered(false)}
       onContextMenu={(e) => {
         e.preventDefault()
         const url =

@@ -1,13 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, Trash2 } from 'lucide-react'
 import type { CollectionView } from '../../../shared/library'
 import { CollectionCover } from './collection-cover'
 import { CollectionWaveform } from './collection-waveform'
 import { useTrackBlob } from './use-track-blob'
-import { hoverPreview } from './preview-player'
+import { useHoverPreview } from './use-hover-preview'
 import { showContextMenu } from '../ui/context-menu'
 import { collectionMenuItems } from './collection-menu'
+
+/** Preview snippet window (seconds) for a gallery tile's hover-to-play. */
+const TILE_PREVIEW_RANGE: [number, number] = [6, 22]
 
 /** One cinematic gallery tile: cover/mosaic, hover waveform, scrim caption, hover actions. */
 export function CollectionTile({
@@ -24,17 +27,10 @@ export function CollectionTile({
   onRedownload: (url: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const [hover, setHover] = useState(false)
   // The collection's signature waveform/audio = its first track's current version.
   const first = collection.tracks[0]?.id ?? null
   const { hash, loadWaveform } = useTrackBlob(first)
-  const posRef = useRef(0)
-  const ctrl = useRef<{ enter: () => void; leave: () => void } | null>(null)
-  useEffect(() => {
-    ctrl.current = hash
-      ? hoverPreview(hash, [6, 22], { onFrame: (p) => (posRef.current = p) })
-      : null
-  }, [hash])
+  const { hovered: hover, setHovered, posRef } = useHoverPreview(hash, TILE_PREVIEW_RANGE)
 
   const stop = (e: React.MouseEvent): void => e.stopPropagation()
 
@@ -55,14 +51,8 @@ export function CollectionTile({
           })
         )
       }}
-      onMouseEnter={() => {
-        setHover(true)
-        ctrl.current?.enter()
-      }}
-      onMouseLeave={() => {
-        setHover(false)
-        ctrl.current?.leave()
-      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       className="group relative aspect-square overflow-hidden rounded-[10px] border border-line bg-black text-left transition-transform duration-150 hover:-translate-y-[3px] hover:border-[#33373f]"
     >
       <div

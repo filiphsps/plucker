@@ -3,7 +3,8 @@ import { previewsEnabled } from './preview-settings'
 export const FADE_IN = 850
 export const FADE_OUT = 650
 const VOL = 0.9
-const INTENT_MS = 220
+/** Hover dwell before a preview starts (consumed by the useHoverPreview hook). */
+export const INTENT_MS = 220
 
 export function easeInOut(k: number): number {
   return k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
@@ -24,6 +25,7 @@ export interface PreviewHandle {
 
 let audio: HTMLAudioElement | null = null
 let activeToken = 0 // identifies the active preview; bumping it cancels older callbacks
+let activeHandle: PreviewHandle | null = null // the single row/tile allowed to be "playing"
 let raf = 0
 
 function fade(el: HTMLAudioElement, to: number, ms: number, done?: () => void): void {
@@ -38,10 +40,13 @@ function fade(el: HTMLAudioElement, to: number, ms: number, done?: () => void): 
   requestAnimationFrame(step)
 }
 
-/** Stop whatever is previewing (eased), if anything. */
+/** Stop whatever is previewing (eased), if anything, and reset its handle. */
 export function stopPreview(): void {
   activeToken++
   if (raf) cancelAnimationFrame(raf)
+  const prev = activeHandle
+  activeHandle = null
+  prev?.onState?.('stopped')
   const el = audio
   if (el && !el.paused) fade(el, 0, FADE_OUT, () => el.pause())
 }
@@ -59,6 +64,10 @@ export function playPreview(
   if (!previewsEnabled() || !hash) return () => {}
   const [t0, t1] = range
   const mine = ++activeToken
+  // Single-active hand-off: reset the previously-active row/tile so only one is
+  // ever "playing", even if its mouseleave never fired (overlapping hovers).
+  if (activeHandle && activeHandle !== h) activeHandle.onState?.('stopped')
+  activeHandle = h
   if (raf) cancelAnimationFrame(raf)
   if (!audio) audio = new Audio()
   const el = audio
@@ -70,10 +79,16 @@ export function playPreview(
   } catch {
     /* before metadata loads — corrected in the loop below */
   }
+  // Guard the async resolutions with the token: a play() promise from a preview
+  // we've already left must not resurrect that row's "playing" state.
   void el
     .play()
-    .then(() => h.onState?.('playing'))
-    .catch(() => h.onState?.('stopped'))
+    .then(() => {
+      if (mine === activeToken) h.onState?.('playing')
+    })
+    .catch(() => {
+      if (mine === activeToken) h.onState?.('stopped')
+    })
   fade(el, VOL, FADE_IN)
   const loop = (): void => {
     if (mine !== activeToken) return
@@ -90,27 +105,5 @@ export function playPreview(
   loop()
   return () => {
     if (mine === activeToken) stopPreview()
-  }
-}
-
-/** Hover-intent wrapper: only starts after the cursor dwells `INTENT_MS`. */
-export function hoverPreview(
-  hash: string,
-  range: [number, number],
-  h: PreviewHandle = {}
-): { enter: () => void; leave: () => void } {
-  let timer: ReturnType<typeof setTimeout> | null = null
-  let stop: (() => void) | null = null
-  return {
-    enter: () => {
-      timer = setTimeout(() => {
-        stop = playPreview(hash, range, h)
-      }, INTENT_MS)
-    },
-    leave: () => {
-      if (timer) clearTimeout(timer)
-      stop?.()
-      h.onState?.('stopped')
-    }
   }
 }
