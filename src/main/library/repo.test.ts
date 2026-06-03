@@ -23,6 +23,13 @@ describe('repo — basic CRUD & reads', () => {
     expect(repo.listCollections().map((c) => c.id)).toEqual(['c1'])
   })
 
+  it('renames a collection title', () => {
+    const repo = freshRepo()
+    repo.insertCollection({ id: 'c1', kind: 'album', title: 'Old', createdAt: 't' })
+    repo.renameCollection('c1', 'New')
+    expect(repo.getCollection('c1')?.title).toBe('New')
+  })
+
   it('round-trips a version recipe through JSON', () => {
     const repo = freshRepo()
     repo.insertCollection({ id: 'c1', kind: 'single', title: 'T', createdAt: 't' })

@@ -90,6 +90,7 @@ export interface Repo {
   insertCollection: (c: Collection) => RunResult
   getCollection: (id: string) => Collection | null
   listCollections: () => Collection[]
+  renameCollection: (id: string, title: string) => RunResult
   insertTrack: (t: TrackInstance) => RunResult
   getTrack: (id: string) => TrackInstance | null
   listTracks: (collectionId: string) => TrackInstance[]
@@ -121,6 +122,7 @@ export function createRepo(db: Database): Repo {
     ),
     getCollection: db.prepare('SELECT * FROM collections WHERE id=?'),
     listCollections: db.prepare('SELECT * FROM collections ORDER BY created_at DESC'),
+    renameCollection: db.prepare('UPDATE collections SET title=? WHERE id=?'),
     insTrack: db.prepare(
       `INSERT INTO track_instances (id,collection_id,source_video_id,source_url,source_audio_hash,order_index,title,active_branch_id)
        VALUES (@id,@collectionId,@sourceVideoId,@sourceUrl,@sourceAudioHash,@orderIndex,@title,@activeBranchId)`
@@ -169,6 +171,7 @@ export function createRepo(db: Database): Repo {
       return r ? toCollection(r) : null
     },
     listCollections: () => stmt.listCollections.all().map(toCollection),
+    renameCollection: (id: string, title: string) => stmt.renameCollection.run(title, id),
 
     insertTrack: (t: TrackInstance) =>
       stmt.insTrack.run({
