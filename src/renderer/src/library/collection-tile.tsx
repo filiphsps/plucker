@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, Trash2 } from 'lucide-react'
 import type { CollectionView } from '../../../shared/library'
 import { CollectionCover } from './collection-cover'
 import { CollectionWaveform } from './collection-waveform'
 import { useTrackBlob } from './use-track-blob'
+import { hoverPreview } from './preview-player'
 import { showContextMenu } from '../ui/context-menu'
 import { collectionMenuItems } from './collection-menu'
 
@@ -24,9 +25,16 @@ export function CollectionTile({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [hover, setHover] = useState(false)
-  // The collection's signature waveform = its first track's current version.
+  // The collection's signature waveform/audio = its first track's current version.
   const first = collection.tracks[0]?.id ?? null
-  const { loadWaveform } = useTrackBlob(first)
+  const { hash, loadWaveform } = useTrackBlob(first)
+  const posRef = useRef(0)
+  const ctrl = useRef<{ enter: () => void; leave: () => void } | null>(null)
+  useEffect(() => {
+    ctrl.current = hash
+      ? hoverPreview(hash, [6, 22], { onFrame: (p) => (posRef.current = p) })
+      : null
+  }, [hash])
 
   const stop = (e: React.MouseEvent): void => e.stopPropagation()
 
@@ -47,8 +55,14 @@ export function CollectionTile({
           })
         )
       }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseEnter={() => {
+        setHover(true)
+        ctrl.current?.enter()
+      }}
+      onMouseLeave={() => {
+        setHover(false)
+        ctrl.current?.leave()
+      }}
       className="group relative aspect-square overflow-hidden rounded-[10px] border border-line bg-black text-left transition-transform duration-150 hover:-translate-y-[3px] hover:border-[#33373f]"
     >
       <div
@@ -60,7 +74,7 @@ export function CollectionTile({
         <CollectionCover kind={collection.kind} tracks={collection.tracks} />
       </div>
 
-      <CollectionWaveform active={hover} loadWaveform={loadWaveform} />
+      <CollectionWaveform active={hover} loadWaveform={loadWaveform} posRef={posRef} />
 
       {/* scrim + caption */}
       <div className="pointer-events-none absolute inset-0 z-[4] bg-gradient-to-t from-black/85 via-transparent to-transparent" />
