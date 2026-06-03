@@ -22,6 +22,28 @@ files:
   - "!node_modules/@plucker/native-context-menu/scripts/**"
   - "!node_modules/@plucker/native-context-menu/node_modules/**"
   - "!node_modules/@plucker/native-context-menu/{Package.swift,Package.resolved,.swiftpm}"
+fileAssociations:
+  - ext: mp3
+    name: MP3 Audio
+    mimeType: audio/mpeg
+    role: Editor
+  - ext: m4a
+    name: M4A Audio
+    mimeType: audio/x-m4a
+    role: Editor
+  - ext: flac
+    name: FLAC Audio
+    mimeType: audio/flac
+    role: Editor
+  - ext: mp4
+    name: MP4 Video
+    mimeType: video/mp4
+    role: Editor
+  - ext: m4v
+    name: M4V Video
+    mimeType: video/x-m4v
+    role: Editor
+asar: true
 asarUnpack:
   - resources/**
   # The native .node must live on disk (can't be loaded from inside the asar).
@@ -49,6 +71,9 @@ mac:
     - CFBundleIconName: Icon
   notarize: false
   identity: null
+  hardenedRuntime: true
+  minimumSystemVersion: 13.0
+  darkModeSupport: true
   # Embed the macOS 26 Liquid Glass asset catalog when build-icon.mjs produced one.
   # The glob makes its absence a no-op, so pre-Xcode-26 builds still succeed (with
   # only the legacy .icns). Merged with the top-level extraResources.
@@ -78,6 +103,8 @@ dmg:
   # build/mount than bzip2 (UDBZ) for only a slightly larger image — the extra
   # compression wasn't worth the long CI release times.
   format: UDZO
+  shrink: true
+  writeUpdateInfo: false
 linux:
   target:
     - AppImage
@@ -92,3 +119,5 @@ publish:
   provider: github
   owner: filiphsps
   repo: plucker
+releaseInfo:
+  releaseNotesFile: CHANGELOG.md
