@@ -65,6 +65,29 @@ describe('LibraryService', () => {
     expect(tr.branchCount).toBe(1)
   })
 
+  it('deleteVersion removes a non-tip leaf version but refuses a branch tip', () => {
+    const { service, repo } = svc()
+    service.ingestJobResult('j1', done('a'))
+    const trackId = service.listCollections()[0].tracks[0].id
+    const tip = repo.getBranch(repo.getTrack(trackId)!.activeBranchId)!.tipVersionId
+    // a dangling leaf version that no branch points to (safe to delete: no children, not a tip)
+    repo.insertVersion({
+      id: 'leaf',
+      trackId,
+      parentId: tip,
+      blobHash: null,
+      recipe: { steps: [] },
+      materialized: false,
+      createdAt: 'now'
+    })
+
+    service.deleteVersion('leaf') // not a tip → removed
+    expect(repo.getVersion('leaf')).toBeNull()
+
+    service.deleteVersion(tip) // the main branch tip → refused (no-op)
+    expect(repo.getVersion(tip)).not.toBeNull()
+  })
+
   it('deleteTrack removes the row, derefs the blob, logs activity, emits change', () => {
     const { service, repo, store, events } = svc()
     service.ingestJobResult('j1', done('a'))

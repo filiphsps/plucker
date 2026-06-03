@@ -48,6 +48,7 @@ export interface LibraryService {
   switchBranch: (trackId: string, branchId: string) => void
   renameBranch: (branchId: string, name: string) => void
   renameVersion: (versionId: string, label: string) => void
+  deleteVersion: (versionId: string) => void
   exportTracks: (trackIds: string[], destFolder: string) => Promise<string[]>
 }
 
@@ -218,6 +219,25 @@ export function createLibraryService(deps: LibraryDeps): LibraryService {
     renameVersion(versionId: string, label: string): void {
       repo.setVersionLabel(versionId, label)
       emit('library:changed')
+    },
+
+    /** Delete a single version unless it is some branch's tip (the UI also hides that). */
+    deleteVersion(versionId: string): void {
+      const ver = repo.getVersion(versionId)
+      if (!ver) return
+      const isTip = repo.listBranches(ver.trackId).some((b) => b.tipVersionId === versionId)
+      if (isTip) return // refuse: deleting a tip is not allowed here
+      repo.deleteVersion(versionId, store)
+      repo.insertActivity({
+        id: clock.idGen(),
+        type: 'deleted',
+        ts: clock.now(),
+        trackId: ver.trackId,
+        versionId,
+        summary: `Deleted a version`
+      })
+      emit('library:changed')
+      emit('library:activityChanged')
     },
 
     /** Materialize each track's current version and copy it to `destFolder`. */

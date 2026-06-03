@@ -141,6 +141,8 @@ const api = {
     ipcRenderer.invoke('library:renameBranch', branchId, name),
   renameVersion: (versionId: string, label: string): Promise<void> =>
     ipcRenderer.invoke('library:renameVersion', versionId, label),
+  deleteLibraryVersion: (versionId: string): Promise<void> =>
+    ipcRenderer.invoke('library:deleteVersion', versionId),
   exportLibraryTracks: (trackIds: string[], destFolder: string): Promise<string[]> =>
     ipcRenderer.invoke('library:export', trackIds, destFolder),
   onLibraryChanged: (cb: () => void): (() => void) => {
