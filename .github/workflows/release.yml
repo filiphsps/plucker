@@ -81,23 +81,31 @@ jobs:
 
       # Cache the native addon's SwiftPM build tree. node-swift's swift-syntax
       # dependency is by far the slowest thing to compile and only changes when
-      # node-swift does, so restoring `.build` lets the incremental build (build:native
-      # runs `node-swift build`, not `rebuild`) skip recompiling it. Keyed on the
-      # node-swift version (package.json) + Package.swift; a Swift-toolchain change is
-      # self-healing — node-swift records the toolchain in `.build` and recompiles on
-      # mismatch, so a stale restore can't ship a bad binary.
+      # node-swift does, so restoring `.build` lets the incremental build skip
+      # recompiling it. This job builds only its matrix arch (PLUCKER_NATIVE_ARCH
+      # below), and build.mjs isolates each arch under `.build/<arch>`, so the key is
+      # scoped per-arch — the two matrix jobs cache independently instead of clobbering
+      # a shared key. Keyed on the node-swift version (package.json) + Package.swift +
+      # build.mjs (so a build-layout change re-saves rather than restoring a stale tree).
+      # A Swift-toolchain change is self-healing — SwiftPM records the toolchain in
+      # `.build` and recompiles on mismatch, so a stale restore can't ship a bad binary.
       - name: Cache native addon SwiftPM build
         uses: actions/cache@v4
         with:
           path: native/context-menu/.build
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('native/context-menu/package.json', 'native/context-menu/Package.swift') }}
-          restore-keys: ${{ runner.os }}-swiftpm-
+          key: ${{ runner.os }}-swiftpm-${{ matrix.arch }}-${{ hashFiles('native/context-menu/package.json', 'native/context-menu/Package.swift', 'native/context-menu/scripts/build.mjs') }}
+          restore-keys: ${{ runner.os }}-swiftpm-${{ matrix.arch }}-
 
       # --all: an arm64 runner's postinstall only fetches arm64 binaries, so the x64
       # slice needs the cross-arch yt-dlp + ffmpeg to package.
       - run: node scripts/fetch-binaries.mjs --all
 
+      # PLUCKER_NATIVE_ARCH makes build:native compile only this job's slice (not both),
+      # since each matrix job ships a single-arch DMG. thin-native-bins (below) still
+      # strips the other arch from the remaining fat binaries.
       - run: pnpm run build
+        env:
+          PLUCKER_NATIVE_ARCH: ${{ matrix.arch }}
 
       # electron-builder ships node_modules' better-sqlite3 binary as-is (npmRebuild: false),
       # and these runners are Apple Silicon — so without this the x64 DMG would ship an
@@ -199,17 +207,21 @@ jobs:
       # The screenshot pass drives Playwright Chromium (also used by build:icon).
       - run: pnpm exec playwright install chromium
 
-      # Reuse the SwiftPM build tree the build-macos jobs already populated this run
-      # (same key), so this screenshot build's build:native skips the swift-syntax
-      # recompile too. See build-macos for the keying rationale.
+      # Reuse the arm64 SwiftPM build tree the build-macos arm64 job already populated
+      # this run (same key), so this screenshot build's build:native skips the
+      # swift-syntax recompile too. This runner is arm64 and only launches the app for
+      # screenshots, so it builds the arm64 slice alone. See build-macos for the keying
+      # rationale.
       - name: Cache native addon SwiftPM build
         uses: actions/cache@v4
         with:
           path: native/context-menu/.build
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('native/context-menu/package.json', 'native/context-menu/Package.swift') }}
-          restore-keys: ${{ runner.os }}-swiftpm-
+          key: ${{ runner.os }}-swiftpm-arm64-${{ hashFiles('native/context-menu/package.json', 'native/context-menu/Package.swift', 'native/context-menu/scripts/build.mjs') }}
+          restore-keys: ${{ runner.os }}-swiftpm-arm64-
 
       - run: pnpm run build
+        env:
+          PLUCKER_NATIVE_ARCH: arm64
 
       # Render UI screenshots from the freshly built app (out/ exists after build)
       # into .github/img/. Cosmetic, so continue-on-error keeps the release green.
