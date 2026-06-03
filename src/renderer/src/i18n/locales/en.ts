@@ -24,7 +24,9 @@ export default {
     branchFrom: 'Branch from here',
     branchNamePrompt: 'Name the new branch',
     cold: 'Recomputes on open',
-    backToLibrary: 'Library'
+    backToLibrary: 'Library',
+    tracksN: '{{count}} tracks',
+    added: 'added {{date}}'
   },
   activity: {
     empty: 'No activity yet.'

@@ -25,7 +25,9 @@ const de: typeof en = {
     branchFrom: 'Hier verzweigen',
     branchNamePrompt: 'Benenne den neuen Branch',
     cold: 'Wird beim Öffnen neu berechnet',
-    backToLibrary: 'Bibliothek'
+    backToLibrary: 'Bibliothek',
+    tracksN: '{{count}} Titel',
+    added: 'hinzugefügt {{date}}'
   },
   activity: {
     empty: 'Noch keine Aktivität.'
