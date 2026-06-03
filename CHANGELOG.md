@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.24.0](https://github.com/filiphsps/plucker/compare/plucker-v0.23.0...plucker-v0.24.0) (2026-06-03)
+
+
+### Features
+
+* **library:** compose a transform chain into a child of the selected version ([3d09730](https://github.com/filiphsps/plucker/commit/3d0973032bbeb21b7bda3ad958352bfde4703bb4))
+* **recovery:** add semver compare + tag version-extract util ([d474fc5](https://github.com/filiphsps/plucker/commit/d474fc5abc556d7fb266cce3b8b7e40777b4f380))
+* **recovery:** launch-health decision state machine ([23caea3](https://github.com/filiphsps/plucker/commit/23caea3a07a9c80c5fd276f6e5852501b560dda9))
+* **recovery:** parse latest-mac.yml for rollback checksums ([756ec78](https://github.com/filiphsps/plucker/commit/756ec78548931ce46c62f89963a9fc8e138a834a))
+* **recovery:** persist launch-health/recovery state ([5bd38f1](https://github.com/filiphsps/plucker/commit/5bd38f1968a5cfc41343b67bf49af6e848d1c36f))
+* **recovery:** rollback orchestration (download + downgrade + relaunch) ([b08f8ed](https://github.com/filiphsps/plucker/commit/b08f8ed3e3c6c18f5812999d94f2371908a49e3e))
+* **recovery:** safety-guard watchdog + lifecycle wiring ([efa18e3](https://github.com/filiphsps/plucker/commit/efa18e35852ac638aca23653b242a6581cee5a32))
+* **recovery:** wire the last-resort safety guard into main startup ([6d9de99](https://github.com/filiphsps/plucker/commit/6d9de99e4339d3f589f5fb82e9a34387376e9be1))
+* **updater:** fetch release list + download a specific release zip ([24fe31b](https://github.com/filiphsps/plucker/commit/24fe31bd5b2179efc6cbc2d4f9b556fdacb2fc52))
+
+
+### Bug Fixes
+
+* **library:** keep the gallery hover waveform animating without audio previews ([0219e9f](https://github.com/filiphsps/plucker/commit/0219e9f227fc14973e73b21ef28d2135d9352576))
+* **updater:** reliably relaunch after a self-update ([db80a71](https://github.com/filiphsps/plucker/commit/db80a714724ea5a2200d11ac9e6cf6a6ba0f0394))
+
+
+### Performance Improvements
+
+* **native:** isolate each arch's SwiftPM build path to stop macro-plugin rebuild thrash ([972c9ec](https://github.com/filiphsps/plucker/commit/972c9ecd5782ec0e48f224d11c675527c6d0825d))
+
 ## [0.23.0](https://github.com/filiphsps/plucker/compare/plucker-v0.22.0...plucker-v0.23.0) (2026-06-03)
 
 
