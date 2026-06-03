@@ -77,6 +77,15 @@ export default function App(): React.JSX.Element {
     void window.plucker.getLibraryTrack(trackId).then(setTrackDetail)
   }
 
+  /** Re-download a collection: jump to the Download view with its source URL prefilled. */
+  const redownloadFromUrl = (url: string): void => {
+    setSettingsOpen(false)
+    setCacheOpen(false)
+    setView('download')
+    setSelectedJobId(null)
+    setPrefill({ url, nonce: ++prefillNonce.current })
+  }
+
   useEffect(() => {
     const load = (): void => {
       void window.plucker.getActivity().then(setActivity)
@@ -593,6 +602,7 @@ export default function App(): React.JSX.Element {
                 onDeleteCollection={(id) => {
                   void window.plucker.deleteLibraryCollection(id).then(() => void refreshLibrary())
                 }}
+                onRedownloadCollection={redownloadFromUrl}
               />
             )}
             <ActivityLog events={activity} />

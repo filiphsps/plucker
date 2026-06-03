@@ -15,7 +15,13 @@ const col: CollectionView = {
 describe('CollectionTile', () => {
   it('renders the title and a mono kind · count caption', () => {
     const html = renderToStaticMarkup(
-      <CollectionTile collection={col} onOpen={() => {}} onExport={() => {}} onDelete={() => {}} />
+      <CollectionTile
+        collection={col}
+        onOpen={() => {}}
+        onExport={() => {}}
+        onDelete={() => {}}
+        onRedownload={() => {}}
+      />
     )
     expect(html).toContain('Road Trip')
     expect(html).toContain('Playlist') // localized kind

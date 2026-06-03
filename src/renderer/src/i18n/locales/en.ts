@@ -7,7 +7,8 @@ export default {
   },
   common: {
     delete: 'Delete',
-    back: 'Back'
+    back: 'Back',
+    open: 'Open'
   },
   library: {
     empty: 'Your library is empty',

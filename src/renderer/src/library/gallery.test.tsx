@@ -17,6 +17,7 @@ describe('Gallery', () => {
         onOpenCollection={noop}
         onExportCollection={noop}
         onDeleteCollection={noop}
+        onRedownloadCollection={noop}
       />
     )
     expect(html).toContain('Road Trip')
@@ -29,6 +30,7 @@ describe('Gallery', () => {
         onOpenCollection={noop}
         onExportCollection={noop}
         onDeleteCollection={noop}
+        onRedownloadCollection={noop}
       />
     )
     expect(html.toLowerCase()).toContain('empty')

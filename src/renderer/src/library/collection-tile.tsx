@@ -5,18 +5,22 @@ import type { CollectionView } from '../../../shared/library'
 import { CollectionCover } from './collection-cover'
 import { CollectionWaveform } from './collection-waveform'
 import { useTrackBlob } from './use-track-blob'
+import { showContextMenu } from '../ui/context-menu'
+import { collectionMenuItems } from './collection-menu'
 
 /** One cinematic gallery tile: cover/mosaic, hover waveform, scrim caption, hover actions. */
 export function CollectionTile({
   collection,
   onOpen,
   onExport,
-  onDelete
+  onDelete,
+  onRedownload
 }: {
   collection: CollectionView
   onOpen: (id: string) => void
   onExport: (id: string) => void
   onDelete: (id: string) => void
+  onRedownload: (url: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [hover, setHover] = useState(false)
@@ -30,6 +34,19 @@ export function CollectionTile({
     <button
       type="button"
       onClick={() => onOpen(collection.id)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        void showContextMenu(
+          collectionMenuItems({
+            t,
+            sourceUrl: collection.sourceUrl,
+            onOpen: () => onOpen(collection.id),
+            onRedownload: () => collection.sourceUrl && onRedownload(collection.sourceUrl),
+            onExportAll: () => onExport(collection.id),
+            onDelete: () => onDelete(collection.id)
+          })
+        )
+      }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       className="group relative aspect-square overflow-hidden rounded-[10px] border border-line bg-black text-left transition-transform duration-150 hover:-translate-y-[3px] hover:border-[#33373f]"

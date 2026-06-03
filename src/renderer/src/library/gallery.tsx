@@ -11,12 +11,14 @@ export function Gallery({
   collections,
   onOpenCollection,
   onExportCollection,
-  onDeleteCollection
+  onDeleteCollection,
+  onRedownloadCollection
 }: {
   collections: CollectionView[]
   onOpenCollection: (id: string) => void
   onExportCollection: (id: string) => void
   onDeleteCollection: (id: string) => void
+  onRedownloadCollection: (url: string) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -75,6 +77,7 @@ export function Gallery({
               onOpen={onOpenCollection}
               onExport={onExportCollection}
               onDelete={onDeleteCollection}
+              onRedownload={onRedownloadCollection}
             />
           ))}
         </div>

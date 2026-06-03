@@ -8,7 +8,8 @@ const de: typeof en = {
   },
   common: {
     delete: 'Löschen',
-    back: 'Zurück'
+    back: 'Zurück',
+    open: 'Öffnen'
   },
   library: {
     empty: 'Deine Bibliothek ist leer',
