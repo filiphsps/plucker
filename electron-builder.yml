@@ -6,7 +6,6 @@ compression: normal
 # Rewrites the macOS Helper bundles' CFBundleName (which electron-builder leaves as
 # the upstream "Electron Helper (...)") to match productName. See the script header.
 afterPack: scripts/after-pack.mjs
-concurrency: 6
 directories:
   buildResources: build
 files:
