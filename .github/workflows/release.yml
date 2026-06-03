@@ -99,6 +99,13 @@ jobs:
 
       - run: pnpm run build
 
+      # electron-builder ships node_modules' better-sqlite3 binary as-is (npmRebuild: false),
+      # and these runners are Apple Silicon — so without this the x64 DMG would ship an
+      # arm64-only better_sqlite3.node that can't dlopen on Intel (the app never opens a
+      # window). Build a universal x86_64+arm64 binary from the patched source so a single
+      # binary loads on both arches. The step self-verifies the result is fat.
+      - run: node scripts/build-better-sqlite3-universal.mjs
+
       # One build → this arch's zip (+ blockmap) and DMG, plus its latest-mac.yml.
       - run: pnpm exec electron-builder --mac zip dmg --${{ matrix.arch }} --config electron-builder.yml --publish never
 

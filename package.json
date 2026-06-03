@@ -36,7 +36,7 @@
     "postinstall": "electron-builder install-app-deps && node scripts/fetch-binaries.mjs",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "build:win": "pnpm run build && electron-builder --win",
-    "build:mac": "node scripts/fetch-binaries.mjs --all && pnpm run build && electron-builder --mac --arm64 --x64 --config electron-builder.yml --publish never",
+    "build:mac": "node scripts/fetch-binaries.mjs --all && pnpm run build && node scripts/build-better-sqlite3-universal.mjs && electron-builder --mac --arm64 --x64 --config electron-builder.yml --publish never",
     "build:linux": "pnpm run build && electron-builder --linux",
     "fetch-binaries": "node scripts/fetch-binaries.mjs"
   },
