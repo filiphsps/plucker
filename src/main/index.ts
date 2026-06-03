@@ -1,7 +1,8 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences, screen } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, systemPreferences, screen, protocol, net } from 'electron'
 import { join } from 'path'
 import { arch } from 'node:os'
 import { existsSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { version as appVersion } from '../../package.json'
@@ -72,6 +73,15 @@ import type {
 // Set the app name as early as possible so the macOS app menu + About panel
 // (built when the app becomes ready) read "Plucker" instead of "Electron".
 app.setName('Plucker')
+
+// Privileged scheme so the renderer can stream library blobs (range-capable) for the
+// hover-preview player and the editor transport, without exposing file paths.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'plucker-audio',
+    privileges: { stream: true, supportFetchAPI: true, secure: true, bypassCSP: true }
+  }
+])
 
 // Surface otherwise-fatal errors into the unified log (file + dev console) instead of
 // letting them vanish into a silent crash. Installed before any async work runs.
@@ -145,6 +155,15 @@ function registerIpc(getWindow: () => BrowserWindow | null): void {
   const libraryStore = createContentStore(join(pluckerDir(), 'blobs'))
   const libraryRepo = createRepo(getLibraryDb())
   collectGarbage(libraryRepo, libraryStore)
+  // plucker-audio://<sha256> → stream that blob (range-capable). Only well-formed hashes that exist.
+  protocol.handle('plucker-audio', (request) => {
+    const hash = new URL(request.url).hostname
+    if (!/^[0-9a-f]{64}$/.test(hash)) return new Response(null, { status: 400 })
+    const file = libraryStore.pathFor(hash)
+    if (!existsSync(file)) return new Response(null, { status: 404 })
+    // net.fetch of a file:// URL honours the forwarded Range header (seek/scrub).
+    return net.fetch(pathToFileURL(file).toString(), { headers: request.headers })
+  })
   // Recompute cold versions on demand by replaying their (deterministic) chains in the
   // main process. analyze/media off-thread hosts are omitted — the affected transforms
   // fall back to inline execution.
