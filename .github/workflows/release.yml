@@ -15,6 +15,7 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      sha: ${{ steps.release.outputs.sha }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release
@@ -228,3 +229,97 @@ jobs:
               "$name" "$GITHUB_REPOSITORY" "$TAG" "$name" >> body.md
           done
           gh release edit "$TAG" --notes-file body.md
+
+  # Safety net. Once the Release PR is merged, release-please publishes the GitHub
+  # release + tag pointing at the automated `chore(main): release X.Y.Z` bump
+  # commit, and the jobs above attach the assets/metadata. If any of those fail,
+  # the published release is left broken (missing or partial DMGs / update
+  # metadata). This job tears that release back down so master returns to a clean,
+  # pre-release state and release-please re-proposes the same version on the next
+  # push.
+  #
+  # Guard: runs ONLY when a release was actually created AND a downstream release
+  # job failed — never on a normal no-release push (build/finalize are skipped, not
+  # failed) and never on cancellation. `!cancelled()` is required so the job is
+  # allowed to run despite its failed dependencies.
+  rollback-release:
+    needs: [release-please, build-macos, finalize-metadata]
+    if: >-
+      ${{ !cancelled()
+      && needs.release-please.outputs.release_created == 'true'
+      && (needs.build-macos.result == 'failure' || needs.finalize-metadata.result == 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      # Full history + master (not the tag): we need to revert the bump commit and
+      # push the revert. checkout persists GITHUB_TOKEN, so the push is authenticated.
+      - uses: actions/checkout@v6
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Delete the release + tag, then revert the automated bump
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
+        run: |
+          set -euo pipefail
+          echo "::warning::Release job failed for $TAG — rolling the release back."
+
+          # Resolve the released commit before deleting the tag (fall back to the
+          # tag's target if release-please didn't surface a sha).
+          if [ -z "${RELEASE_SHA:-}" ]; then
+            RELEASE_SHA=$(git rev-list -n 1 "$TAG" 2>/dev/null || true)
+          fi
+          if [ -z "${RELEASE_SHA:-}" ]; then
+            echo "::error::Could not resolve the released commit for $TAG."
+            exit 1
+          fi
+
+          # 1) Delete the GitHub release and its git tag (removes all uploaded assets).
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --cleanup-tag --yes
+            echo "Deleted release and tag $TAG."
+          else
+            git push origin ":refs/tags/$TAG" || true
+            echo "Release $TAG was absent; removed the tag if it existed."
+          fi
+
+          # 2) Identify the automated version-bump commit. `sha` is the released
+          #    commit; if the Release PR landed as a merge commit, the bump is its
+          #    second parent (the release-please branch tip).
+          PARENTS=$(( $(git rev-list --parents -n 1 "$RELEASE_SHA" | wc -w) - 1 ))
+          if [ "$PARENTS" -ge 2 ]; then
+            BUMP_SHA=$(git rev-parse "${RELEASE_SHA}^2")
+            REVERT_ARGS=(-m 1 "$RELEASE_SHA")
+          else
+            BUMP_SHA="$RELEASE_SHA"
+            REVERT_ARGS=("$RELEASE_SHA")
+          fi
+
+          # 3) Verify the bump was authored by the release bot before rewriting
+          #    history — never auto-revert a human-authored commit.
+          NAME=$(git log -1 --format='%an' "$BUMP_SHA")
+          EMAIL=$(git log -1 --format='%ae' "$BUMP_SHA")
+          SUBJECT=$(git log -1 --format='%s' "$BUMP_SHA")
+          echo "Bump commit $BUMP_SHA: \"$SUBJECT\" by $NAME <$EMAIL>"
+          if [ "$NAME" != "github-actions[bot]" ] \
+             && [[ "$EMAIL" != *"github-actions[bot]@users.noreply.github.com" ]]; then
+            echo "::error::$BUMP_SHA was authored by '$NAME <$EMAIL>', not the release bot — refusing to revert."
+            exit 1
+          fi
+
+          # 4) Revert the bump on master. release-please re-proposes the release on
+          #    the next push; pushes via GITHUB_TOKEN don't re-trigger workflows, so
+          #    this can't loop.
+          #    Branch protection: this pushes the revert directly to master. If master
+          #    is protected against direct pushes (required PRs / status checks), this
+          #    push fails unless GITHUB_TOKEN is allowed to bypass the rule — add the
+          #    actions bot to the branch ruleset's bypass list, or this step errors
+          #    (the release + tag are still deleted; only the commit revert is left
+          #    undone, to be reverted by hand).
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git revert --no-edit "${REVERT_ARGS[@]}"
+          git push origin HEAD:master
+          echo "Reverted $BUMP_SHA and pushed the revert to master."
